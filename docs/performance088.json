@@ -1,0 +1,28 @@
+{
+  "environment": "FreeCAD 1.1.4 / Python 3.11 / OpenCASCADE 7.8.1, Linux offscreen GUI",
+  "case": "Three-plate frame with side guards and top-plate strap outline cutouts",
+  "before_version": "0.87.2",
+  "after_version": "0.88.0",
+  "after_cache": "Matching successful build restored in a fresh FreeCAD process",
+  "before_seconds": {
+    "settings_read": 0.1840478730000541,
+    "editor_open": 0.5628129790000003,
+    "settings_load": 0.18638571499991485,
+    "preview_paint": 0.07412808999993103,
+    "settings_reload": 0.1716604240000379,
+    "create_frame": 22.531334070999947,
+    "unchanged_update": 2.1974478799997996,
+    "guard_tuning": 2.781626861999939
+  },
+  "after_seconds": {
+    "settings_read": 0.14111858199999006,
+    "editor_open": 0.5644786870000189,
+    "settings_load": 0.013446377000036591,
+    "preview_paint": 0.060579876000019794,
+    "settings_reload": 0.016608456999847476,
+    "create_frame": 8.783886260999907,
+    "unchanged_update": 0.5984213750000436,
+    "guard_tuning": 1.3090983669999332
+  },
+  "notes": "Illustrative measurements on this runner; actual times depend on geometry and hardware. Initial uncached designs still require exact generation."
+}
