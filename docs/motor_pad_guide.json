@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Round",
+    "description": "Circular motor platform with a direct transition into the arm.",
+    "controls": "Pad width."
+  },
+  {
+    "name": "Rounded square",
+    "description": "Broad square platform with curved outer corners.",
+    "controls": "Pad width and corner radius."
+  },
+  {
+    "name": "Chamfered square",
+    "description": "Square platform with four straight clipped corners.",
+    "controls": "Pad width and chamfer size."
+  },
+  {
+    "name": "Four-lobe",
+    "description": "A central hub with four round ears around the fixing holes.",
+    "controls": "Pad width; ear positions follow the motor pattern."
+  },
+  {
+    "name": "Tapered nose",
+    "description": "A long, narrow outward tip with clipped inner corners.",
+    "controls": "Width, corner size, tip extension and optional tip slot."
+  },
+  {
+    "name": "Arrowhead",
+    "description": "A wider extended tip with sloping sides and clipped inner corners.",
+    "controls": "Width, corner size, tip extension and optional tip slot."
+  },
+  {
+    "name": "Teardrop",
+    "description": "A round bearing platform with a tangent transition into the arm neck.",
+    "controls": "Pad width; neck follows arm width."
+  },
+  {
+    "name": "Shouldered",
+    "description": "A clipped shield with a tapered neck and broad mounting shoulders.",
+    "controls": "Pad width and corner/chamfer size."
+  },
+  {
+    "name": "Compact hex",
+    "description": "Six straight edges around a compact motor platform.",
+    "controls": "Pad width; fixed outline proportions."
+  },
+  {
+    "name": "Scalloped shield",
+    "description": "A shouldered shield with circular reliefs at both sides and the nose.",
+    "controls": "Pad width and scallop/corner size."
+  },
+  {
+    "name": "Crown shield",
+    "description": "Broad shield shoulders with a single shallow circular recess in the outward nose.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Twin-scallop shield",
+    "description": "A compact clipped shield with paired recesses in the side edges.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Tri-scallop shield",
+    "description": "Three shallow scallops at the sides and nose of a tapered shield.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Recessed-nose shield",
+    "description": "A wide, shallow nose recess leaves two short protective front corners.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Swept-shoulder shield",
+    "description": "Long swept shoulders with paired scallops near the forward side edges.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Waist-scallop shield",
+    "description": "Rearward side scallops create a waisted transition into the solid mounting deck.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Broad-crown shield",
+    "description": "Broad front corners with three small edge scallops and a short flat nose.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Faceted-scallop shield",
+    "description": "Angular shield facets with three compact circular edge recesses.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Round-shoulder shield",
+    "description": "Curved neck shoulders lead into a shield with a scalloped nose.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Twin-cheek shield",
+    "description": "High front cheeks with paired side scallops and a broad outward edge.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Split-crown shield",
+    "description": "Two small outward scallops leave a short central crown between them.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  },
+  {
+    "name": "Compact-scallop shield",
+    "description": "A short clipped shield with broad, shallow paired side recesses.",
+    "controls": "Pad width, scallop depth (corner size), neck length and optional neck reliefs."
+  }
+]
