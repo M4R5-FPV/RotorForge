@@ -1,0 +1,11 @@
+{
+  "version": "0.47.0",
+  "portable_tests": 250,
+  "native_expanded_cases": 71,
+  "native_combination_cases": 15,
+  "native_existing_profile_checks": 38,
+  "help_pages": 61,
+  "described_controls": 192,
+  "unchanged_fcstd": 62,
+  "platform": "Linux / FreeCAD 1.1.4"
+}

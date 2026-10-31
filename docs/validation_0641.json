@@ -1,0 +1,16 @@
+{
+  "version": "0.64.1",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 300,
+  "native_checks": [
+    "2 plates/clearance 0.0",
+    "2 plates/clearance 0.05",
+    "2 plates/clearance 1.0",
+    "3 plates/clearance 0.0",
+    "3 plates/clearance 0.05",
+    "3 plates/clearance 1.0"
+  ],
+  "failures": [],
+  "help_pages": 76,
+  "help_controls": 261
+}

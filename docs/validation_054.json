@@ -1,0 +1,68 @@
+{
+  "status": "passed",
+  "checks": [
+    [
+      "Hard mount",
+      "Rounded rectangle",
+      -2.0
+    ],
+    [
+      "Hard mount",
+      "Rounded rectangle",
+      2.0
+    ],
+    [
+      "Hard mount",
+      "Side plate outline",
+      -2.0
+    ],
+    [
+      "Hard mount",
+      "Side plate outline",
+      2.0
+    ],
+    [
+      "Compression pads",
+      "Rounded rectangle",
+      -2.0
+    ],
+    [
+      "Compression pads",
+      "Rounded rectangle",
+      2.0
+    ],
+    [
+      "Compression pads",
+      "Side plate outline",
+      -2.0
+    ],
+    [
+      "Compression pads",
+      "Side plate outline",
+      2.0
+    ],
+    [
+      "Captured inserts",
+      "Rounded rectangle",
+      -2.0
+    ],
+    [
+      "Captured inserts",
+      "Rounded rectangle",
+      2.0
+    ],
+    [
+      "Captured inserts",
+      "Side plate outline",
+      -2.0
+    ],
+    [
+      "Captured inserts",
+      "Side plate outline",
+      2.0
+    ],
+    "Editor and native property roundtrip"
+  ],
+  "failures": [],
+  "portable_tests": 271
+}

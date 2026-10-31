@@ -1,0 +1,940 @@
+{
+  "presentation": {
+    "checks": [
+      [
+        "MotorEnvelopes",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "PropellerDiscs",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "StackEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "CameraEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "master reference visibility remains independent of carbon"
+      ],
+      [
+        "motor size",
+        12.0,
+        7.0
+      ],
+      [
+        "motor size",
+        28.0,
+        16.0
+      ],
+      [
+        "motor size",
+        40.0,
+        22.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        40.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        127.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        254.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        24.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        24.0
+      ],
+      [
+        "detailed switches survive saved-project restoration"
+      ],
+      [
+        "manufacturing STEP excludes all presentation references"
+      ]
+    ],
+    "failures": []
+  },
+  "presentation_gui": {
+    "checks": [
+      "New controls round-trip and live preview does not build CAD",
+      "Per-face reference colours and opaque detailed bodies",
+      "Disabling detail restores simple geometry, colours and transparency"
+    ],
+    "failures": []
+  },
+  "bumper_width": {
+    "checks": [
+      [
+        "Rounded shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Rounded shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Rounded shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Rounded shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Chamfered shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Chamfered shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Chamfered shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Chamfered shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Pointed shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Pointed shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Pointed shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Pointed shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-lobe shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-lobe shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-lobe shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-lobe shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Swept-shoulder shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Swept-shoulder shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Swept-shoulder shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Swept-shoulder shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat-tip shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat-tip shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat-tip shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Flat-tip shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Centre-crown shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Centre-crown shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Centre-crown shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Centre-crown shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Shield shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Shield shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Shield shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Shield shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Recessed-centre shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Recessed-centre shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Recessed-centre shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Recessed-centre shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Stepped shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Stepped shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Stepped shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Stepped shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Capsule shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Capsule shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Capsule shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Capsule shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Bullnose shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Bullnose shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Bullnose shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Bullnose shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Arrowhead shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Arrowhead shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Arrowhead shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Arrowhead shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "V-recess shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "V-recess shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "V-recess shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "V-recess shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-shoulder shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-shoulder shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-shoulder shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Twin-shoulder shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Clipped-corner shoe",
+        8.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Clipped-corner shoe",
+        24.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Clipped-corner shoe",
+        0.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "Clipped-corner shoe",
+        80.0,
+        "valid, connected, fit clear, shoulder joined, closed STL"
+      ],
+      [
+        "plate nose",
+        "Rounded nose"
+      ],
+      [
+        "plate nose",
+        "V-notch"
+      ],
+      [
+        "plate nose",
+        "Twin lobes"
+      ],
+      [
+        "selective rebuild",
+        [
+          "FrontBumper",
+          "FrameCGMarker"
+        ]
+      ],
+      [
+        "saved project width",
+        70.0
+      ]
+    ],
+    "failures": []
+  },
+  "bumper_controls": {
+    "checks": [
+      [
+        "Follow bottom plate",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Follow bottom plate",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Rounded shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Rounded shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Flat shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Flat shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Chamfered shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Chamfered shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Pointed shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Pointed shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Twin-lobe shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Twin-lobe shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Swept-shoulder shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Swept-shoulder shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Flat-tip shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Flat-tip shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Centre-crown shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Centre-crown shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Shield shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Shield shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Recessed-centre shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Recessed-centre shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Stepped shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Stepped shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Capsule shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Capsule shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Bullnose shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Bullnose shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Arrowhead shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Arrowhead shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "V-recess shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "V-recess shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Twin-shoulder shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Twin-shoulder shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Clipped-corner shoe",
+        5.0,
+        1.0,
+        "valid connected shoe and closed mesh"
+      ],
+      [
+        "Clipped-corner shoe",
+        90.0,
+        90.0,
+        "valid connected shoe and closed mesh"
+      ],
+      "Shorter lip removes only upper capture stock, retaining the sole reach"
+    ],
+    "failures": []
+  },
+  "front_bumper": {
+    "checks": [
+      "Follow bottom plate valid shoe, carbon clearance and closed print mesh",
+      "Rounded shoe valid shoe, carbon clearance and closed print mesh",
+      "Flat shoe valid shoe, carbon clearance and closed print mesh",
+      "Chamfered shoe valid shoe, carbon clearance and closed print mesh",
+      "Pointed shoe valid shoe, carbon clearance and closed print mesh",
+      "Twin-lobe shoe valid shoe, carbon clearance and closed print mesh",
+      "Swept-shoulder shoe valid shoe, carbon clearance and closed print mesh",
+      "Flat-tip shoe valid shoe, carbon clearance and closed print mesh",
+      "Centre-crown shoe valid shoe, carbon clearance and closed print mesh",
+      "Shield shoe valid shoe, carbon clearance and closed print mesh",
+      "Recessed-centre shoe valid shoe, carbon clearance and closed print mesh",
+      "Stepped shoe valid shoe, carbon clearance and closed print mesh",
+      "Capsule shoe valid shoe, carbon clearance and closed print mesh",
+      "Bullnose shoe valid shoe, carbon clearance and closed print mesh",
+      "Arrowhead shoe valid shoe, carbon clearance and closed print mesh",
+      "V-recess shoe valid shoe, carbon clearance and closed print mesh",
+      "Twin-shoulder shoe valid shoe, carbon clearance and closed print mesh",
+      "Clipped-corner shoe valid shoe, carbon clearance and closed print mesh",
+      "Finished Rounded nose followed by shoe",
+      "Finished V-notch followed by shoe",
+      "Finished Twin lobes followed by shoe",
+      "Long shoe retains front bolt-head access and contributes to mass/CG",
+      "Two plates Above bottom plate with camera tabs",
+      "Two plates Below bottom plate with camera tabs",
+      "Three plates with closed front side guards",
+      "Toe edit reuses carbon and existing TPU: ['FrontBumper', 'FrameCGMarker']",
+      "Separate print STL, assembly/print STEP and saved frame"
+    ],
+    "failures": []
+  },
+  "gui_bumper_width": {
+    "checks": [
+      [
+        "Follow bottom plate",
+        24.0
+      ],
+      [
+        "Follow bottom plate",
+        0.0
+      ],
+      [
+        "Follow bottom plate",
+        80.0
+      ],
+      [
+        "Rounded shoe",
+        24.0
+      ],
+      [
+        "Rounded shoe",
+        0.0
+      ],
+      [
+        "Rounded shoe",
+        80.0
+      ],
+      [
+        "Flat shoe",
+        24.0
+      ],
+      [
+        "Flat shoe",
+        0.0
+      ],
+      [
+        "Flat shoe",
+        80.0
+      ],
+      [
+        "Chamfered shoe",
+        24.0
+      ],
+      [
+        "Chamfered shoe",
+        0.0
+      ],
+      [
+        "Chamfered shoe",
+        80.0
+      ],
+      [
+        "Pointed shoe",
+        24.0
+      ],
+      [
+        "Pointed shoe",
+        0.0
+      ],
+      [
+        "Pointed shoe",
+        80.0
+      ],
+      [
+        "Twin-lobe shoe",
+        24.0
+      ],
+      [
+        "Twin-lobe shoe",
+        0.0
+      ],
+      [
+        "Twin-lobe shoe",
+        80.0
+      ],
+      [
+        "Swept-shoulder shoe",
+        24.0
+      ],
+      [
+        "Swept-shoulder shoe",
+        0.0
+      ],
+      [
+        "Swept-shoulder shoe",
+        80.0
+      ],
+      [
+        "Flat-tip shoe",
+        24.0
+      ],
+      [
+        "Flat-tip shoe",
+        0.0
+      ],
+      [
+        "Flat-tip shoe",
+        80.0
+      ],
+      [
+        "Centre-crown shoe",
+        24.0
+      ],
+      [
+        "Centre-crown shoe",
+        0.0
+      ],
+      [
+        "Centre-crown shoe",
+        80.0
+      ],
+      [
+        "Shield shoe",
+        24.0
+      ],
+      [
+        "Shield shoe",
+        0.0
+      ],
+      [
+        "Shield shoe",
+        80.0
+      ],
+      [
+        "Recessed-centre shoe",
+        24.0
+      ],
+      [
+        "Recessed-centre shoe",
+        0.0
+      ],
+      [
+        "Recessed-centre shoe",
+        80.0
+      ],
+      [
+        "Stepped shoe",
+        24.0
+      ],
+      [
+        "Stepped shoe",
+        0.0
+      ],
+      [
+        "Stepped shoe",
+        80.0
+      ],
+      [
+        "Capsule shoe",
+        24.0
+      ],
+      [
+        "Capsule shoe",
+        0.0
+      ],
+      [
+        "Capsule shoe",
+        80.0
+      ],
+      [
+        "Bullnose shoe",
+        24.0
+      ],
+      [
+        "Bullnose shoe",
+        0.0
+      ],
+      [
+        "Bullnose shoe",
+        80.0
+      ],
+      [
+        "Arrowhead shoe",
+        24.0
+      ],
+      [
+        "Arrowhead shoe",
+        0.0
+      ],
+      [
+        "Arrowhead shoe",
+        80.0
+      ],
+      [
+        "V-recess shoe",
+        24.0
+      ],
+      [
+        "V-recess shoe",
+        0.0
+      ],
+      [
+        "V-recess shoe",
+        80.0
+      ],
+      [
+        "Twin-shoulder shoe",
+        24.0
+      ],
+      [
+        "Twin-shoulder shoe",
+        0.0
+      ],
+      [
+        "Twin-shoulder shoe",
+        80.0
+      ],
+      [
+        "Clipped-corner shoe",
+        24.0
+      ],
+      [
+        "Clipped-corner shoe",
+        0.0
+      ],
+      [
+        "Clipped-corner shoe",
+        80.0
+      ]
+    ],
+    "failures": []
+  }
+}

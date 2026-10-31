@@ -1,0 +1,45 @@
+{
+  "status": "passed",
+  "checks": [
+    "All carbon parts including camera sides and locks share opaque graphite; pad is matte near-black",
+    "New stack, LiPo and VTX reference colors retain their prior defaults",
+    "Updating recolors existing carbon/pad parts and preserves customized electronics references",
+    "Physical/reference colors and satin/matte shininess persist after saving and reopening"
+  ],
+  "material_properties": {
+    "TopPlate": {
+      "color": [
+        0.18039216101169586,
+        0.1882352977991104,
+        0.20000000298023224,
+        1.0
+      ],
+      "shininess": 32.0
+    },
+    "CameraMountLeft": {
+      "color": [
+        0.18039216101169586,
+        0.1882352977991104,
+        0.20000000298023224,
+        1.0
+      ],
+      "shininess": 32.0
+    },
+    "LiPoPad": {
+      "color": [
+        0.054901961237192154,
+        0.05882352963089943,
+        0.06666667014360428,
+        1.0
+      ],
+      "shininess": 2.0
+    }
+  },
+  "version": "0.50.0",
+  "portable_tests": 254,
+  "freecad": "1.1.4",
+  "platform": "Linux offscreen GUI",
+  "help_pages": 57,
+  "help_controls": 192,
+  "geometry_changes": false
+}

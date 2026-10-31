@@ -1,0 +1,19 @@
+{
+  "version": "0.48.0",
+  "portable_tests": 254,
+  "native_platform_arm_vtx_export_cases": 60,
+  "new_grip_configurations": 20,
+  "help_pages": 57,
+  "described_controls": 193,
+  "unchanged_fcstd": 62,
+  "retained_pad_geometries_identical": 10,
+  "platform": "Linux / FreeCAD 1.1.4",
+  "rotation_benchmark": {
+    "updates": 11,
+    "arms_per_update": 4,
+    "scalloped_seconds": 0.299,
+    "bolt_following_seconds": 0.276,
+    "reinforced_neck_seconds": 0.186
+  },
+  "help_artwork_revision": "Full colour review; 20-shape unified catalogue and smooth union diagrams"
+}

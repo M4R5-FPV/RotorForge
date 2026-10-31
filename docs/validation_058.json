@@ -1,0 +1,355 @@
+{
+  "version": "0.58.0",
+  "runtime": "FreeCAD 1.1.4 on Linux",
+  "portable_tests": 284,
+  "native_checks": 109,
+  "help_pages": 75,
+  "visible_controls": 271,
+  "reports": {
+    "rear_fittings": {
+      "checks": [
+        {
+          "name": "Subset 1 / 2 rearmost standoffs",
+          "seconds": 0.82,
+          "volume": 4667.22
+        },
+        {
+          "name": "Subset 2 / 2 rearmost standoffs",
+          "seconds": 0.68,
+          "volume": 4343.31
+        },
+        {
+          "name": "Subset 3 / 2 rearmost standoffs",
+          "seconds": 1.24,
+          "volume": 10322.01
+        },
+        {
+          "name": "Subset 4 / 2 rearmost standoffs",
+          "seconds": 1.48,
+          "volume": 8239.88
+        },
+        {
+          "name": "Subset 5 / 2 rearmost standoffs",
+          "seconds": 1.85,
+          "volume": 10827.31
+        },
+        {
+          "name": "Subset 6 / 2 rearmost standoffs",
+          "seconds": 1.9,
+          "volume": 10817.25
+        },
+        {
+          "name": "Subset 7 / 2 rearmost standoffs",
+          "seconds": 1.82,
+          "volume": 12568.33
+        },
+        {
+          "name": "Subset 1 / 4 rearmost standoffs",
+          "seconds": 2.83,
+          "volume": 8342.01
+        },
+        {
+          "name": "Subset 2 / 4 rearmost standoffs",
+          "seconds": 1.52,
+          "volume": 8021.37
+        },
+        {
+          "name": "Subset 3 / 4 rearmost standoffs",
+          "seconds": 2.01,
+          "volume": 14002.69
+        },
+        {
+          "name": "Subset 4 / 4 rearmost standoffs",
+          "seconds": 1.69,
+          "volume": 11917.58
+        },
+        {
+          "name": "Subset 5 / 4 rearmost standoffs",
+          "seconds": 2.61,
+          "volume": 14503.04
+        },
+        {
+          "name": "Subset 6 / 4 rearmost standoffs",
+          "seconds": 3.14,
+          "volume": 14575.12
+        },
+        {
+          "name": "Subset 7 / 4 rearmost standoffs",
+          "seconds": 8.3,
+          "volume": 16280.91
+        },
+        {
+          "name": "Height 22.0 / 2 rearmost standoffs",
+          "seconds": 5.28,
+          "volume": 12568.33
+        },
+        {
+          "name": "Height 22.0 / 4 rearmost standoffs",
+          "seconds": 2.65,
+          "volume": 16259.68
+        },
+        {
+          "name": "Height 25.0 / 2 rearmost standoffs",
+          "seconds": 2.06,
+          "volume": 12568.33
+        },
+        {
+          "name": "Height 25.0 / 4 rearmost standoffs",
+          "seconds": 2.98,
+          "volume": 16280.91
+        },
+        {
+          "name": "Height 30.0 / 2 rearmost standoffs",
+          "seconds": 2.52,
+          "volume": 12568.33
+        },
+        {
+          "name": "Height 30.0 / 4 rearmost standoffs",
+          "seconds": 4.33,
+          "volume": 16280.91
+        },
+        {
+          "name": "SMA / Pigtail / bulkhead / 0.0",
+          "seconds": 1.54,
+          "volume": 11973.91
+        },
+        {
+          "name": "SMA / Pigtail / bulkhead / 60.0",
+          "seconds": 1.61,
+          "volume": 12830.94
+        },
+        {
+          "name": "SMA / Split clamp / 0.0",
+          "seconds": 2.38,
+          "volume": 12492.51
+        },
+        {
+          "name": "SMA / Split clamp / 60.0",
+          "seconds": 2.74,
+          "volume": 13346.13
+        },
+        {
+          "name": "RP-SMA / Pigtail / bulkhead / 0.0",
+          "seconds": 1.82,
+          "volume": 11973.91
+        },
+        {
+          "name": "RP-SMA / Pigtail / bulkhead / 60.0",
+          "seconds": 1.62,
+          "volume": 12830.94
+        },
+        {
+          "name": "RP-SMA / Split clamp / 0.0",
+          "seconds": 2.29,
+          "volume": 12492.51
+        },
+        {
+          "name": "RP-SMA / Split clamp / 60.0",
+          "seconds": 2.63,
+          "volume": 13346.13
+        },
+        {
+          "name": "MMCX / Pigtail / bulkhead / 0.0",
+          "seconds": 1.6,
+          "volume": 12017.1
+        },
+        {
+          "name": "MMCX / Pigtail / bulkhead / 60.0",
+          "seconds": 1.65,
+          "volume": 12874.14
+        },
+        {
+          "name": "MMCX / Split clamp / 0.0",
+          "seconds": 2.13,
+          "volume": 12339.27
+        },
+        {
+          "name": "MMCX / Split clamp / 60.0",
+          "seconds": 2.43,
+          "volume": 13182.45
+        },
+        {
+          "name": "u.FL / Pigtail / bulkhead / 0.0",
+          "seconds": 1.47,
+          "volume": 12039.19
+        },
+        {
+          "name": "u.FL / Pigtail / bulkhead / 60.0",
+          "seconds": 1.53,
+          "volume": 12896.23
+        },
+        {
+          "name": "u.FL / Split clamp / 0.0",
+          "seconds": 2.33,
+          "volume": 12157.29
+        },
+        {
+          "name": "u.FL / Split clamp / 60.0",
+          "seconds": 2.87,
+          "volume": 12970.3
+        },
+        {
+          "name": "ELRS 2.4 GHz / Slide-in eyes",
+          "seconds": 1.7,
+          "volume": 12568.33
+        },
+        {
+          "name": "ELRS 2.4 GHz / Split clips",
+          "seconds": 1.57,
+          "volume": 12444.14
+        },
+        {
+          "name": "ELRS 900 MHz / Slide-in eyes",
+          "seconds": 1.49,
+          "volume": 12568.33
+        },
+        {
+          "name": "ELRS 900 MHz / Split clips",
+          "seconds": 2.91,
+          "volume": 12444.14
+        },
+        {
+          "name": "ELRS Dual 2.4 GHz / Slide-in eyes",
+          "seconds": 1.9,
+          "volume": 14734.11
+        },
+        {
+          "name": "ELRS Dual 2.4 GHz / Split clips",
+          "seconds": 1.64,
+          "volume": 14487.83
+        },
+        {
+          "name": "ELRS Dual 900 MHz / Slide-in eyes",
+          "seconds": 1.58,
+          "volume": 14734.11
+        },
+        {
+          "name": "ELRS Dual 900 MHz / Split clips",
+          "seconds": 1.87,
+          "volume": 14487.83
+        },
+        {
+          "name": "ELRS 2.4 + 900 MHz / Slide-in eyes",
+          "seconds": 1.83,
+          "volume": 14734.11
+        },
+        {
+          "name": "ELRS 2.4 + 900 MHz / Split clips",
+          "seconds": 1.63,
+          "volume": 14487.83
+        },
+        {
+          "name": "GPS tilt -45.0",
+          "seconds": 1.61,
+          "volume": 16008.87
+        },
+        {
+          "name": "GPS tilt 0.0",
+          "seconds": 1.56,
+          "volume": 12568.33
+        },
+        {
+          "name": "GPS tilt 45.0",
+          "seconds": 1.4,
+          "volume": 14356.33
+        },
+        {
+          "name": "Independent widths / 2 rearmost standoffs",
+          "seconds": 1.46,
+          "volume": 13284.63
+        },
+        {
+          "name": "Independent widths / 4 rearmost standoffs",
+          "seconds": 2.75,
+          "volume": 16987.25
+        },
+        {
+          "name": "Analog one antenna",
+          "seconds": 1.54,
+          "volume": 12568.33
+        }
+      ],
+      "failures": []
+    },
+    "pad_protectors": {
+      "checks": [
+        "Pad Round",
+        "Pad Rounded square",
+        "Pad Chamfered square",
+        "Pad Four-lobe",
+        "Pad Tapered nose",
+        "Pad Arrowhead",
+        "Pad Teardrop",
+        "Pad Shouldered",
+        "Pad Compact hex",
+        "Pad Scalloped shield",
+        "Pad Crown shield",
+        "Pad Twin-scallop shield",
+        "Pad Tri-scallop shield",
+        "Pad Recessed-nose shield",
+        "Pad Swept-shoulder shield",
+        "Pad Waist-scallop shield",
+        "Pad Broad-crown shield",
+        "Pad Faceted-scallop shield",
+        "Pad Round-shoulder shield",
+        "Pad Twin-cheek shield",
+        "Pad Split-crown shield",
+        "Pad Compact-scallop shield",
+        "Rotation Motor centre -35.0 / Motor screws",
+        "Rotation Motor centre -35.0 / Zip ties",
+        "Rotation Motor centre 35.0 / Motor screws",
+        "Rotation Motor centre 35.0 / Zip ties",
+        "Rotation Pad beginning -35.0 / Motor screws",
+        "Rotation Pad beginning -35.0 / Zip ties",
+        "Rotation Pad beginning 35.0 / Motor screws",
+        "Rotation Pad beginning 35.0 / Zip ties",
+        "Fixings 3-hole bolt circle",
+        "Fixings 4-hole bolt circle",
+        "Guards 22.0 / Solid / rear False",
+        "Guards 22.0 / Solid / rear True",
+        "Guards 22.0 / Vented / rear False",
+        "Guards 22.0 / Vented / rear True",
+        "Guards 30.0 / Solid / rear False",
+        "Guards 30.0 / Solid / rear True",
+        "Guards 30.0 / Vented / rear False",
+        "Guards 30.0 / Vented / rear True"
+      ],
+      "failures": []
+    },
+    "guard_defaults": {
+      "checks": [
+        "Guards 22.0 / Solid / rear False",
+        "Guards 22.0 / Solid / rear True",
+        "Guards 22.0 / Vented / rear False",
+        "Guards 22.0 / Vented / rear True",
+        "Guards 30.0 / Solid / rear False",
+        "Guards 30.0 / Solid / rear True",
+        "Guards 30.0 / Vented / rear False",
+        "Guards 30.0 / Vented / rear True"
+      ],
+      "failures": []
+    },
+    "frame_modes": {
+      "checks": [
+        "Below bottom plateFalse",
+        "Below bottom plateTrue",
+        "Above bottom plateTrue",
+        "Eight standoffs 2 rearmost standoffs",
+        "Eight standoffs 4 rearmost standoffs",
+        "Full sleeve grip"
+      ],
+      "failures": []
+    },
+    "persistence_export_editor": {
+      "checks": [
+        "All nine printable parts together, compact rear pair, camera travel +20 mm",
+        "Update, save/reopen and export nine separate printable parts plus carbon CNC profiles",
+        "Ten editor refresh cycles and all new previews without native solid calls"
+      ],
+      "failures": []
+    }
+  },
+  "limitations": [
+    "No Windows/macOS execution or physical printing, hardware retention, fatigue or flight validation."
+  ]
+}

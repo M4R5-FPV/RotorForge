@@ -1,0 +1,327 @@
+{
+  "version": "0.61.0",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 279,
+  "native_checks": [
+    "Restore Example_2_plates.FCStd",
+    "Restore Example_2_plates_6_standoffs.FCStd",
+    "Restore Example_2_plates_8_standoffs.FCStd",
+    "Restore Example_3_plates.FCStd",
+    "Restore Example_3_plates_6_standoffs.FCStd",
+    "Restore Example_3_plates_8_standoffs.FCStd",
+    "Restore Example_ArmMatchedBottom_3_plates.FCStd",
+    "Restore Example_ArmMatchedMid_3_plates.FCStd",
+    "Restore Example_ClampKeystone_8_shared_standoffs.FCStd",
+    "Restore Example_ClampKeystone_Above_2_plates.FCStd",
+    "Restore Example_ClampKeystone_Below_2_plates.FCStd",
+    "Restore Example_CombinedAirflow_3_plates.FCStd",
+    "Restore Example_CompactKeystone_3_plates.FCStd",
+    "Restore Example_CompactKeystone_Below_2_plates.FCStd",
+    "Restore Example_FPV_28mm_2_plates.FCStd",
+    "Restore Example_FPV_AdjustableCamera_3_plates.FCStd",
+    "Restore Example_FPV_Airflow_3_plates.FCStd",
+    "Restore Example_FPV_Airflow_CombinedClamp_2_plates.FCStd",
+    "Restore Example_FPV_Analog_2_plates.FCStd",
+    "Restore Example_FPV_Analog_3_plates.FCStd",
+    "Restore Example_FPV_Camera_Uptilt_Cutout.FCStd",
+    "Restore Example_FPV_CombinedClamp_Arms_Above_2_plates.FCStd",
+    "Restore Example_FPV_CombinedClamp_Arms_Below_2_plates.FCStd",
+    "Restore Example_FPV_CombinedClamp_NoStraps.FCStd",
+    "Restore Example_FPV_Deadcat_Shared_3_plates.FCStd",
+    "Restore Example_FPV_Digital_3_plates.FCStd",
+    "Restore Example_FPV_ExtendedCameraBase_3_plates.FCStd",
+    "Restore Example_FPV_FixedCamera_3_plates.FCStd",
+    "Restore Example_FPV_Keystone_3_plates.FCStd",
+    "Restore Example_FPV_Keystone_NoStraps_3_plates.FCStd",
+    "Restore Example_FPV_Mini22_Vertical6p5.FCStd",
+    "Restore Example_FPV_SinglePivot_3_plates.FCStd",
+    "Restore Example_FPV_SlopedCamera_CustomPosition_3_plates.FCStd",
+    "Restore Example_FPV_SlopedCamera_DualSlots_3_plates.FCStd",
+    "Restore Example_FPV_SlopedCamera_UpperPivot_3_plates.FCStd",
+    "Restore Example_FittedRoots_3_plates.FCStd",
+    "Restore Example_FourLobe_MotorEnds.FCStd",
+    "Restore Example_LowerCapture_RootReliefs_2_plates.FCStd",
+    "Restore Example_MotorPad_Arrowhead_2_plates.FCStd",
+    "Restore Example_MotorPad_CompactHex.FCStd",
+    "Restore Example_MotorPad_ScallopedShield.FCStd",
+    "Restore Example_MotorPad_Shouldered.FCStd",
+    "Restore Example_MotorPad_TaperedNose_3_plates.FCStd",
+    "Restore Example_MotorPad_Teardrop.FCStd",
+    "Restore Example_OffsetCentre_Deadcat.FCStd",
+    "Restore Example_OutlineNotches_2_plates.FCStd",
+    "Restore Example_OutlineNotches_3_plates.FCStd",
+    "Restore Example_SharedArms_2_plates.FCStd",
+    "Restore Example_SharedArms_3_plates.FCStd",
+    "Restore Example_StackReferencedBottom_3_plates.FCStd",
+    "Restore Example_StretchedX_22rear_30front.FCStd",
+    "Restore Example_StretchedX_8_standoffs.FCStd",
+    "Restore Example_WideCentre_3_plates.FCStd",
+    "Restore Example_WideRoots_CustomBolts_2_plates.FCStd",
+    "Restore Example_WideRoots_CustomBolts_3_plates.FCStd",
+    "Restore Legacy_0.1.FCStd",
+    "Restore Legacy_0.10.FCStd",
+    "Restore Legacy_0.4.FCStd",
+    "Restore Legacy_0.5.FCStd",
+    "Restore Legacy_0.7_Clamps.FCStd",
+    "Restore Legacy_0.8.FCStd",
+    "Restore Legacy_0.9.FCStd",
+    "One failed CAD attempt per signature; changed parameters and explicit retry remain possible",
+    "Migration removes old rear parts/properties; eight current TPU solids survive save/reopen and export",
+    "Six editor configurations render the overall frame and part modes with no CAD solid calls",
+    "Direct parameter edit after restore performs one real native build and changes the arm",
+    "Failed direct edit attempts geometry once across dependents and recovers on correction"
+  ],
+  "failures": [],
+  "restore_timings": [
+    {
+      "file": "Example_2_plates.FCStd",
+      "seconds": 0.2429436299998997
+    },
+    {
+      "file": "Example_2_plates_6_standoffs.FCStd",
+      "seconds": 0.16111705100047402
+    },
+    {
+      "file": "Example_2_plates_8_standoffs.FCStd",
+      "seconds": 0.16467710100005206
+    },
+    {
+      "file": "Example_3_plates.FCStd",
+      "seconds": 0.17480744599924947
+    },
+    {
+      "file": "Example_3_plates_6_standoffs.FCStd",
+      "seconds": 0.18349900100020022
+    },
+    {
+      "file": "Example_3_plates_8_standoffs.FCStd",
+      "seconds": 0.18519946100059315
+    },
+    {
+      "file": "Example_ArmMatchedBottom_3_plates.FCStd",
+      "seconds": 0.189248724999743
+    },
+    {
+      "file": "Example_ArmMatchedMid_3_plates.FCStd",
+      "seconds": 0.1844452769992131
+    },
+    {
+      "file": "Example_ClampKeystone_8_shared_standoffs.FCStd",
+      "seconds": 0.1695629830001053
+    },
+    {
+      "file": "Example_ClampKeystone_Above_2_plates.FCStd",
+      "seconds": 0.1719421150000926
+    },
+    {
+      "file": "Example_ClampKeystone_Below_2_plates.FCStd",
+      "seconds": 0.17566252200049348
+    },
+    {
+      "file": "Example_CombinedAirflow_3_plates.FCStd",
+      "seconds": 0.18611336899994058
+    },
+    {
+      "file": "Example_CompactKeystone_3_plates.FCStd",
+      "seconds": 0.17363931099953334
+    },
+    {
+      "file": "Example_CompactKeystone_Below_2_plates.FCStd",
+      "seconds": 0.1731940219997341
+    },
+    {
+      "file": "Example_FPV_28mm_2_plates.FCStd",
+      "seconds": 0.17761430800055678
+    },
+    {
+      "file": "Example_FPV_AdjustableCamera_3_plates.FCStd",
+      "seconds": 0.1778469459995904
+    },
+    {
+      "file": "Example_FPV_Airflow_3_plates.FCStd",
+      "seconds": 0.1875241300003836
+    },
+    {
+      "file": "Example_FPV_Airflow_CombinedClamp_2_plates.FCStd",
+      "seconds": 0.17759867800032225
+    },
+    {
+      "file": "Example_FPV_Analog_2_plates.FCStd",
+      "seconds": 0.1730881160001445
+    },
+    {
+      "file": "Example_FPV_Analog_3_plates.FCStd",
+      "seconds": 0.19147910199990292
+    },
+    {
+      "file": "Example_FPV_Camera_Uptilt_Cutout.FCStd",
+      "seconds": 0.17970117000004393
+    },
+    {
+      "file": "Example_FPV_CombinedClamp_Arms_Above_2_plates.FCStd",
+      "seconds": 0.17973622000044998
+    },
+    {
+      "file": "Example_FPV_CombinedClamp_Arms_Below_2_plates.FCStd",
+      "seconds": 0.1878912339998351
+    },
+    {
+      "file": "Example_FPV_CombinedClamp_NoStraps.FCStd",
+      "seconds": 0.20905613400009315
+    },
+    {
+      "file": "Example_FPV_Deadcat_Shared_3_plates.FCStd",
+      "seconds": 0.22055706900027872
+    },
+    {
+      "file": "Example_FPV_Digital_3_plates.FCStd",
+      "seconds": 0.19176092100042297
+    },
+    {
+      "file": "Example_FPV_ExtendedCameraBase_3_plates.FCStd",
+      "seconds": 0.18234712299999956
+    },
+    {
+      "file": "Example_FPV_FixedCamera_3_plates.FCStd",
+      "seconds": 0.18450149500040425
+    },
+    {
+      "file": "Example_FPV_Keystone_3_plates.FCStd",
+      "seconds": 0.20043325799997547
+    },
+    {
+      "file": "Example_FPV_Keystone_NoStraps_3_plates.FCStd",
+      "seconds": 0.1820230100001936
+    },
+    {
+      "file": "Example_FPV_Mini22_Vertical6p5.FCStd",
+      "seconds": 0.1772735130007277
+    },
+    {
+      "file": "Example_FPV_SinglePivot_3_plates.FCStd",
+      "seconds": 0.1837335489999532
+    },
+    {
+      "file": "Example_FPV_SlopedCamera_CustomPosition_3_plates.FCStd",
+      "seconds": 0.19648947200039402
+    },
+    {
+      "file": "Example_FPV_SlopedCamera_DualSlots_3_plates.FCStd",
+      "seconds": 0.18562498899973434
+    },
+    {
+      "file": "Example_FPV_SlopedCamera_UpperPivot_3_plates.FCStd",
+      "seconds": 0.1816440659995351
+    },
+    {
+      "file": "Example_FittedRoots_3_plates.FCStd",
+      "seconds": 0.18107293699995353
+    },
+    {
+      "file": "Example_FourLobe_MotorEnds.FCStd",
+      "seconds": 0.1702282380001634
+    },
+    {
+      "file": "Example_LowerCapture_RootReliefs_2_plates.FCStd",
+      "seconds": 0.18140105400016182
+    },
+    {
+      "file": "Example_MotorPad_Arrowhead_2_plates.FCStd",
+      "seconds": 0.2476883560002534
+    },
+    {
+      "file": "Example_MotorPad_CompactHex.FCStd",
+      "seconds": 0.18664277399966522
+    },
+    {
+      "file": "Example_MotorPad_ScallopedShield.FCStd",
+      "seconds": 0.1847174049999012
+    },
+    {
+      "file": "Example_MotorPad_Shouldered.FCStd",
+      "seconds": 0.18225993100077176
+    },
+    {
+      "file": "Example_MotorPad_TaperedNose_3_plates.FCStd",
+      "seconds": 0.1755836169995746
+    },
+    {
+      "file": "Example_MotorPad_Teardrop.FCStd",
+      "seconds": 0.17722689299989725
+    },
+    {
+      "file": "Example_OffsetCentre_Deadcat.FCStd",
+      "seconds": 0.1698038300000917
+    },
+    {
+      "file": "Example_OutlineNotches_2_plates.FCStd",
+      "seconds": 0.16817412599993986
+    },
+    {
+      "file": "Example_OutlineNotches_3_plates.FCStd",
+      "seconds": 0.17686110799968446
+    },
+    {
+      "file": "Example_SharedArms_2_plates.FCStd",
+      "seconds": 0.1675146509996921
+    },
+    {
+      "file": "Example_SharedArms_3_plates.FCStd",
+      "seconds": 0.18423266300032992
+    },
+    {
+      "file": "Example_StackReferencedBottom_3_plates.FCStd",
+      "seconds": 0.17301172699990275
+    },
+    {
+      "file": "Example_StretchedX_22rear_30front.FCStd",
+      "seconds": 0.17394326300018292
+    },
+    {
+      "file": "Example_StretchedX_8_standoffs.FCStd",
+      "seconds": 0.18523702200036496
+    },
+    {
+      "file": "Example_WideCentre_3_plates.FCStd",
+      "seconds": 0.1992940099999032
+    },
+    {
+      "file": "Example_WideRoots_CustomBolts_2_plates.FCStd",
+      "seconds": 0.23957100200004788
+    },
+    {
+      "file": "Example_WideRoots_CustomBolts_3_plates.FCStd",
+      "seconds": 0.18925629199929972
+    },
+    {
+      "file": "Legacy_0.1.FCStd",
+      "seconds": 0.05945488799989107
+    },
+    {
+      "file": "Legacy_0.10.FCStd",
+      "seconds": 0.1546146789996783
+    },
+    {
+      "file": "Legacy_0.4.FCStd",
+      "seconds": 0.06396277900057612
+    },
+    {
+      "file": "Legacy_0.5.FCStd",
+      "seconds": 0.10787886600064667
+    },
+    {
+      "file": "Legacy_0.7_Clamps.FCStd",
+      "seconds": 0.12908000600054947
+    },
+    {
+      "file": "Legacy_0.8.FCStd",
+      "seconds": 0.13983893400018133
+    },
+    {
+      "file": "Legacy_0.9.FCStd",
+      "seconds": 0.17008088500006124
+    }
+  ],
+  "help_pages": 71,
+  "help_controls": 240
+}

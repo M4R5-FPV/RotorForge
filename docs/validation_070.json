@@ -1,0 +1,50 @@
+{
+  "version": "0.70.0",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 344,
+  "native_reports": {
+    "native070": {
+      "checks": [
+        "2 plates / Recessed hex nut",
+        "2 plates / M3 press nut",
+        "3 plates / Recessed hex nut",
+        "3 plates / M3 press nut"
+      ],
+      "failures": []
+    },
+    "extra070": {
+      "checks": [
+        "above",
+        "clamp",
+        "vtx"
+      ],
+      "failures": []
+    },
+    "gui070": {
+      "checks": [
+        "All eleven nut-retention controls round-trip in the editor; hardware dialog renders and creates references"
+      ],
+      "failures": []
+    },
+    "dependency070": {
+      "checks": [
+        {
+          "name": "Nut-retention edit rebuilds receiving mid plate and dependent CG only",
+          "rebuilt": [
+            "MidPlate",
+            "FrameCGMarker"
+          ]
+        }
+      ],
+      "failures": []
+    },
+    "migration070": {
+      "checks": [
+        "Saved older auxiliary references migrate away without changing source geometry"
+      ],
+      "failures": []
+    }
+  },
+  "help_pages": 75,
+  "failures": []
+}

@@ -1,0 +1,279 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "Selection 1 / 2 rearmost standoffs",
+      "seconds": 1.994
+    },
+    {
+      "name": "Selection 1 / 4 rearmost standoffs",
+      "seconds": 2.297
+    },
+    {
+      "name": "Selection 2 / 2 rearmost standoffs",
+      "seconds": 1.88
+    },
+    {
+      "name": "Selection 2 / 4 rearmost standoffs",
+      "seconds": 2.423
+    },
+    {
+      "name": "Selection 3 / 2 rearmost standoffs",
+      "seconds": 2.211
+    },
+    {
+      "name": "Selection 3 / 4 rearmost standoffs",
+      "seconds": 2.77
+    },
+    {
+      "name": "Selection 4 / 2 rearmost standoffs",
+      "seconds": 1.974
+    },
+    {
+      "name": "Selection 4 / 4 rearmost standoffs",
+      "seconds": 2.569
+    },
+    {
+      "name": "Selection 5 / 2 rearmost standoffs",
+      "seconds": 2.004
+    },
+    {
+      "name": "Selection 5 / 4 rearmost standoffs",
+      "seconds": 2.628
+    },
+    {
+      "name": "Selection 6 / 2 rearmost standoffs",
+      "seconds": 2.164
+    },
+    {
+      "name": "Selection 6 / 4 rearmost standoffs",
+      "seconds": 2.807
+    },
+    {
+      "name": "Selection 7 / 2 rearmost standoffs",
+      "seconds": 2.299
+    },
+    {
+      "name": "Selection 7 / 4 rearmost standoffs",
+      "seconds": 3.535
+    },
+    {
+      "name": "2 rearmost standoffs / 0.0 / Pigtail / bulkhead",
+      "seconds": 0.137
+    },
+    {
+      "name": "2 rearmost standoffs / 0.0 / Split clamp",
+      "seconds": 3.073
+    },
+    {
+      "name": "2 rearmost standoffs / 30.0 / Pigtail / bulkhead",
+      "seconds": 2.698
+    },
+    {
+      "name": "2 rearmost standoffs / 30.0 / Split clamp",
+      "seconds": 2.841
+    },
+    {
+      "name": "2 rearmost standoffs / 60.0 / Pigtail / bulkhead",
+      "seconds": 2.625
+    },
+    {
+      "name": "2 rearmost standoffs / 60.0 / Split clamp",
+      "seconds": 2.839
+    },
+    {
+      "name": "4 rearmost standoffs / 0.0 / Pigtail / bulkhead",
+      "seconds": 3.607
+    },
+    {
+      "name": "4 rearmost standoffs / 0.0 / Split clamp",
+      "seconds": 3.99
+    },
+    {
+      "name": "4 rearmost standoffs / 30.0 / Pigtail / bulkhead",
+      "seconds": 3.499
+    },
+    {
+      "name": "4 rearmost standoffs / 30.0 / Split clamp",
+      "seconds": 3.505
+    },
+    {
+      "name": "4 rearmost standoffs / 60.0 / Pigtail / bulkhead",
+      "seconds": 3.164
+    },
+    {
+      "name": "4 rearmost standoffs / 60.0 / Split clamp",
+      "seconds": 3.338
+    },
+    {
+      "name": "ELRS 2.4 GHz / Slide-in eyes",
+      "seconds": 1.914
+    },
+    {
+      "name": "ELRS 2.4 GHz / Split clips",
+      "seconds": 1.979
+    },
+    {
+      "name": "ELRS 900 MHz / Slide-in eyes",
+      "seconds": 2.011
+    },
+    {
+      "name": "ELRS 900 MHz / Split clips",
+      "seconds": 2.692
+    },
+    {
+      "name": "ELRS Dual 2.4 GHz / Slide-in eyes",
+      "seconds": 2.217
+    },
+    {
+      "name": "ELRS Dual 2.4 GHz / Split clips",
+      "seconds": 2.015
+    },
+    {
+      "name": "ELRS Dual 900 MHz / Slide-in eyes",
+      "seconds": 1.919
+    },
+    {
+      "name": "ELRS Dual 900 MHz / Split clips",
+      "seconds": 2.184
+    },
+    {
+      "name": "ELRS 2.4 + 900 MHz / Slide-in eyes",
+      "seconds": 2.118
+    },
+    {
+      "name": "ELRS 2.4 + 900 MHz / Split clips",
+      "seconds": 2.178
+    },
+    {
+      "name": "Two plate Below bottom plate clamp False",
+      "seconds": 2.506
+    },
+    {
+      "name": "Two plate Below bottom plate clamp True",
+      "seconds": 3.148
+    },
+    {
+      "name": "Two plate Above bottom plate clamp True",
+      "seconds": 3.151
+    },
+    {
+      "name": "Six-post frame 2 rearmost standoffs",
+      "seconds": 2.553
+    },
+    {
+      "name": "Six-post frame 4 rearmost standoffs",
+      "seconds": 2.684
+    },
+    {
+      "name": "GPS tilt -45.0 / 2 rearmost standoffs",
+      "seconds": 2.441
+    },
+    {
+      "name": "GPS tilt -45.0 / 4 rearmost standoffs",
+      "seconds": 3.316
+    },
+    {
+      "name": "GPS tilt -20.0 / 2 rearmost standoffs",
+      "seconds": 2.364
+    },
+    {
+      "name": "GPS tilt -20.0 / 4 rearmost standoffs",
+      "seconds": 3.152
+    },
+    {
+      "name": "GPS tilt 20.0 / 2 rearmost standoffs",
+      "seconds": 2.216
+    },
+    {
+      "name": "GPS tilt 20.0 / 4 rearmost standoffs",
+      "seconds": 3.107
+    },
+    {
+      "name": "GPS tilt 45.0 / 2 rearmost standoffs",
+      "seconds": 2.376
+    },
+    {
+      "name": "GPS tilt 45.0 / 4 rearmost standoffs",
+      "seconds": 3.448
+    },
+    {
+      "name": "Side silhouette Compression pads / Fixed"
+    },
+    {
+      "name": "Side silhouette Compression pads / Dual arc slots"
+    },
+    {
+      "name": "Side silhouette Compression pads / Upper pivot + lower arc"
+    },
+    {
+      "name": "Side silhouette Captured inserts / Fixed"
+    },
+    {
+      "name": "Side silhouette Captured inserts / Dual arc slots"
+    },
+    {
+      "name": "Side silhouette Captured inserts / Upper pivot + lower arc"
+    },
+    {
+      "name": "Three plate perimeter fillets / Rounded rectangle"
+    },
+    {
+      "name": "Three plate perimeter fillets / Chamfered rectangle"
+    },
+    {
+      "name": "Three plate perimeter fillets / Tapered front"
+    },
+    {
+      "name": "Three plate perimeter fillets / Tapered rear"
+    },
+    {
+      "name": "Three plate perimeter fillets / Hexagonal"
+    },
+    {
+      "name": "Three plate perimeter fillets / Faceted shield"
+    },
+    {
+      "name": "Three plate perimeter fillets / Octagonal"
+    },
+    {
+      "name": "Two plate and clamp fillets / Below bottom plate"
+    },
+    {
+      "name": "Two plate and clamp fillets / Above bottom plate"
+    },
+    {
+      "name": "Full export",
+      "seconds": 4.077
+    },
+    {
+      "name": "Native update retires split parts; export contains one rear STL and two camera pads"
+    }
+  ],
+  "failures": [],
+  "portable_tests": 269,
+  "integrated_export": {
+    "status": "passed",
+    "checks": [
+      "New tilt, insert silhouette and plate fillets create and export together",
+      "Paired ELRS bores remain fully open after common support fusion",
+      "GPS tilt stored as an angle property",
+      "Three printable STL files, native project, STEP and CNC export"
+    ]
+  },
+  "editor": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Twelve combined-mount refresh/paint cycles without native solids",
+        "seconds": 2.4464990599990415
+      },
+      {
+        "name": "GPS tilt, insert shape and fillet controls roundtrip; independent accessory switches; one rear preview; two/four attachment and airflow controls"
+      },
+      {
+        "name": "Height fit uses the tallest low feature when VTX is disabled"
+      }
+    ]
+  }
+}

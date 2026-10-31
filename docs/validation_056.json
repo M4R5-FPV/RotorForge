@@ -1,0 +1,233 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "Rounded rectangle / 1.0",
+      "seconds": 2.167
+    },
+    {
+      "name": "Rounded rectangle / 3.0",
+      "seconds": 2.22
+    },
+    {
+      "name": "Rounded rectangle / 5.0",
+      "seconds": 2.207
+    },
+    {
+      "name": "Chamfered rectangle / 1.0",
+      "seconds": 3.162
+    },
+    {
+      "name": "Chamfered rectangle / 3.0",
+      "seconds": 2.832
+    },
+    {
+      "name": "Chamfered rectangle / 5.0",
+      "seconds": 3.3
+    },
+    {
+      "name": "Tapered front / 1.0",
+      "seconds": 2.402
+    },
+    {
+      "name": "Tapered front / 3.0",
+      "seconds": 2.305
+    },
+    {
+      "name": "Tapered front / 5.0",
+      "seconds": 2.179
+    },
+    {
+      "name": "Tapered rear / 1.0",
+      "seconds": 2.979
+    },
+    {
+      "name": "Tapered rear / 3.0",
+      "seconds": 2.748
+    },
+    {
+      "name": "Tapered rear / 5.0",
+      "seconds": 2.818
+    },
+    {
+      "name": "Hexagonal / 1.0",
+      "seconds": 3.083
+    },
+    {
+      "name": "Hexagonal / 3.0",
+      "seconds": 2.75
+    },
+    {
+      "name": "Hexagonal / 5.0",
+      "seconds": 3.014
+    },
+    {
+      "name": "Faceted shield / 1.0",
+      "seconds": 2.914
+    },
+    {
+      "name": "Faceted shield / 3.0",
+      "seconds": 2.931
+    },
+    {
+      "name": "Faceted shield / 5.0",
+      "seconds": 2.625
+    },
+    {
+      "name": "Octagonal / 1.0",
+      "seconds": 2.923
+    },
+    {
+      "name": "Octagonal / 3.0",
+      "seconds": 2.843
+    },
+    {
+      "name": "Octagonal / 5.0",
+      "seconds": 2.932
+    },
+    {
+      "name": "Internal Circle",
+      "seconds": 1.518
+    },
+    {
+      "name": "Internal Slot",
+      "seconds": 1.287
+    },
+    {
+      "name": "Internal Rounded rectangle",
+      "seconds": 1.275
+    },
+    {
+      "name": "Internal Hexagon",
+      "seconds": 1.372
+    },
+    {
+      "name": "Internal Ellipse",
+      "seconds": 1.446
+    },
+    {
+      "name": "Internal Rectangle",
+      "seconds": 1.363
+    },
+    {
+      "name": "Internal Triangle",
+      "seconds": 1.466
+    },
+    {
+      "name": "Internal Diamond",
+      "seconds": 1.471
+    },
+    {
+      "name": "Internal Trapezoid",
+      "seconds": 1.822
+    },
+    {
+      "name": "Internal Pentagon",
+      "seconds": 1.781
+    },
+    {
+      "name": "Internal Octagon",
+      "seconds": 1.7
+    },
+    {
+      "name": "Internal Chevron",
+      "seconds": 1.478
+    },
+    {
+      "name": "Internal Heptagon",
+      "seconds": 1.619
+    },
+    {
+      "name": "Internal Dodecagon",
+      "seconds": 1.763
+    },
+    {
+      "name": "Internal Parallelogram",
+      "seconds": 1.365
+    },
+    {
+      "name": "Internal Kite",
+      "seconds": 1.332
+    },
+    {
+      "name": "Internal Hourglass",
+      "seconds": 1.511
+    },
+    {
+      "name": "Internal Cross",
+      "seconds": 1.775
+    },
+    {
+      "name": "Internal Crescent",
+      "seconds": 6.628
+    },
+    {
+      "name": "Internal Leaf",
+      "seconds": 6.696
+    },
+    {
+      "name": "Edge notch Rectangle",
+      "seconds": 1.375
+    },
+    {
+      "name": "Edge notch Triangle",
+      "seconds": 1.376
+    },
+    {
+      "name": "Edge notch Circle",
+      "seconds": 1.525
+    },
+    {
+      "name": "Edge notch Ellipse",
+      "seconds": 1.527
+    },
+    {
+      "name": "Combined rectangle + Rectangle",
+      "seconds": 1.739
+    },
+    {
+      "name": "Combined rectangle + Circle",
+      "seconds": 1.788
+    },
+    {
+      "name": "Two plate clamps / Below bottom plate",
+      "seconds": 1.226
+    },
+    {
+      "name": "Two plate clamps / Above bottom plate",
+      "seconds": 1.033
+    },
+    {
+      "name": "Widened centres / 3 mm",
+      "seconds": 4.082
+    }
+  ],
+  "failures": [],
+  "portable_tests": 277,
+  "export": {
+    "status": "passed",
+    "checks": [
+      "Four exact 3 mm internal arcs match the analytic rounded-rectangle volume",
+      "Through-drill and countersink volumes remain empty and unchanged",
+      "Loaded frame update, native save, LiPo pad, STEP and DXF/SVG profile export"
+    ]
+  },
+  "editor": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Twelve combined-mount refresh/paint cycles without native solids",
+        "seconds": 2.2936662520000937
+      },
+      {
+        "name": "GPS tilt, insert shape and fillet controls roundtrip; independent accessory switches; one rear preview; two/four attachment and airflow controls"
+      },
+      {
+        "name": "Height fit uses the tallest low feature when VTX is disabled"
+      },
+      {
+        "name": "Automatic height leaves configured standoffs unchanged; three width controls roundtrip"
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "version": "0.77.0",
+  "portable_tests": 395,
+  "native_freecad": "1.0.2",
+  "editor": {
+    "checks": [
+      "Frame editor: search, overlap cycling, highlight, zoom and pending-edit guard without CAD or settings changes",
+      "200 patterns: 50 cached hit tests in 0.176 s",
+      "New locator commands are reachable through the main editor search"
+    ],
+    "failures": []
+  },
+  "help": {
+    "pages": 84,
+    "parameter_controls": 300,
+    "locator_commands_documented": true,
+    "cover_unchanged": true
+  }
+}

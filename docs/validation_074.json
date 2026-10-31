@@ -1,0 +1,43 @@
+{
+  "version": "0.74.0",
+  "portable_tests": 374,
+  "native": {
+    "checks": [
+      "Rounded rectangle / Both sides",
+      "Rounded rectangle / Outside only",
+      "Rounded rectangle / Inside only",
+      "Side plate outline / Both sides",
+      "Side plate outline / Outside only",
+      "Side plate outline / Inside only"
+    ],
+    "failures": []
+  },
+  "gui_incremental": {
+    "checks": [
+      "Lip selector and radius round-trip; captured-only controls disable in hard mount",
+      "Lip-face change reuses carbon plates and arms: CameraPadLeft, CameraPadRight, FrameCGMarker"
+    ],
+    "failures": []
+  },
+  "saved_frame_inserts": {
+    "checks": [
+      "Both sides fits sloped carbon window and prints as closed meshes",
+      "Outside only fits sloped carbon window and prints as closed meshes",
+      "Inside only fits sloped carbon window and prints as closed meshes"
+    ]
+  },
+  "reported_frame": {
+    "checks": [
+      "ElectronicsGuardLeft valid, connected and reaches top face; watertight print STL exported",
+      "ElectronicsGuardRight valid, connected and reaches top face; watertight print STL exported",
+      "Failed OCC refinement kept a valid independent source: 3",
+      "Save/reopen retains settings and valid guard solids"
+    ],
+    "unsafe_refinements_avoided": 3,
+    "freecad": [
+      "1",
+      "1",
+      "0"
+    ]
+  }
+}

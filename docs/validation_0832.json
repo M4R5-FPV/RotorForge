@@ -1,0 +1,120 @@
+{
+  "motor_assembly": {
+    "checks": [
+      [
+        12.0,
+        7.0,
+        40.0,
+        "6 mm hub seated; M5 through shaft; nut above; open feet; tall core/windings"
+      ],
+      [
+        28.0,
+        16.0,
+        127.0,
+        "6 mm hub seated; M5 through shaft; nut above; open feet; tall core/windings"
+      ],
+      [
+        40.0,
+        22.0,
+        254.0,
+        "6 mm hub seated; M5 through shaft; nut above; open feet; tall core/windings"
+      ],
+      [
+        "4-hole bolt circle",
+        "feet holes follow rotated motor pad and frame motor positions"
+      ],
+      [
+        "3-hole bolt circle",
+        "feet holes follow rotated motor pad and frame motor positions"
+      ]
+    ],
+    "failures": []
+  },
+  "presentation": {
+    "checks": [
+      [
+        "MotorEnvelopes",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "PropellerDiscs",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "StackEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "CameraEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "master reference visibility remains independent of carbon"
+      ],
+      [
+        "motor size",
+        12.0,
+        7.0
+      ],
+      [
+        "motor size",
+        28.0,
+        16.0
+      ],
+      [
+        "motor size",
+        40.0,
+        22.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        40.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        127.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        254.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        24.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        24.0
+      ],
+      [
+        "detailed switches survive saved-project restoration"
+      ],
+      [
+        "manufacturing STEP excludes all presentation references"
+      ]
+    ],
+    "failures": []
+  }
+}

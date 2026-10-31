@@ -1,0 +1,62 @@
+{
+  "native": {
+    "checks": [
+      "Native profile: Straight",
+      "Native profile: Camera U recess",
+      "Native profile: Camera flared recess",
+      "Native profile: Camera swept recess",
+      "Native profile: Camera crescent",
+      "Native profile: Camera stepped recess",
+      "Native profile: Camera chamfered recess",
+      "Native profile: Rounded nose",
+      "Native profile: Pointed nose",
+      "Native profile: Flat-tip nose",
+      "Native profile: Swept shoulders",
+      "Native profile: Concave nose",
+      "Native profile: V-notch",
+      "Native profile: Twin lobes",
+      "Native profile: Stepped nose",
+      "Native profile: Shallow W",
+      "Native profile: Triple scallop",
+      "Native profile: Arrowhead",
+      "Native profile: Flat recess",
+      "Native profile: Round U recess",
+      "2 plates Camera U recess: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera U recess: complete assembly, camera sweep 0-60 degrees",
+      "2 plates Camera flared recess: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera flared recess: complete assembly, camera sweep 0-60 degrees",
+      "2 plates Camera swept recess: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera swept recess: complete assembly, camera sweep 0-60 degrees",
+      "2 plates Camera crescent: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera crescent: complete assembly, camera sweep 0-60 degrees",
+      "2 plates Camera stepped recess: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera stepped recess: complete assembly, camera sweep 0-60 degrees",
+      "2 plates Camera chamfered recess: complete assembly, camera sweep 0-60 degrees",
+      "3 plates Camera chamfered recess: complete assembly, camera sweep 0-60 degrees",
+      "STEP/DXF/SVG export and saved settings restore without shape writes",
+      "Reused arms after top-front edit: ['BottomPlate', 'TopPlate', 'CameraMountLeft', 'CameraMountRight', 'CameraEnvelope', 'FrameCGMarker']"
+    ],
+    "failures": []
+  },
+  "gui": {
+    "checks": [
+      "20 shapes, all five controls round-trip, inactive dimensions retained and disabled"
+    ],
+    "failures": []
+  },
+  "protection": {
+    "checks": [
+      "Camera U recess with inside retaining lips and full forward guards",
+      "Camera swept recess with inside retaining lips and full forward guards"
+    ],
+    "failures": []
+  },
+  "version": "0.76.0",
+  "portable_tests": 387,
+  "native_freecad": "1.0.2",
+  "help": {
+    "pages": 83,
+    "controls": 300,
+    "cover_unchanged": true
+  }
+}

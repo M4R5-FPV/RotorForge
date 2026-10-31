@@ -1,0 +1,34 @@
+{
+  "version": "0.73.2",
+  "portable_tests": 364,
+  "reported_frame": {
+    "checks": [
+      "ElectronicsGuardLeft valid, connected and reaches top face; watertight print STL exported",
+      "ElectronicsGuardRight valid, connected and reaches top face; watertight print STL exported",
+      "Failed OCC refinement kept a valid independent source: 3",
+      "Save/reopen retains settings and valid guard solids"
+    ],
+    "unsafe_refinements_avoided": 3,
+    "freecad": [
+      "1",
+      "1",
+      "0"
+    ]
+  },
+  "standard_frames": {
+    "checks": [
+      "2 plates0.0",
+      "2 plates1.0",
+      "2 platesSolid forward",
+      "2 platesVented forward",
+      "2 plates closure",
+      "3 plates0.0",
+      "3 plates1.0",
+      "3 platesSolid forward",
+      "3 platesVented forward",
+      "3 plates closure",
+      "two above clamp"
+    ],
+    "failures": []
+  }
+}

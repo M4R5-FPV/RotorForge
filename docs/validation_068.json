@@ -1,0 +1,271 @@
+{
+  "version": "0.68.0",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 336,
+  "native_colour": {
+    "checks": [
+      {
+        "name": "All ten colour selections and save/reopen reuse every generated Shape without native geometry builds",
+        "update_seconds": [
+          1.260985840000103,
+          0.6438194989996191,
+          0.728466481000396,
+          0.6094656829991436,
+          0.6292068049997397,
+          0.590003022000019,
+          0.6379108929995709,
+          0.6417820179995033,
+          0.7007665330002055,
+          0.6352847119997023
+        ]
+      },
+      {
+        "name": "Colour swatches and all printed-part editor modes render without CAD construction"
+      }
+    ],
+    "failures": []
+  },
+  "incremental": {
+    "checks": [
+      "Six configurations match the original full builder by validity, solid count, volume, centroid and bidirectional native subtraction; dependency isolation verified",
+      "Native update preserves unchanged Shape identities; save/clear/reopen reuses provenance; no-op update replaces no shapes"
+    ],
+    "failures": [],
+    "benchmarks": [
+      {
+        "edit": "initial",
+        "incremental_seconds": 9.236891990000004,
+        "full_seconds": 11.200176248999924,
+        "rebuilt": [
+          "BottomPlate",
+          "MidPlate",
+          "TopPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "Standoffs",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "LiPoPad",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "CameraEnvelope",
+          "VTXEnvelope",
+          "BatteryEnvelope",
+          "FrameCGMarker"
+        ],
+        "reused": []
+      },
+      {
+        "edit": "top thickness",
+        "incremental_seconds": 6.111022864000006,
+        "full_seconds": 11.692860504000237,
+        "rebuilt": [
+          "TopPlate",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "LiPoPad",
+          "BatteryEnvelope",
+          "FrameCGMarker"
+        ],
+        "reused": [
+          "BottomPlate",
+          "MidPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "Standoffs",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "CameraEnvelope",
+          "VTXEnvelope"
+        ]
+      },
+      {
+        "edit": "FC vent height",
+        "incremental_seconds": 2.835956205999537,
+        "full_seconds": 10.943195687999832,
+        "rebuilt": [
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "FrameCGMarker"
+        ],
+        "reused": [
+          "BottomPlate",
+          "MidPlate",
+          "TopPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "Standoffs",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "LiPoPad",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "CameraEnvelope",
+          "VTXEnvelope",
+          "BatteryEnvelope"
+        ]
+      },
+      {
+        "edit": "pad grip",
+        "incremental_seconds": 0.5826107880002382,
+        "full_seconds": 9.801976871000079,
+        "rebuilt": [
+          "LiPoPad"
+        ],
+        "reused": [
+          "BottomPlate",
+          "MidPlate",
+          "TopPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "Standoffs",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "CameraEnvelope",
+          "VTXEnvelope",
+          "BatteryEnvelope",
+          "FrameCGMarker"
+        ]
+      },
+      {
+        "edit": "density estimate",
+        "incremental_seconds": 0.9220726110006581,
+        "full_seconds": 11.177493782000056,
+        "rebuilt": [
+          "FrameCGMarker"
+        ],
+        "reused": [
+          "BottomPlate",
+          "MidPlate",
+          "TopPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "Standoffs",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "LiPoPad",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "CameraEnvelope",
+          "VTXEnvelope",
+          "BatteryEnvelope"
+        ]
+      },
+      {
+        "edit": "motor pad",
+        "incremental_seconds": 12.846841699999459,
+        "full_seconds": 11.764841125000203,
+        "rebuilt": [
+          "BottomPlate",
+          "MidPlate",
+          "TopPlate",
+          "ArmFrontRight",
+          "ArmFrontLeft",
+          "ArmRearLeft",
+          "ArmRearRight",
+          "CameraMountLeft",
+          "CameraMountRight",
+          "Standoffs",
+          "MotorProtectorFrontRight",
+          "MotorProtectorFrontLeft",
+          "MotorProtectorRearLeft",
+          "MotorProtectorRearRight",
+          "ElectronicsGuardLeft",
+          "ElectronicsGuardRight",
+          "LiPoPad",
+          "CameraEnvelope",
+          "FrameCGMarker"
+        ],
+        "reused": [
+          "ArmClampPlate",
+          "ArmLowerClampPlate",
+          "ArmKeystone",
+          "CameraPadLeft",
+          "CameraPadRight",
+          "PropellerDiscs",
+          "MotorEnvelopes",
+          "StackEnvelope",
+          "VTXEnvelope",
+          "BatteryEnvelope"
+        ]
+      }
+    ]
+  },
+  "help_pages": 72,
+  "help_controls": 267,
+  "illustrations": 108,
+  "failures": [],
+  "help_palette": "Graphite carbon #2e3033; darker TPU #17191c; grey catalogues; teal captions/navigation; amber reference electronics. Actual colour swatches remain accurate.",
+  "help_cover": "CoverFrame.png (supplied screenshot, unchanged)",
+  "help_colour_audit": "108 generated illustrations checked: no former teal/blue fill colours outside the actual colour swatch chart; all 72 PDF pages rendered and reviewed."
+}

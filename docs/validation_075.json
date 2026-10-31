@@ -1,0 +1,118 @@
+{
+  "native": {
+    "checks": [
+      "Front BottomPlate Straight",
+      "Front BottomPlate Rounded nose",
+      "Front BottomPlate Pointed nose",
+      "Front BottomPlate Flat-tip nose",
+      "Front BottomPlate Swept shoulders",
+      "Front BottomPlate Concave nose",
+      "Front BottomPlate V-notch",
+      "Front BottomPlate Twin lobes",
+      "Front BottomPlate Stepped nose",
+      "Front BottomPlate Shallow W",
+      "Front BottomPlate Triple scallop",
+      "Front BottomPlate Arrowhead",
+      "Front BottomPlate Flat recess",
+      "Front BottomPlate Round U recess",
+      "Rear BottomPlate Straight",
+      "Rear MidPlate Straight",
+      "Rear TopPlate Straight",
+      "Rear BottomPlate Rounded end",
+      "Rear MidPlate Rounded end",
+      "Rear TopPlate Rounded end",
+      "Rear BottomPlate Pointed end",
+      "Rear MidPlate Pointed end",
+      "Rear TopPlate Pointed end",
+      "Rear BottomPlate Flat-tip end",
+      "Rear MidPlate Flat-tip end",
+      "Rear TopPlate Flat-tip end",
+      "Rear BottomPlate Swept shoulders",
+      "Rear MidPlate Swept shoulders",
+      "Rear TopPlate Swept shoulders",
+      "Rear BottomPlate Concave end",
+      "Rear MidPlate Concave end",
+      "Rear TopPlate Concave end",
+      "Rear BottomPlate V-notch",
+      "Rear MidPlate V-notch",
+      "Rear TopPlate V-notch",
+      "Rear BottomPlate Twin lobes",
+      "Rear MidPlate Twin lobes",
+      "Rear TopPlate Twin lobes",
+      "Rear BottomPlate Stepped end",
+      "Rear MidPlate Stepped end",
+      "Rear TopPlate Stepped end",
+      "Rear BottomPlate Shallow W",
+      "Rear MidPlate Shallow W",
+      "Rear TopPlate Shallow W",
+      "Rear BottomPlate Triple scallop",
+      "Rear MidPlate Triple scallop",
+      "Rear TopPlate Triple scallop",
+      "Rear BottomPlate Arrowhead",
+      "Rear MidPlate Arrowhead",
+      "Rear TopPlate Arrowhead",
+      "Rear BottomPlate Flat recess",
+      "Rear MidPlate Flat recess",
+      "Rear TopPlate Flat recess",
+      "Rear BottomPlate Round U recess",
+      "Rear MidPlate Round U recess",
+      "Rear TopPlate Round U recess",
+      "Rear BottomPlate Cable channel",
+      "Rear MidPlate Cable channel",
+      "Rear TopPlate Cable channel",
+      "Rear BottomPlate Dual cable channels",
+      "Rear MidPlate Dual cable channels",
+      "Rear TopPlate Dual cable channels",
+      "Rear BottomPlate Split tail",
+      "Rear MidPlate Split tail",
+      "Rear TopPlate Split tail",
+      "Rear BottomPlate Stepped electronics tail",
+      "Rear MidPlate Stepped electronics tail",
+      "Rear TopPlate Stepped electronics tail",
+      "2 plates complete frame, matching camera sockets, STEP/DXF/SVG export",
+      "3 plates complete frame, matching camera sockets, STEP/DXF/SVG export",
+      "Tab edit retains all arm BReps: ['BottomPlate', 'TopPlate', 'CameraMountLeft', 'CameraMountRight', 'FrameCGMarker']",
+      "Rear edit retains all arm BReps: ['BottomPlate', 'TopPlate', 'CameraMountLeft', 'CameraMountRight', 'CameraEnvelope', 'FrameCGMarker']"
+    ],
+    "failures": []
+  },
+  "gui": {
+    "checks": [
+      "All new controls round-trip, signed offsets and plate-mode enable rules",
+      "Black screws/nuts/press nuts; existing refs recolour with stable BRePs and visibility"
+    ],
+    "failures": []
+  },
+  "restore": {
+    "checks": [
+      "2 plates: values and existing shapes restored without shape writes",
+      "3 plates: values and existing shapes restored without shape writes"
+    ],
+    "failures": []
+  },
+  "hardware": {
+    "checks": [
+      "Opening settings alone does not enable references",
+      "Unrelated edit keeps object, visibility and shape without fastener rebuilds",
+      "Stack nuts automatically follow changed height with group selection preserved",
+      "Explicit Hide remains hidden through updates",
+      "Invalid edits pause references; valid recovery restores visibility",
+      "Pre-fix saved hardware upgrades in place",
+      "Old automatically hidden references recover on update",
+      "Arm press nuts follow bolt edits without replacing references"
+    ],
+    "failures": []
+  },
+  "user_frame": {
+    "user_frame_valid": true,
+    "both_guard_meshes_closed": true
+  },
+  "version": "0.75.0",
+  "portable_tests": 380,
+  "freecad": "1.0.2",
+  "pdf": {
+    "controls": 295,
+    "pages": 81,
+    "cover_unchanged": true
+  }
+}

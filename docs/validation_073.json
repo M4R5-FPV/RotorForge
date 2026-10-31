@@ -1,0 +1,30 @@
+{
+  "version": "0.73.0",
+  "portable_tests": 354,
+  "native": {
+    "checks": [
+      "2 plates0.0",
+      "2 plates1.0",
+      "2 platesSolid forward",
+      "2 platesVented forward",
+      "2 plates closure",
+      "3 plates0.0",
+      "3 plates1.0",
+      "3 platesSolid forward",
+      "3 platesVented forward",
+      "3 plates closure",
+      "two above clamp"
+    ],
+    "failures": []
+  },
+  "saved_frame_update": {
+    "rebuilt": [
+      "TopPlate",
+      "ElectronicsGuardLeft",
+      "ElectronicsGuardRight",
+      "BatteryEnvelope",
+      "FrameCGMarker"
+    ],
+    "save_reopen_update": true
+  }
+}

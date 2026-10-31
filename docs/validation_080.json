@@ -1,0 +1,74 @@
+{
+  "front_wire": {
+    "checks": [
+      "Upper front strip at Y 18.0",
+      "Upper front strip at Y 20.0",
+      "Upper front strip at Y 23.0",
+      "Upper front strip at Y 24.0",
+      "Upper front strip at Y 25.0",
+      "Upper front strip at Y 30.0",
+      "Upper front strip at Y 36.0",
+      "Upper front strip at Y 40.0",
+      "Upper front strip at Y 43.0",
+      "Upper front strip at Y 46.0",
+      "Moving front pocket reuses carbon and guard base: ['ElectronicsGuardLeft', 'ElectronicsGuardRight', 'FrameCGMarker']",
+      "Closed forward guard at Y 18.0",
+      "Closed forward guard at Y 20.0",
+      "Closed forward guard at Y 23.0",
+      "Closed forward guard at Y 24.0",
+      "Closed forward guard at Y 25.0",
+      "Closed forward guard at Y 30.0",
+      "Closed forward guard at Y 36.0",
+      "Closed forward guard at Y 40.0",
+      "Closed forward guard at Y 43.0",
+      "Closed forward guard at Y 46.0",
+      "Moving front pocket reuses carbon and guard base: ['ElectronicsGuardLeft', 'ElectronicsGuardRight', 'FrameCGMarker']"
+    ],
+    "failures": []
+  },
+  "bumper": {
+    "checks": [
+      "Follow bottom plate valid shoe, carbon clearance and closed print mesh",
+      "Rounded shoe valid shoe, carbon clearance and closed print mesh",
+      "Flat shoe valid shoe, carbon clearance and closed print mesh",
+      "Chamfered shoe valid shoe, carbon clearance and closed print mesh",
+      "Pointed shoe valid shoe, carbon clearance and closed print mesh",
+      "Twin-lobe shoe valid shoe, carbon clearance and closed print mesh",
+      "Swept-shoulder shoe valid shoe, carbon clearance and closed print mesh",
+      "Flat-tip shoe valid shoe, carbon clearance and closed print mesh",
+      "Centre-crown shoe valid shoe, carbon clearance and closed print mesh",
+      "Shield shoe valid shoe, carbon clearance and closed print mesh",
+      "Triple-lobe shoe valid shoe, carbon clearance and closed print mesh",
+      "Recessed-centre shoe valid shoe, carbon clearance and closed print mesh",
+      "Scalloped shoe valid shoe, carbon clearance and closed print mesh",
+      "Stepped shoe valid shoe, carbon clearance and closed print mesh",
+      "Finished Rounded nose followed by shoe",
+      "Finished V-notch followed by shoe",
+      "Finished Twin lobes followed by shoe",
+      "Long shoe retains front bolt-head access and contributes to mass/CG",
+      "Two plates Above bottom plate with camera tabs",
+      "Two plates Below bottom plate with camera tabs",
+      "Three plates with closed front side guards",
+      "Toe edit reuses carbon and existing TPU: ['FrontBumper', 'FrameCGMarker']",
+      "Separate print STL, assembly/print STEP and saved frame"
+    ],
+    "failures": []
+  },
+  "gui": {
+    "checks": [
+      "Fourteen styles, front-pocket travel previews, material colour, Overall/part views and disabled controls round-trip without CAD builds"
+    ],
+    "failures": []
+  },
+  "combined_export": {
+    "combined_export_closed_meshes": true
+  },
+  "version": "0.80.0",
+  "portable_tests": 410,
+  "freecad": "1.0.2",
+  "help": {
+    "pages": 89,
+    "controls": 307,
+    "cover_unchanged": true
+  }
+}

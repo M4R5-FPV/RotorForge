@@ -1,0 +1,338 @@
+{
+  "version": "0.51.0",
+  "freecad": "1.1.4",
+  "platform": "Linux offscreen",
+  "portable_tests": 259,
+  "help_pages": 64,
+  "help_controls": 234,
+  "new_controls": 42,
+  "native": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "SMA / Pigtail / bulkhead / Analog 1 / 0.0",
+        "seconds": 2.122
+      },
+      {
+        "name": "SMA / Pigtail / bulkhead / Analog 1 / 30.0",
+        "seconds": 1.902
+      },
+      {
+        "name": "SMA / Pigtail / bulkhead / Digital 1 / 0.0",
+        "seconds": 1.889
+      },
+      {
+        "name": "SMA / Pigtail / bulkhead / Digital 1 / 30.0",
+        "seconds": 1.862
+      },
+      {
+        "name": "SMA / Pigtail / bulkhead / Digital 2 / 0.0",
+        "seconds": 2.173
+      },
+      {
+        "name": "SMA / Pigtail / bulkhead / Digital 2 / 30.0",
+        "seconds": 2.132
+      },
+      {
+        "name": "SMA / Split clamp / Analog 1 / 0.0",
+        "seconds": 1.97
+      },
+      {
+        "name": "SMA / Split clamp / Analog 1 / 30.0",
+        "seconds": 1.9
+      },
+      {
+        "name": "SMA / Split clamp / Digital 1 / 0.0",
+        "seconds": 2.109
+      },
+      {
+        "name": "SMA / Split clamp / Digital 1 / 30.0",
+        "seconds": 1.973
+      },
+      {
+        "name": "SMA / Split clamp / Digital 2 / 0.0",
+        "seconds": 2.043
+      },
+      {
+        "name": "SMA / Split clamp / Digital 2 / 30.0",
+        "seconds": 1.964
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Analog 1 / 0.0",
+        "seconds": 2.028
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Analog 1 / 30.0",
+        "seconds": 2.166
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Digital 1 / 0.0",
+        "seconds": 2.151
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Digital 1 / 30.0",
+        "seconds": 2.069
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Digital 2 / 0.0",
+        "seconds": 1.953
+      },
+      {
+        "name": "RP-SMA / Pigtail / bulkhead / Digital 2 / 30.0",
+        "seconds": 1.909
+      },
+      {
+        "name": "RP-SMA / Split clamp / Analog 1 / 0.0",
+        "seconds": 2.114
+      },
+      {
+        "name": "RP-SMA / Split clamp / Analog 1 / 30.0",
+        "seconds": 1.998
+      },
+      {
+        "name": "RP-SMA / Split clamp / Digital 1 / 0.0",
+        "seconds": 2.154
+      },
+      {
+        "name": "RP-SMA / Split clamp / Digital 1 / 30.0",
+        "seconds": 2.168
+      },
+      {
+        "name": "RP-SMA / Split clamp / Digital 2 / 0.0",
+        "seconds": 1.997
+      },
+      {
+        "name": "RP-SMA / Split clamp / Digital 2 / 30.0",
+        "seconds": 2.107
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Analog 1 / 0.0",
+        "seconds": 2.182
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Analog 1 / 30.0",
+        "seconds": 2.06
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Digital 1 / 0.0",
+        "seconds": 2.081
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Digital 1 / 30.0",
+        "seconds": 1.924
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Digital 2 / 0.0",
+        "seconds": 1.972
+      },
+      {
+        "name": "MMCX / Pigtail / bulkhead / Digital 2 / 30.0",
+        "seconds": 1.969
+      },
+      {
+        "name": "MMCX / Split clamp / Analog 1 / 0.0",
+        "seconds": 1.958
+      },
+      {
+        "name": "MMCX / Split clamp / Analog 1 / 30.0",
+        "seconds": 1.953
+      },
+      {
+        "name": "MMCX / Split clamp / Digital 1 / 0.0",
+        "seconds": 1.898
+      },
+      {
+        "name": "MMCX / Split clamp / Digital 1 / 30.0",
+        "seconds": 1.996
+      },
+      {
+        "name": "MMCX / Split clamp / Digital 2 / 0.0",
+        "seconds": 1.929
+      },
+      {
+        "name": "MMCX / Split clamp / Digital 2 / 30.0",
+        "seconds": 1.916
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Analog 1 / 0.0",
+        "seconds": 2.012
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Analog 1 / 30.0",
+        "seconds": 2.119
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Digital 1 / 0.0",
+        "seconds": 2.057
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Digital 1 / 30.0",
+        "seconds": 2.181
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Digital 2 / 0.0",
+        "seconds": 2.379
+      },
+      {
+        "name": "u.FL / Pigtail / bulkhead / Digital 2 / 30.0",
+        "seconds": 2.325
+      },
+      {
+        "name": "u.FL / Split clamp / Analog 1 / 0.0",
+        "seconds": 2.411
+      },
+      {
+        "name": "u.FL / Split clamp / Analog 1 / 30.0",
+        "seconds": 2.079
+      },
+      {
+        "name": "u.FL / Split clamp / Digital 1 / 0.0",
+        "seconds": 1.989
+      },
+      {
+        "name": "u.FL / Split clamp / Digital 1 / 30.0",
+        "seconds": 2.029
+      },
+      {
+        "name": "u.FL / Split clamp / Digital 2 / 0.0",
+        "seconds": 2.009
+      },
+      {
+        "name": "u.FL / Split clamp / Digital 2 / 30.0",
+        "seconds": 2.164
+      },
+      {
+        "name": "Compression pads / Fixed",
+        "seconds": 1.972
+      },
+      {
+        "name": "Compression pads / Dual arc slots",
+        "seconds": 2.373
+      },
+      {
+        "name": "Compression pads / Upper pivot + lower arc",
+        "seconds": 1.996
+      },
+      {
+        "name": "Captured inserts / Fixed",
+        "seconds": 2.509
+      },
+      {
+        "name": "Captured inserts / Dual arc slots",
+        "seconds": 2.83
+      },
+      {
+        "name": "Captured inserts / Upper pivot + lower arc",
+        "seconds": 2.419
+      },
+      {
+        "name": "Module mask 1",
+        "seconds": 1.893
+      },
+      {
+        "name": "Module mask 2",
+        "seconds": 1.909
+      },
+      {
+        "name": "Module mask 3",
+        "seconds": 2.099
+      },
+      {
+        "name": "Module mask 4",
+        "seconds": 1.883
+      },
+      {
+        "name": "Module mask 5",
+        "seconds": 2.137
+      },
+      {
+        "name": "Module mask 6",
+        "seconds": 2.095
+      },
+      {
+        "name": "Module mask 7",
+        "seconds": 2.144
+      },
+      {
+        "name": "ELRS 2.4 GHz",
+        "seconds": 1.87
+      },
+      {
+        "name": "ELRS 900 MHz",
+        "seconds": 2.102
+      },
+      {
+        "name": "ELRS Dual 2.4 GHz",
+        "seconds": 2.059
+      },
+      {
+        "name": "ELRS Dual 900 MHz",
+        "seconds": 2.076
+      },
+      {
+        "name": "ELRS 2.4 + 900 MHz",
+        "seconds": 2.132
+      },
+      {
+        "name": "GPS Open cradle",
+        "seconds": 2.004
+      },
+      {
+        "name": "GPS Protective shell",
+        "seconds": 2.285
+      },
+      {
+        "name": "Hiding references preserves TPU geometry and placement"
+      },
+      {
+        "name": "Complete soft frame",
+        "seconds": 3.304
+      },
+      {
+        "name": "Five independent print STLs, STEP assembly and CNC export",
+        "files": [
+          "CameraPadLeft.stl",
+          "RearVTXMount.stl",
+          "RearELRSMount.stl",
+          "RearGPSTray.stl",
+          "CameraPadRight.stl"
+        ]
+      }
+    ],
+    "failures": []
+  },
+  "two_plate": {
+    "status": "passed",
+    "checks": [
+      "Below bottom plate / clamp=False / Compression pads",
+      "Below bottom plate / clamp=False / Captured inserts",
+      "Below bottom plate / clamp=True / Compression pads",
+      "Below bottom plate / clamp=True / Captured inserts",
+      "Above bottom plate / clamp=True / Compression pads",
+      "Above bottom plate / clamp=True / Captured inserts"
+    ],
+    "failures": []
+  },
+  "editor": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "12 uncached parameter refresh/paint cycles without native geometry",
+        "seconds": 1.5195004359998165
+      },
+      {
+        "name": "Analog forces one holder; Fit rear height clears the stack without altering tilt settings"
+      },
+      {
+        "name": "Five focused TPU pages and five selectable TPU schematics; all parameters roundtrip"
+      }
+    ]
+  },
+  "properties": {
+    "status": "passed",
+    "checks": [
+      "Native angle/density/boolean/enum types and full parameter roundtrip",
+      "Old native documents default to inactive TPU fields on update"
+    ]
+  }
+}

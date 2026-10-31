@@ -1,0 +1,147 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "All accessories 22.0 mm / 2 rearmost standoffs",
+      "seconds": 2.61
+    },
+    {
+      "name": "All accessories 22.0 mm / 4 rearmost standoffs",
+      "seconds": 3.42
+    },
+    {
+      "name": "All accessories 25.0 mm / 2 rearmost standoffs",
+      "seconds": 2.49
+    },
+    {
+      "name": "All accessories 25.0 mm / 4 rearmost standoffs",
+      "seconds": 3.5
+    },
+    {
+      "name": "All accessories 30.0 mm / 2 rearmost standoffs",
+      "seconds": 2.35
+    },
+    {
+      "name": "All accessories 30.0 mm / 4 rearmost standoffs",
+      "seconds": 3.1
+    },
+    {
+      "name": "Accessory selection 1",
+      "seconds": 2.01
+    },
+    {
+      "name": "Accessory selection 2",
+      "seconds": 2.09
+    },
+    {
+      "name": "Accessory selection 3",
+      "seconds": 2.36
+    },
+    {
+      "name": "Accessory selection 4",
+      "seconds": 2.0
+    },
+    {
+      "name": "Accessory selection 5",
+      "seconds": 2.28
+    },
+    {
+      "name": "Accessory selection 6",
+      "seconds": 2.27
+    },
+    {
+      "name": "Accessory selection 7",
+      "seconds": 2.67
+    },
+    {
+      "name": "Tilt -45.0 / Pigtail / bulkhead",
+      "seconds": 2.67
+    },
+    {
+      "name": "Tilt -45.0 / Split clamp",
+      "seconds": 2.97
+    },
+    {
+      "name": "Tilt 25.0 / Pigtail / bulkhead",
+      "seconds": 2.64
+    },
+    {
+      "name": "Tilt 25.0 / Split clamp",
+      "seconds": 2.77
+    },
+    {
+      "name": "Tilt 45.0 / Pigtail / bulkhead",
+      "seconds": 2.57
+    },
+    {
+      "name": "Tilt 45.0 / Split clamp",
+      "seconds": 2.7
+    },
+    {
+      "name": "Independent widths (40.0, 44.0, 36.0) / 2 rearmost standoffs",
+      "seconds": 2.57
+    },
+    {
+      "name": "Independent widths (40.0, 44.0, 36.0) / 4 rearmost standoffs",
+      "seconds": 3.27
+    },
+    {
+      "name": "Independent widths (52.0, 52.0, 42.0) / 2 rearmost standoffs",
+      "seconds": 2.41
+    },
+    {
+      "name": "Independent widths (52.0, 52.0, 42.0) / 4 rearmost standoffs",
+      "seconds": 3.81
+    },
+    {
+      "name": "Independent widths (36.0, 32.0, 30.0) / 2 rearmost standoffs",
+      "seconds": 3.16
+    },
+    {
+      "name": "Independent widths (36.0, 32.0, 30.0) / 4 rearmost standoffs",
+      "seconds": 3.75
+    },
+    {
+      "name": "Two plates Below bottom plate / clamp False",
+      "seconds": 2.58
+    },
+    {
+      "name": "Two plates Below bottom plate / clamp True",
+      "seconds": 2.85
+    },
+    {
+      "name": "Two plates Above bottom plate / clamp True",
+      "seconds": 3.33
+    }
+  ],
+  "failures": [],
+  "fixture_note": "Two-plate camera fixtures use 30 mm standoffs to clear the existing camera body; complete three-plate rear mounts cover 22, 25 and 30 mm.",
+  "portable_tests": 275,
+  "export": {
+    "status": "passed",
+    "checks": [
+      "New tilt, insert silhouette and plate fillets create and export together",
+      "Paired ELRS bores remain fully open after common support fusion",
+      "GPS tilt stored as an angle property",
+      "Three printable STL files, native project, STEP and CNC export"
+    ]
+  },
+  "editor": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Twelve combined-mount refresh/paint cycles without native solids",
+        "seconds": 2.077491983998698
+      },
+      {
+        "name": "GPS tilt, insert shape and fillet controls roundtrip; independent accessory switches; one rear preview; two/four attachment and airflow controls"
+      },
+      {
+        "name": "Height fit uses the tallest low feature when VTX is disabled"
+      },
+      {
+        "name": "Automatic height leaves configured standoffs unchanged; three width controls roundtrip"
+      }
+    ]
+  }
+}

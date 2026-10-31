@@ -1,0 +1,190 @@
+{
+  "status": "passed",
+  "checks": [
+    {
+      "name": "Selection 1 / 2 rearmost standoffs",
+      "seconds": 1.831
+    },
+    {
+      "name": "Selection 1 / 4 rearmost standoffs",
+      "seconds": 2.229
+    },
+    {
+      "name": "Selection 2 / 2 rearmost standoffs",
+      "seconds": 1.94
+    },
+    {
+      "name": "Selection 2 / 4 rearmost standoffs",
+      "seconds": 2.407
+    },
+    {
+      "name": "Selection 3 / 2 rearmost standoffs",
+      "seconds": 2.111
+    },
+    {
+      "name": "Selection 3 / 4 rearmost standoffs",
+      "seconds": 2.509
+    },
+    {
+      "name": "Selection 4 / 2 rearmost standoffs",
+      "seconds": 1.876
+    },
+    {
+      "name": "Selection 4 / 4 rearmost standoffs",
+      "seconds": 2.551
+    },
+    {
+      "name": "Selection 5 / 2 rearmost standoffs",
+      "seconds": 2.231
+    },
+    {
+      "name": "Selection 5 / 4 rearmost standoffs",
+      "seconds": 2.717
+    },
+    {
+      "name": "Selection 6 / 2 rearmost standoffs",
+      "seconds": 2.123
+    },
+    {
+      "name": "Selection 6 / 4 rearmost standoffs",
+      "seconds": 2.683
+    },
+    {
+      "name": "Selection 7 / 2 rearmost standoffs",
+      "seconds": 2.125
+    },
+    {
+      "name": "Selection 7 / 4 rearmost standoffs",
+      "seconds": 2.899
+    },
+    {
+      "name": "2 rearmost standoffs / 0.0 / Pigtail / bulkhead",
+      "seconds": 0.106
+    },
+    {
+      "name": "2 rearmost standoffs / 0.0 / Split clamp",
+      "seconds": 2.189
+    },
+    {
+      "name": "2 rearmost standoffs / 30.0 / Pigtail / bulkhead",
+      "seconds": 2.081
+    },
+    {
+      "name": "2 rearmost standoffs / 30.0 / Split clamp",
+      "seconds": 2.208
+    },
+    {
+      "name": "2 rearmost standoffs / 60.0 / Pigtail / bulkhead",
+      "seconds": 2.21
+    },
+    {
+      "name": "2 rearmost standoffs / 60.0 / Split clamp",
+      "seconds": 2.4
+    },
+    {
+      "name": "4 rearmost standoffs / 0.0 / Pigtail / bulkhead",
+      "seconds": 3.08
+    },
+    {
+      "name": "4 rearmost standoffs / 0.0 / Split clamp",
+      "seconds": 3.088
+    },
+    {
+      "name": "4 rearmost standoffs / 30.0 / Pigtail / bulkhead",
+      "seconds": 3.156
+    },
+    {
+      "name": "4 rearmost standoffs / 30.0 / Split clamp",
+      "seconds": 3.299
+    },
+    {
+      "name": "4 rearmost standoffs / 60.0 / Pigtail / bulkhead",
+      "seconds": 3.183
+    },
+    {
+      "name": "4 rearmost standoffs / 60.0 / Split clamp",
+      "seconds": 3.296
+    },
+    {
+      "name": "ELRS 2.4 GHz / Slide-in eyes",
+      "seconds": 2.282
+    },
+    {
+      "name": "ELRS 2.4 GHz / Split clips",
+      "seconds": 2.142
+    },
+    {
+      "name": "ELRS 900 MHz / Slide-in eyes",
+      "seconds": 2.186
+    },
+    {
+      "name": "ELRS 900 MHz / Split clips",
+      "seconds": 2.208
+    },
+    {
+      "name": "ELRS Dual 2.4 GHz / Slide-in eyes",
+      "seconds": 2.15
+    },
+    {
+      "name": "ELRS Dual 2.4 GHz / Split clips",
+      "seconds": 2.115
+    },
+    {
+      "name": "ELRS Dual 900 MHz / Slide-in eyes",
+      "seconds": 2.163
+    },
+    {
+      "name": "ELRS Dual 900 MHz / Split clips",
+      "seconds": 2.248
+    },
+    {
+      "name": "ELRS 2.4 + 900 MHz / Slide-in eyes",
+      "seconds": 2.066
+    },
+    {
+      "name": "ELRS 2.4 + 900 MHz / Split clips",
+      "seconds": 2.11
+    },
+    {
+      "name": "Two plate Below bottom plate clamp False",
+      "seconds": 2.124
+    },
+    {
+      "name": "Two plate Below bottom plate clamp True",
+      "seconds": 2.751
+    },
+    {
+      "name": "Two plate Above bottom plate clamp True",
+      "seconds": 2.777
+    },
+    {
+      "name": "Six-post frame 2 rearmost standoffs",
+      "seconds": 2.227
+    },
+    {
+      "name": "Six-post frame 4 rearmost standoffs",
+      "seconds": 2.781
+    },
+    {
+      "name": "Full export",
+      "seconds": 3.635
+    },
+    {
+      "name": "Native update retires split parts; export contains one rear STL and two camera pads"
+    }
+  ],
+  "failures": [],
+  "portable_tests": 264,
+  "editor": {
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Twelve combined-mount refresh/paint cycles without native solids",
+        "seconds": 2.000257639000665
+      },
+      {
+        "name": "Independent accessory switches; one rear preview; two/four attachment and airflow controls"
+      }
+    ]
+  }
+}

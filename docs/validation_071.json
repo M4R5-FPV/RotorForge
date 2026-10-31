@@ -1,0 +1,30 @@
+{
+  "version": "0.71.0",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 346,
+  "native_reports": {
+    "native071": {
+      "checks": [
+        "two",
+        "three",
+        "clamp",
+        "recessed"
+      ],
+      "failures": []
+    },
+    "gui071": {
+      "checks": [
+        "Stack option and actual height label round-trip; Fit stack height includes upper nuts; VTX nut option removed"
+      ],
+      "failures": []
+    },
+    "clearance071": {
+      "checks": [
+        "Exactly 1.00 mm flange material margin accepted; 0.99 mm rejected"
+      ],
+      "failures": []
+    }
+  },
+  "help_pages": 75,
+  "failures": []
+}

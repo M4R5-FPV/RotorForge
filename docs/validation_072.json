@@ -1,0 +1,36 @@
+{
+  "version": "0.72.0",
+  "portable_tests": 350,
+  "native": {
+    "checks": [
+      [
+        1.0,
+        "CameraMountLeft"
+      ],
+      [
+        1.0,
+        "CameraMountRight"
+      ],
+      [
+        2.0,
+        "CameraMountLeft"
+      ],
+      [
+        2.0,
+        "CameraMountRight"
+      ],
+      "2 plates sloped side plates and export",
+      "3 plates sloped side plates and export",
+      "captured inserts"
+    ],
+    "failures": []
+  },
+  "incremental_gui": {
+    "rebuilt": [
+      "CameraMountLeft",
+      "CameraMountRight",
+      "FrameCGMarker"
+    ],
+    "gui": "controls and disabled-state round-trip passed"
+  }
+}

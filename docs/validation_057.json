@@ -1,0 +1,516 @@
+{
+  "version": "0.57.0",
+  "runtime": "FreeCAD 1.1.4 on Linux",
+  "portable_tests": 280,
+  "help_pages": 72,
+  "help_controls": 255,
+  "native_checks": 123,
+  "reports": {
+    "rear": {
+      "checks": [
+        {
+          "name": "Subset 1 / 2 rearmost standoffs",
+          "seconds": 0.58,
+          "volume": 7783.24
+        },
+        {
+          "name": "Subset 2 / 2 rearmost standoffs",
+          "seconds": 0.73,
+          "volume": 7696.26
+        },
+        {
+          "name": "Subset 3 / 2 rearmost standoffs",
+          "seconds": 1.06,
+          "volume": 10590.52
+        },
+        {
+          "name": "Subset 4 / 2 rearmost standoffs",
+          "seconds": 1.44,
+          "volume": 9979.55
+        },
+        {
+          "name": "Subset 5 / 2 rearmost standoffs",
+          "seconds": 1.36,
+          "volume": 12203.2
+        },
+        {
+          "name": "Subset 6 / 2 rearmost standoffs",
+          "seconds": 1.96,
+          "volume": 11948.21
+        },
+        {
+          "name": "Subset 7 / 2 rearmost standoffs",
+          "seconds": 1.76,
+          "volume": 14842.47
+        },
+        {
+          "name": "Subset 1 / 4 rearmost standoffs",
+          "seconds": 1.66,
+          "volume": 18483.02
+        },
+        {
+          "name": "Subset 2 / 4 rearmost standoffs",
+          "seconds": 1.91,
+          "volume": 18401.25
+        },
+        {
+          "name": "Subset 3 / 4 rearmost standoffs",
+          "seconds": 2.2,
+          "volume": 21312.78
+        },
+        {
+          "name": "Subset 4 / 4 rearmost standoffs",
+          "seconds": 1.94,
+          "volume": 20680.81
+        },
+        {
+          "name": "Subset 5 / 4 rearmost standoffs",
+          "seconds": 2.39,
+          "volume": 22902.7
+        },
+        {
+          "name": "Subset 6 / 4 rearmost standoffs",
+          "seconds": 2.62,
+          "volume": 22658.21
+        },
+        {
+          "name": "Subset 7 / 4 rearmost standoffs",
+          "seconds": 2.96,
+          "volume": 25569.73
+        },
+        {
+          "name": "Height 22.0 / 2 rearmost standoffs",
+          "seconds": 1.79,
+          "volume": 14206.15
+        },
+        {
+          "name": "Height 22.0 / 4 rearmost standoffs",
+          "seconds": 3.17,
+          "volume": 23280.08
+        },
+        {
+          "name": "Height 25.0 / 2 rearmost standoffs",
+          "seconds": 2.22,
+          "volume": 14842.47
+        },
+        {
+          "name": "Height 25.0 / 4 rearmost standoffs",
+          "seconds": 3.38,
+          "volume": 25569.73
+        },
+        {
+          "name": "Height 30.0 / 2 rearmost standoffs",
+          "seconds": 2.15,
+          "volume": 15903.0
+        },
+        {
+          "name": "Height 30.0 / 4 rearmost standoffs",
+          "seconds": 3.61,
+          "volume": 29385.82
+        },
+        {
+          "name": "SMA / Pigtail / bulkhead / 0.0",
+          "seconds": 2.47,
+          "volume": 14387.9
+        },
+        {
+          "name": "SMA / Pigtail / bulkhead / 60.0",
+          "seconds": 1.94,
+          "volume": 15228.3
+        },
+        {
+          "name": "SMA / Split clamp / 0.0",
+          "seconds": 2.71,
+          "volume": 15060.09
+        },
+        {
+          "name": "SMA / Split clamp / 60.0",
+          "seconds": 2.25,
+          "volume": 15892.71
+        },
+        {
+          "name": "RP-SMA / Pigtail / bulkhead / 0.0",
+          "seconds": 1.91,
+          "volume": 14387.9
+        },
+        {
+          "name": "RP-SMA / Pigtail / bulkhead / 60.0",
+          "seconds": 2.03,
+          "volume": 15228.3
+        },
+        {
+          "name": "RP-SMA / Split clamp / 0.0",
+          "seconds": 2.57,
+          "volume": 15060.09
+        },
+        {
+          "name": "RP-SMA / Split clamp / 60.0",
+          "seconds": 2.41,
+          "volume": 15892.71
+        },
+        {
+          "name": "MMCX / Pigtail / bulkhead / 0.0",
+          "seconds": 1.78,
+          "volume": 14431.09
+        },
+        {
+          "name": "MMCX / Pigtail / bulkhead / 60.0",
+          "seconds": 1.71,
+          "volume": 15271.49
+        },
+        {
+          "name": "MMCX / Split clamp / 0.0",
+          "seconds": 1.96,
+          "volume": 14965.58
+        },
+        {
+          "name": "MMCX / Split clamp / 60.0",
+          "seconds": 2.04,
+          "volume": 15790.29
+        },
+        {
+          "name": "u.FL / Pigtail / bulkhead / 0.0",
+          "seconds": 1.87,
+          "volume": 14453.18
+        },
+        {
+          "name": "u.FL / Pigtail / bulkhead / 60.0",
+          "seconds": 2.07,
+          "volume": 15293.58
+        },
+        {
+          "name": "u.FL / Split clamp / 0.0",
+          "seconds": 2.46,
+          "volume": 14845.04
+        },
+        {
+          "name": "u.FL / Split clamp / 60.0",
+          "seconds": 2.1,
+          "volume": 15651.66
+        },
+        {
+          "name": "ELRS 2.4 GHz / Slide-in eyes",
+          "seconds": 1.91,
+          "volume": 14842.47
+        },
+        {
+          "name": "ELRS 2.4 GHz / Split clips",
+          "seconds": 1.95,
+          "volume": 14755.54
+        },
+        {
+          "name": "ELRS 900 MHz / Slide-in eyes",
+          "seconds": 1.89,
+          "volume": 14842.47
+        },
+        {
+          "name": "ELRS 900 MHz / Split clips",
+          "seconds": 2.32,
+          "volume": 14755.54
+        },
+        {
+          "name": "ELRS Dual 2.4 GHz / Slide-in eyes",
+          "seconds": 2.2,
+          "volume": 16600.81
+        },
+        {
+          "name": "ELRS Dual 2.4 GHz / Split clips",
+          "seconds": 2.72,
+          "volume": 16426.95
+        },
+        {
+          "name": "ELRS Dual 900 MHz / Slide-in eyes",
+          "seconds": 2.42,
+          "volume": 16600.81
+        },
+        {
+          "name": "ELRS Dual 900 MHz / Split clips",
+          "seconds": 2.55,
+          "volume": 16426.95
+        },
+        {
+          "name": "ELRS 2.4 + 900 MHz / Slide-in eyes",
+          "seconds": 2.1,
+          "volume": 16600.81
+        },
+        {
+          "name": "ELRS 2.4 + 900 MHz / Split clips",
+          "seconds": 2.56,
+          "volume": 16426.95
+        },
+        {
+          "name": "GPS tilt -45.0",
+          "seconds": 1.95,
+          "volume": 16589.79
+        },
+        {
+          "name": "GPS tilt 0.0",
+          "seconds": 2.53,
+          "volume": 14842.47
+        },
+        {
+          "name": "GPS tilt 45.0",
+          "seconds": 1.93,
+          "volume": 16636.78
+        },
+        {
+          "name": "Independent widths / 2 rearmost standoffs",
+          "seconds": 1.95,
+          "volume": 15207.57
+        },
+        {
+          "name": "Independent widths / 4 rearmost standoffs",
+          "seconds": 3.14,
+          "volume": 25905.69
+        },
+        {
+          "name": "Analog one antenna",
+          "seconds": 1.99,
+          "volume": 14842.47
+        }
+      ],
+      "failures": []
+    },
+    "camera_and_openings": {
+      "checks": [
+        "Hard mount / Rounded rectangle / 10.0",
+        "Hard mount / Rounded rectangle / 20.0",
+        "Hard mount / Side plate outline / 10.0",
+        "Hard mount / Side plate outline / 20.0",
+        "Compression pads / Rounded rectangle / 10.0",
+        "Compression pads / Rounded rectangle / 20.0",
+        "Compression pads / Side plate outline / 10.0",
+        "Compression pads / Side plate outline / 20.0",
+        "Captured inserts / Rounded rectangle / 10.0",
+        "Captured inserts / Rounded rectangle / 20.0",
+        "Captured inserts / Side plate outline / 10.0",
+        "Captured inserts / Side plate outline / 20.0",
+        "Native internal corners / False",
+        "Native internal corners / True"
+      ],
+      "failures": []
+    },
+    "integration_and_editor": {
+      "checks": [
+        "Three plate / 2 rearmost standoffs",
+        "Three plate / 4 rearmost standoffs",
+        "Two plate / Below bottom plate / clamp False",
+        "Two plate / Below bottom plate / clamp True",
+        "Two plate / Above bottom plate / clamp True",
+        "Create, update old object, save/reopen, STEP/STL/DXF/SVG export",
+        "Ten editor refresh/paint cycles, new controls persist, zero native solid calls"
+      ],
+      "failures": []
+    },
+    "fillets": {
+      "status": "passed",
+      "checks": [
+        {
+          "name": "Rounded rectangle / 1.0",
+          "seconds": 4.339
+        },
+        {
+          "name": "Rounded rectangle / 3.0",
+          "seconds": 3.844
+        },
+        {
+          "name": "Rounded rectangle / 5.0",
+          "seconds": 4.026
+        },
+        {
+          "name": "Chamfered rectangle / 1.0",
+          "seconds": 6.551
+        },
+        {
+          "name": "Chamfered rectangle / 3.0",
+          "seconds": 5.912
+        },
+        {
+          "name": "Chamfered rectangle / 5.0",
+          "seconds": 4.613
+        },
+        {
+          "name": "Tapered front / 1.0",
+          "seconds": 3.83
+        },
+        {
+          "name": "Tapered front / 3.0",
+          "seconds": 4.165
+        },
+        {
+          "name": "Tapered front / 5.0",
+          "seconds": 3.682
+        },
+        {
+          "name": "Tapered rear / 1.0",
+          "seconds": 3.476
+        },
+        {
+          "name": "Tapered rear / 3.0",
+          "seconds": 3.438
+        },
+        {
+          "name": "Tapered rear / 5.0",
+          "seconds": 3.436
+        },
+        {
+          "name": "Hexagonal / 1.0",
+          "seconds": 3.847
+        },
+        {
+          "name": "Hexagonal / 3.0",
+          "seconds": 4.524
+        },
+        {
+          "name": "Hexagonal / 5.0",
+          "seconds": 5.002
+        },
+        {
+          "name": "Faceted shield / 1.0",
+          "seconds": 5.171
+        },
+        {
+          "name": "Faceted shield / 3.0",
+          "seconds": 5.555
+        },
+        {
+          "name": "Faceted shield / 5.0",
+          "seconds": 4.834
+        },
+        {
+          "name": "Octagonal / 1.0",
+          "seconds": 5.718
+        },
+        {
+          "name": "Octagonal / 3.0",
+          "seconds": 5.863
+        },
+        {
+          "name": "Octagonal / 5.0",
+          "seconds": 5.149
+        },
+        {
+          "name": "Internal Circle",
+          "seconds": 2.239
+        },
+        {
+          "name": "Internal Slot",
+          "seconds": 2.476
+        },
+        {
+          "name": "Internal Rounded rectangle",
+          "seconds": 2.481
+        },
+        {
+          "name": "Internal Hexagon",
+          "seconds": 2.324
+        },
+        {
+          "name": "Internal Ellipse",
+          "seconds": 2.838
+        },
+        {
+          "name": "Internal Rectangle",
+          "seconds": 2.807
+        },
+        {
+          "name": "Internal Triangle",
+          "seconds": 2.067
+        },
+        {
+          "name": "Internal Diamond",
+          "seconds": 2.119
+        },
+        {
+          "name": "Internal Trapezoid",
+          "seconds": 2.03
+        },
+        {
+          "name": "Internal Pentagon",
+          "seconds": 2.145
+        },
+        {
+          "name": "Internal Octagon",
+          "seconds": 2.342
+        },
+        {
+          "name": "Internal Chevron",
+          "seconds": 2.194
+        },
+        {
+          "name": "Internal Heptagon",
+          "seconds": 2.522
+        },
+        {
+          "name": "Internal Dodecagon",
+          "seconds": 2.791
+        },
+        {
+          "name": "Internal Parallelogram",
+          "seconds": 2.216
+        },
+        {
+          "name": "Internal Kite",
+          "seconds": 2.311
+        },
+        {
+          "name": "Internal Hourglass",
+          "seconds": 2.351
+        },
+        {
+          "name": "Internal Cross",
+          "seconds": 2.8
+        },
+        {
+          "name": "Internal Crescent",
+          "seconds": 27.769
+        },
+        {
+          "name": "Internal Leaf",
+          "seconds": 12.024
+        },
+        {
+          "name": "Edge notch Rectangle",
+          "seconds": 2.465
+        },
+        {
+          "name": "Edge notch Triangle",
+          "seconds": 2.926
+        },
+        {
+          "name": "Edge notch Circle",
+          "seconds": 2.897
+        },
+        {
+          "name": "Edge notch Ellipse",
+          "seconds": 4.876
+        },
+        {
+          "name": "Combined rectangle + Rectangle",
+          "seconds": 2.78
+        },
+        {
+          "name": "Combined rectangle + Circle",
+          "seconds": 2.729
+        },
+        {
+          "name": "Two plate clamps / Below bottom plate",
+          "seconds": 1.916
+        },
+        {
+          "name": "Two plate clamps / Above bottom plate",
+          "seconds": 1.759
+        },
+        {
+          "name": "Widened centres / 3 mm",
+          "seconds": 6.044
+        }
+      ],
+      "failures": []
+    }
+  },
+  "preserved_native_files": 62,
+  "limitations": [
+    "No Windows/macOS execution, physical print/fit, material fatigue or flight validation performed."
+  ]
+}

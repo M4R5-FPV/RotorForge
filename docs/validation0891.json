@@ -1,0 +1,44 @@
+{
+  "version": "0.89.1",
+  "portable_tests": 471,
+  "native_checks": [
+    "2 plates below arms",
+    "2 plates above arms and clamp",
+    "3 plates and outline straps",
+    "Vents, USB and guard strap",
+    "Stepped mid front",
+    "Camera closure",
+    "Zero plate clearance",
+    "Wide VTX clears 2 plates / Plate-edge wrap",
+    "Wide VTX clears 2 plates / Between plates",
+    "Wide VTX clears 3 plates / Plate-edge wrap",
+    "Wide VTX clears 3 plates / Between plates",
+    "Save, reopen and switch fit modes preserves settings and exact geometry",
+    "Assembly STEP, guard STEP/STL and CNC exports retain clearances",
+    "Clamped contact and inward wall: two plates",
+    "Clamped contact and inward wall: three plates",
+    "Clamped contact and inward wall: zero inset",
+    "Clamped contact and inward wall: larger inset",
+    "Clamped contact and inward wall: tapered filleted top",
+    "Under-plate strap passage: Outline cutouts / 1 strap",
+    "Under-plate strap passage: Outline cutouts / 2 straps",
+    "Under-plate strap passage: Slots / 2 straps",
+    "Original wrap unchanged: 2 plates",
+    "Original wrap unchanged: 3 plates",
+    "0.89.0 saved frame rebuilds inward and retains contact after reopen",
+    "Persistent cache restores clamped geometry"
+  ],
+  "editor_checks": [
+    "Fit switch uses one wire span and restores saved pair selection",
+    "VTX controls retain values and disable irrelevant automatic clearance",
+    "Actual Load action preserves new options and paints preview",
+    "Help inventory matches all 339 current visible controls"
+  ],
+  "help_pages": 101,
+  "visible_controls": 339,
+  "installation_pages": 2,
+  "limits": [
+    "Offscreen Linux editor; hardware OpenGL and Windows installation not exercised.",
+    "Nominal CAD plate contact verified; physical print compression and fit not tested."
+  ]
+}

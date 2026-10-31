@@ -1,0 +1,198 @@
+{
+  "power_straps": {
+    "checks": [
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        20.0,
+        3.0
+      ],
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        20.0,
+        14.0
+      ],
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        20.0,
+        24.0
+      ],
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        30.5,
+        3.0
+      ],
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        30.5,
+        14.0
+      ],
+      [
+        "meeting grommets; FC neck points down; nut seat",
+        30.5,
+        24.0
+      ],
+      [
+        "VTXEnvelope",
+        "detailed model, original envelope bounds and unchanged frame/mass"
+      ],
+      [
+        "BatteryEnvelope",
+        "detailed model, original envelope bounds and unchanged frame/mass"
+      ],
+      [
+        "LiPo pose",
+        "Top plate"
+      ],
+      [
+        "LiPo pose",
+        "Bottom plate"
+      ],
+      [
+        "connected guards and closed STL",
+        "2 plates",
+        "1 strap",
+        "Top edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "2 plates",
+        "1 strap",
+        "Bottom edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "2 plates",
+        "2 straps",
+        "Top edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "2 plates",
+        "2 straps",
+        "Bottom edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "3 plates",
+        "1 strap",
+        "Top edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "3 plates",
+        "1 strap",
+        "Bottom edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "3 plates",
+        "2 straps",
+        "Top edge"
+      ],
+      [
+        "connected guards and closed STL",
+        "3 plates",
+        "2 straps",
+        "Bottom edge"
+      ],
+      "New detailed power references excluded from manufacturing STEP",
+      "New settings and negative strap offset survive FCStd restoration"
+    ],
+    "failures": []
+  },
+  "power_straps_gui": {
+    "checks": [
+      "New controls, previews, signed offsets and enable rules without CAD",
+      "Detailed power and stack reference per-face materials",
+      "Simple VTX and LiPo references restored on disable"
+    ],
+    "failures": []
+  },
+  "presentation": {
+    "checks": [
+      [
+        "MotorEnvelopes",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "PropellerDiscs",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "StackEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "CameraEnvelope",
+        "independent visual rebuild, valid detail, unchanged carbon and mass"
+      ],
+      [
+        "master reference visibility remains independent of carbon"
+      ],
+      [
+        "motor size",
+        12.0,
+        7.0
+      ],
+      [
+        "motor size",
+        28.0,
+        16.0
+      ],
+      [
+        "motor size",
+        40.0,
+        22.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        40.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        127.0
+      ],
+      [
+        "curved three-blade prop within disc",
+        254.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        20.0,
+        24.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        3.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        14.0
+      ],
+      [
+        "two PCB / grommet envelope",
+        30.5,
+        24.0
+      ],
+      [
+        "detailed switches survive saved-project restoration"
+      ],
+      [
+        "manufacturing STEP excludes all presentation references"
+      ]
+    ],
+    "failures": []
+  }
+}

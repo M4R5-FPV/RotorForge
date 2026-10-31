@@ -1,0 +1,26 @@
+{
+  "version": "0.73.1",
+  "native_gui": {
+    "checks": [
+      "Opening settings alone does not enable references",
+      "Unrelated edit keeps object, visibility and shape without fastener rebuilds",
+      "Stack nuts automatically follow changed height with group selection preserved",
+      "Explicit Hide remains hidden through updates",
+      "Invalid edits pause references; valid recovery restores visibility",
+      "Pre-fix saved hardware upgrades in place",
+      "Old automatically hidden references recover on update",
+      "Arm press nuts follow bolt edits without replacing references"
+    ],
+    "failures": []
+  },
+  "saved_frame": {
+    "saved_settings_and_update": true,
+    "stable_objects": [
+      "MidPlate",
+      "ArmFrontRight",
+      "ArmFrontLeft",
+      "ArmRearLeft",
+      "ArmRearRight"
+    ]
+  }
+}

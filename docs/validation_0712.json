@@ -1,0 +1,51 @@
+{
+  "checks": [
+    "valid connected button head 1.4",
+    "valid connected button head 1.6",
+    "valid connected button head 2.0",
+    "valid connected button head 2.5",
+    "valid connected button head 3.0",
+    "valid connected button head 4.0",
+    [
+      "2 plates",
+      false,
+      false
+    ],
+    [
+      "2 plates",
+      false,
+      true
+    ],
+    [
+      "2 plates",
+      true,
+      false
+    ],
+    [
+      "2 plates",
+      true,
+      true
+    ],
+    [
+      "3 plates",
+      false,
+      false
+    ],
+    [
+      "3 plates",
+      false,
+      true
+    ],
+    [
+      "3 plates",
+      true,
+      false
+    ],
+    [
+      "3 plates",
+      true,
+      true
+    ]
+  ],
+  "failures": []
+}

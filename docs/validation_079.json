@@ -1,0 +1,40 @@
+{
+  "native": {
+    "checks": [
+      "Follow bottom plate valid shoe, carbon clearance and closed print mesh",
+      "Rounded shoe valid shoe, carbon clearance and closed print mesh",
+      "Flat shoe valid shoe, carbon clearance and closed print mesh",
+      "Chamfered shoe valid shoe, carbon clearance and closed print mesh",
+      "Pointed shoe valid shoe, carbon clearance and closed print mesh",
+      "Twin-lobe shoe valid shoe, carbon clearance and closed print mesh",
+      "Finished Rounded nose followed by shoe",
+      "Finished V-notch followed by shoe",
+      "Finished Twin lobes followed by shoe",
+      "Long shoe retains front bolt-head access and contributes to mass/CG",
+      "Two plates Above bottom plate with camera tabs",
+      "Two plates Below bottom plate with camera tabs",
+      "Three plates with closed front side guards",
+      "Toe edit reuses carbon and existing TPU: ['FrontBumper', 'FrameCGMarker']",
+      "Separate print STL, assembly/print STEP and saved frame"
+    ],
+    "failures": []
+  },
+  "gui": {
+    "checks": [
+      "Six styles, material colour, Overall/part views and disabled controls round-trip without CAD builds"
+    ],
+    "failures": []
+  },
+  "mesh": {
+    "exported_bumper_closed": true,
+    "facets": 546
+  },
+  "version": "0.79.0",
+  "portable_tests": 405,
+  "freecad": "1.0.2",
+  "help": {
+    "pages": 87,
+    "controls": 307,
+    "cover_unchanged": true
+  }
+}

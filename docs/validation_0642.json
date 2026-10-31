@@ -1,0 +1,16 @@
+{
+  "version": "0.64.2",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 304,
+  "native_checks": [
+    "2 plates/0.0",
+    "2 plates/1.0",
+    "Native save/reopen and STL export",
+    "3 plates/0.0",
+    "3 plates/1.0",
+    "Under intermediate FC row"
+  ],
+  "failures": [],
+  "help_pages": 76,
+  "help_controls": 261
+}

@@ -1,0 +1,37 @@
+{
+  "version": "0.89.0",
+  "portable_tests": 467,
+  "native_checks": [
+    "2 plates below arms",
+    "2 plates above arms and clamp",
+    "3 plates and outline straps",
+    "Vents, USB and guard strap",
+    "Stepped mid front",
+    "Camera closure",
+    "Zero plate clearance",
+    "Wide VTX clears 2 plates / Plate-edge wrap",
+    "Wide VTX clears 2 plates / Between plates",
+    "Wide VTX clears 3 plates / Plate-edge wrap",
+    "Wide VTX clears 3 plates / Between plates",
+    "Save, reopen and switch fit modes preserves settings and exact geometry",
+    "Assembly STEP, guard STEP/STL and CNC exports retain clearances",
+    "0.88.0 geometry and document migration: 2 plates",
+    "0.88.0 geometry and document migration: 3 plates",
+    "Left-only VTX opening preserves the opposite guard",
+    "Right-only VTX opening preserves the opposite guard",
+    "Moving a VTX opening reuses base guards and unchanged carbon",
+    "Persistent cache restores the new geometry after clearing memory"
+  ],
+  "gui_checks": [
+    "Fit switch uses one wire span and restores saved pair selection",
+    "VTX controls retain values and disable irrelevant automatic clearance",
+    "Actual Load action preserves new options and paints preview",
+    "Help inventory matches all 339 current visible controls"
+  ],
+  "help": {
+    "pages": 100,
+    "controls": 339,
+    "text_outside_pages": []
+  },
+  "runtime": "FreeCAD 1.1.4 / Python 3.11 / OpenCASCADE 7.8.1; Linux offscreen GUI"
+}

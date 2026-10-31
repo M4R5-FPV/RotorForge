@@ -1,0 +1,12 @@
+{
+  "version": "0.65.1",
+  "runtime": "FreeCAD 1.1.0 Linux",
+  "portable_tests": 317,
+  "native_checks": [
+    "Legacy lengths read without mutation; explicit migration and save/reopen preserve bounded integers",
+    "VTX/FC controls are unitless whole-number spin boxes; preview edits invoke no CAD builder"
+  ],
+  "failures": [],
+  "help_pages": 78,
+  "help_controls": 264
+}
