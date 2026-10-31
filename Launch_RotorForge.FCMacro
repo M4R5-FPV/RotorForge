@@ -1,0 +1,13 @@
+"""Optional one-session launcher for an extracted namespaced workbench."""
+from pathlib import Path
+import importlib
+import sys
+import FreeCADGui as Gui
+
+_rotorforge_folder = str(Path(__file__).resolve().parent)
+if _rotorforge_folder not in sys.path:
+    sys.path.insert(0, _rotorforge_folder)
+importlib.invalidate_caches()
+importlib.import_module("freecad.rotorforge.init_gui")
+Gui.activateWorkbench("RotorForgeWorkbench")
+Gui.runCommand("RotorForge_NewFrame")

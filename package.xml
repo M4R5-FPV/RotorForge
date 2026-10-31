@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>RotorForge</name>
+  <description>RotorForge Drone Frame Editor: parametric quadcopter frames, arm locks and exact manufacturing profiles.</description>
+  <version>0.89.1</version>
+  <date>2026-10-29</date>
+  <maintainer>Michael Struggl (https://www.diyfpv.com/profile/M4R5_FPV)</maintainer>
+  <license file="LICENSE">MIT</license>
+  <icon>freecad/rotorforge/resources/icons/frame.svg</icon>
+  <pythonmin>3.10</pythonmin>
+  <freecadmin>1.0</freecadmin>
+  <content><workbench><name>RotorForge</name><classname>RotorForgeWorkbench</classname><subdirectory>./</subdirectory><icon>freecad/rotorforge/resources/icons/frame.svg</icon></workbench></content>
+</package>

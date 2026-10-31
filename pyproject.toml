@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "freecad-rotorforge"
+authors = [{name = "Michael Struggl"}]
+maintainers = [{name = "Michael Struggl"}]
+dynamic = ["version"]
+description = "RotorForge Drone Frame Editor for FreeCAD"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+# FreeCAD supplies Part, FreeCADGui and PySide. Do not install replacements
+# from PyPI into FreeCAD's Python environment.
+
+[tool.hatch.version]
+path = "freecad/rotorforge/version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["freecad", "rotorforge"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/freecad", "/rotorforge", "/tests", "/docs", "/examples", "/package.xml", "/Launch_RotorForge.FCMacro", "/RotorForge_Help.pdf", "/RotorForge_Installation.pdf", "/README.md", "/MIGRATION.md", "/CHANGELOG.md", "/VALIDATION.md", "/LICENSE", "/pyproject.toml"]
+
+[project.urls]
+"Maintainer profile" = "https://www.diyfpv.com/profile/M4R5_FPV"
