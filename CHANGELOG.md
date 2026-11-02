@@ -1,3 +1,18 @@
+# 0.89.3
+
+- Enlarged press-nut mounting pads around the complete bore, shank and flange/counterbore footprint, using the configured minimum material with a 1 mm floor. FC stack inserts receive the same support.
+- Automatic tangent fillets add material at mounting-extension junctions on arms and plates even with general edge fillets disabled.
+- General plate fillets and final insert checks protect the full flange bearing margin.
+
+# 0.89.2
+
+Based on the restored 0.89.1 release.
+
+- Arm roots automatically add connected rounded stock around displaced mounting screws.
+- Receiving plates and standoff mounts gain local supporting extensions, retaining the requested fixing coordinates and minimum material.
+- Extensions recalculate on every edit and disappear when no longer needed. CAD, previews and cutting exports share the same support layout.
+- Hole spacing, fitted joints, reliefs and assembly collision checks remain active.
+
 # Changelog
 
 Release history is listed newest first. The Help PDF describes the current feature set.

@@ -121,6 +121,13 @@ def apply_plate_fillet(p,role,shape):
   protected=Part.Face(Part.makePolygon(vertices+[vertices[0]]))
   holes=[(pt,p.RootHoleDiameter/2,'root') for pt in arm['bolts']]+[(pt,p.MotorHoleDiameter/2,'motor') for pt in arm['motor_holes']]+[(arm['motor'],p.MotorCenterDiameter/2,'shaft')]
  disks=[Part.Face(Part.Wire(Part.makeCircle(r+p.MinimumWeb,App.Vector(*pt,0)))) for pt,r,_ in holes]
+ # Preserve complete press-in flange / counterbore bearing footprints even
+ # when a user also enables general outside-edge fillets.
+ from .nut_seats import seats
+ for seat in seats(p,role):
+  if seat['mode']=='M3 press nut':
+   radius=max(p.PressNutBore,p.PressNutShankDiameter,p.PressNutFlangeDiameter+(p.NutRecessClearance if seat['depth'] else 0))/2+max(1.,p.MinimumWeb)
+   disks.append(Part.Face(Part.Wire(Part.makeCircle(radius,App.Vector(*seat['point'],0)))))
  gaps={(a,b):min(p.MinimumWeb,wires[a].distToShape(wires[b])[0]) for a in range(len(wires)) for b in range(a+1,len(wires))}
  adapted=[];retained=0;done=0
  for index in (range(len(wires)) if fillet_openings(p,role) else (0,)):

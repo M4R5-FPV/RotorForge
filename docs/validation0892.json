@@ -1,0 +1,20 @@
+{
+  "checks": [
+    "Default",
+    "Displaced roots",
+    "Displaced posts",
+    "Two plates posts",
+    "Upper clamp roots",
+    "Lower clamp roots",
+    "Fitted roots",
+    "Press nut roots",
+    "Short rear mid",
+    "Native save/reopen, exports and reversible growth",
+    "Shared posts on arms",
+    "Shared posts on upper clamp"
+  ],
+  "failures": [],
+  "portable_tests": 476,
+  "cache_followup_tests": 17,
+  "native_version": "26.3.0 conda-forge"
+}

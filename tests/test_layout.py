@@ -118,7 +118,8 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual({s["position"]: s["length"] for s in standoff_layouts(three)}, {"Front":33,"Rear":25})
 
     def test_short_mid_and_front_standoff_conflicts_rejected(self):
-        for p in (replace(Parameters(), MidRearReach=35), replace(Parameters(), MidFrontReach=2),
+        self.assertEqual(validate(replace(Parameters(),MidRearReach=35))[0],[])
+        for p in (replace(Parameters(), MidFrontReach=2),
                   replace(Parameters(), MidFrontReach=50), replace(Parameters(),MidFrontReach=18.5)):
             self.assertTrue(validate(p)[0])
         self.assertEqual(validate(replace(Parameters(), PlateDesign="2 plates", ClampThickness=0,

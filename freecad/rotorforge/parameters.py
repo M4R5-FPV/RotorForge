@@ -772,7 +772,7 @@ def arm_brace_layouts(p):
                  stack_holes=stack_holes(p),rear=rear,front=front,width=p.BodyWidth,radius=p.CornerRadius),)
 
 
-def arm_clamp_interior_distance(point,p):
+def _base_arm_clamp_interior_distance(point,p):
     from .clamp_outline import clamp_interior_distance
     return clamp_interior_distance(point,p)
 
@@ -884,7 +884,7 @@ def plate_levels(p):
     if not three_plate(p):
         pair=next(pair for pair in standoff_pairs(p) if pair['position']=='Rear')
         point=(pair['width']/2,pair['y'])
-        if upper_clamp_active(p) and arm_clamp_interior_distance(point,p)>=0:
+        if upper_clamp_active(p) and (shared_arm_root(p,point) is not None or _base_arm_clamp_interior_distance(point,p)>=0):
             rear_base=stack_deck_z
         elif arms_above_bottom(p) and shared_arm_root(p,point):
             rear_base=p.BottomThickness+p.ArmThickness
@@ -900,10 +900,10 @@ def standoff_layouts(p):
             point = (x, pair["y"])
             shared=shared_arm_root(p,point)
             on_mid = three_plate(p) and (shared is not None or pair["position"] == "Rear" or
-                     (pair["position"] != "Front" and mid_interior_distance(point, p) >= 0))
+                     (pair["position"] != "Front" and _base_mid_interior_distance(point, p) >= 0))
             base = levels["deck_z"] if on_mid else p.BottomThickness
             mount='Mid plate' if on_mid else 'Bottom plate'
-            if upper_clamp_active(p) and arm_clamp_interior_distance(point,p)>=0:
+            if upper_clamp_active(p) and (shared_arm_root(p,point) is not None or _base_arm_clamp_interior_distance(point,p)>=0):
                 base=levels['stack_deck_z'];mount='Arm clamp plate'
             elif not three_plate(p) and arms_above_bottom(p) and shared:
                 base=p.BottomThickness+p.ArmThickness;mount='Arm top'
@@ -957,7 +957,7 @@ def rect_interior_distance(point, width, length, radius):
     return radius - math.hypot(max(qx, 0), max(qy, 0)) - min(max(qx, qy), 0)
 
 
-def bottom_interior_distance(point, p):
+def _base_bottom_interior_distance(point, p):
     rear,front=bottom_body_bounds(p)
     inside=profiled_interior_distance(point,p,'BottomPlate',p.BodyWidth,rear,front,p.CornerRadius)
     if not three_plate(p):return inside
@@ -972,20 +972,20 @@ def bottom_tab_interior_distance(point,p,arm,arms=None):
                profiled_interior_distance(point,p,'MidPlate',p.BodyWidth,*mid_bounds(p),p.CornerRadius))
 
 
-def top_interior_distance(point,p):
+def _base_top_interior_distance(point,p):
     rear,front=top_bounds(p)
     inside=profiled_interior_distance(point,p,'TopPlate',p.TopWidth,rear,front,p.CornerRadius)
     return inside
 
 
-def mid_interior_distance(point, p):
+def _base_mid_interior_distance(point, p):
     rear, front = mid_bounds(p)
     inside = profiled_interior_distance(point,p,'MidPlate',p.BodyWidth,rear,front,p.CornerRadius)
     arms=arm_layouts(p)
     tabs=max(mid_tab_interior_distance(point,p,arm,arms) for arm in arms if arm['root'][1]>0)
     # Only the forward clamp ears are trimmed. The mid carries the rear VTX
     # independently of the shorter bottom plate.
-    return max(inside,min(tabs,bottom_interior_distance(point,p)))
+    return max(inside,min(tabs,_base_bottom_interior_distance(point,p)))
 
 
 def mid_tab_interior_distance(point,p,arm,arms=None):
@@ -996,6 +996,26 @@ def mid_tab_interior_distance(point,p,arm,arms=None):
         inside=min([inside]+[limit-n[0]*point[0]-n[1]*point[1] for n,limit in root_joint_planes(p,arm,arms)])
         if keystone_active(p):inside=min(inside,-polygon_interior_distance(point,compact_key_outline(p,arms,True)))
     return inside
+
+
+def bottom_interior_distance(point,p):
+    from .mount_support import plate_distance
+    return plate_distance(point,p,'BottomPlate')
+
+
+def top_interior_distance(point,p):
+    from .mount_support import plate_distance
+    return plate_distance(point,p,'TopPlate')
+
+
+def mid_interior_distance(point,p):
+    from .mount_support import plate_distance
+    return plate_distance(point,p,'MidPlate')
+
+
+def arm_clamp_interior_distance(point,p):
+    from .mount_support import plate_distance
+    return plate_distance(point,p,'ArmClampPlate')
 
 
 def plate_holes(p,role):
@@ -1009,7 +1029,7 @@ def plate_holes(p,role):
     if role in ('BottomPlate','ArmClampPlate'):
         holes += [(r['point'],r['bore']/2,'keystone retainer') for r in keystone_retainers(p)]
     for stand in standoff_layouts(p):
-        use=((arm_clamp_interior_distance(stand['point'],p)>=0 or stand['shared_arm'] is not None) if role=='ArmLowerClampPlate' else
+        use=((_base_arm_clamp_interior_distance(stand['point'],p)>=0 or stand['shared_arm'] is not None) if role=='ArmLowerClampPlate' else
              stand['mount']=='Mid plate' if role=='MidPlate' else
              stand['mount']=='Arm clamp plate' if role=='ArmClampPlate' else
              stand['mount']!='Mid plate' or stand['shared_arm'] is not None)
@@ -1196,8 +1216,6 @@ def _validation_result(p):
             errors.append('Motor pad beginning is too close to the arm root; increase arm reach or reduce pad size.')
         if widened_roots(p) and p.ArmRootLength+p.ArmRootTaperLength > math.dist(arm['root'],arm.get('nominal_motor',arm['motor']))-motor_pad_bound(p)-p.MinimumWeb:
             errors.append(arm['name']+': the root taper reaches the motor pad; reduce the wide root length or taper length.')
-    if p.RootBoltLayout=='Along arm' and p.RootExtension < p.RootBoltSpacing / 2:
-        errors.append("Root extension must be at least half the root bolt spacing.")
     motor_edge = min(motor_pad_interior(pt,p) for pt in motor_hole_offsets(p))-p.MotorHoleDiameter/2
     if motor_edge < p.MinimumWeb:
         errors.append(f"Motor pad leaves only {motor_edge:.2f} mm outside the bolt holes; enlarge the pad.")
@@ -1245,12 +1263,15 @@ def _validation_result(p):
             errors.append('Bottom body reach behind stack exceeds the custom bottom rear limit; increase that limit or reduce the body reach.')
         if body_front-body_rear<=2*p.CornerRadius:
             errors.append('The bottom body is too short for its corner radius; increase its reach.')
+        from .mount_support import plate_supports
         for a,b,radius in bottom_tabs(p):
+            if any(math.dist(pt,a)<1e-6 or math.dist(pt,b)<1e-6 for pt,anchor,r in plate_supports(p,'BottomPlate')):continue
             overlap=max(profiled_interior_distance(pt,p,'BottomPlate',p.BodyWidth,body_rear,body_front,p.CornerRadius) for pt in (a,b))+radius
             if overlap<p.MinimumWeb:
                 errors.append('The bottom body does not connect firmly to its rear arm tabs; increase Bottom body reach behind stack.')
         mid_rear, mid_front = mid_bounds(p)
         for a, b, radius in mid_tabs(p):
+            if any(math.dist(pt,a)<1e-6 or math.dist(pt,b)<1e-6 for pt,anchor,r in plate_supports(p,'MidPlate')):continue
             overlap = max(profiled_interior_distance(pt,p,'MidPlate',p.BodyWidth,mid_rear,mid_front,p.CornerRadius)
                           for pt in (a, b)) + radius
             if overlap < p.MinimumWeb:

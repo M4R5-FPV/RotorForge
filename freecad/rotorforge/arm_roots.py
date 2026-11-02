@@ -61,7 +61,7 @@ def _straight_stem_interior_distance(p, arm, point):
     return min(distances)*(1 if inside else -1)
 
 
-def stem_interior_distance(p,arm,point):
+def base_stem_interior_distance(p,arm,point):
     distance=_straight_stem_interior_distance(p,arm,point)
     if p.MotorPadRotationPivot=='Pad beginning' and 'beam_end' in arm:
         a,b=arm['beam_end'],arm['motor'];dx,dy=b[0]-a[0],b[1]-a[1]
@@ -69,6 +69,11 @@ def stem_interior_distance(p,arm,point):
         distance=max(distance,p.ArmWidth/2-math.dist(point,(a[0]+t*dx,a[1]+t*dy)))
     from .plate_profiles import polygon_interior_distance
     return max(distance,polygon_interior_distance(point,beam_profile_polygon(p,arm)))
+
+
+def stem_interior_distance(p,arm,point):
+    from .mount_support import arm_supports,support_distance
+    return max(base_stem_interior_distance(p,arm,point),support_distance(point,arm_supports(p,arm)))
 
 
 def fitted_roots(p):
@@ -99,7 +104,7 @@ def root_joint_planes(p, arm, arms):
 
 
 def root_cell_polygon(p, arm, arms):
-    extent = max(abs(v) for a in arms for point in (a['start'], a['motor']) for v in point)
+    extent = max(abs(v) for a in arms for point in (a['start'], a['motor'])+tuple(a['bolts']) for v in point)
     extent += p.MotorPadDiameter+root_width(p)+max(0, p.MotorTipLength)+1
     points = ((-extent, -extent), (extent, -extent), (extent, extent), (-extent, extent))
     for (nx, ny), limit in root_joint_planes(p, arm, arms):

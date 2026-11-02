@@ -35,12 +35,15 @@ class BottomFollowTests(unittest.TestCase):
         rear=next(a for a in arm_layouts(p) if a['root'][1]<0)
         self.assertLess(bottom_tab_interior_distance((1,-1),p,rear),0)
 
-    def test_custom_reach_caps_tabs_and_rejects_cut_bolt_support(self):
+    def test_custom_reach_gains_local_bolt_support(self):
         p=matched_mid(BottomReachMode='Custom',BottomRearReach=42,BottomFrontReach=100)
         self.assertEqual(validate(p)[0],[])
         self.assertEqual(bottom_bounds(p),(-42,100))
         self.assertLess(bottom_interior_distance((20,-43),p),0)
-        self.assertTrue(validate(replace(p,BottomRearReach=31))[0])
+        from freecad.rotorforge.mount_support import plate_supports
+        q=replace(p,BottomRearReach=31)
+        self.assertEqual(validate(q)[0],[])
+        self.assertTrue(plate_supports(q,'BottomPlate'))
 
     def test_two_plate_profile_is_unchanged(self):
         for position in ('Above bottom plate','Below bottom plate'):

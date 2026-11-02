@@ -75,9 +75,10 @@ class RootAdjustmentTests(unittest.TestCase):
         self.assertLess(stem_interior_distance(p,arm,arm_local_point(arm,45,7.1)),0)
 
     def test_active_geometry_rejects_bad_width_taper_and_bolt_support(self):
+        self.assertEqual(validate(wide(RootBolt1X=30))[0],[])
         for changes in ({'ArmRootWidth':13},{'ArmRootWidth':-1},{'ArmRootTaperLength':0},
                         {'ArmRootLength':-1},{'ArmRootTaperLength':120},
-                        {'RootBolt1X':30},{'RootBolt2X':-4,'RootBolt2Y':0}):
+                        {'RootBolt2X':-4,'RootBolt2Y':0}):
             with self.subTest(changes=changes):self.assertTrue(validate(wide(**changes))[0])
 
     def test_custom_signed_settings_roundtrip_and_old_files_default(self):

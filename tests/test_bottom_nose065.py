@@ -24,7 +24,9 @@ class BottomNoseTests(unittest.TestCase):
  def test_limits_hardware_checks_and_roundtrip(self):
   p=replace(self.p,BottomNoseShape='Rounded nose');self.assertFalse(validate(p)[0]);self.assertEqual(Parameters.from_dict(p.to_dict()),p)
   self.assertTrue(validate(replace(p,BottomNoseDepth=0))[0]);self.assertTrue(validate(replace(p,BottomNoseDepth=1000))[0]);self.assertTrue(validate(replace(p,BottomNoseTipWidth=0))[0])
-  self.assertTrue(validate(replace(p,BottomNoseShape='Pointed nose',BottomNoseDepth=60.))[0])
+  from freecad.rotorforge.mount_support import plate_supports
+  q=replace(p,BottomNoseShape='Pointed nose',BottomNoseDepth=60.)
+  self.assertEqual(validate(q)[0],[]);self.assertTrue(plate_supports(q,'BottomPlate'))
  def test_preview_changes_front_material_without_importing_cad(self):
   try:
    from freecad.rotorforge.airflow_gui import bottom_plate_path,QtCore

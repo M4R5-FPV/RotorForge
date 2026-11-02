@@ -24,7 +24,7 @@ def apply_seats(shape,p,role):
   through,pocket,radius=tools(p,s);x,y=s['point'];facez=s['z']-s['axis']*.04
   # Require an intact bearing rim around the complete seat, including nearby cuts.
   bandz=facez-.02
-  margin=1. if s['mode']=='M3 press nut' else p.MinimumWeb
+  margin=max(1.,p.MinimumWeb) if s['mode']=='M3 press nut' else p.MinimumWeb
   ring=Part.makeCylinder(radius+margin,.04,App.Vector(x,y,bandz)).cut(Part.makeCylinder(radius+.001,.06,App.Vector(x,y,bandz-.01)))
   if ring.cut(shape).Volume>1e-5:raise ValueError(role+': insufficient bearing material around a nut seat; widen the plate or move the bolt.')
   if through is not None:shape=shape.cut(through)

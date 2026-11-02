@@ -58,7 +58,9 @@ def _straight_arm_stem_path(p,arm,clearance=0.):
 
 
 def arm_stem_path(p,arm,clearance=0.):
+    from .mount_support import arm_supports
     path=_straight_arm_stem_path(p,arm,clearance)
+    for a,b,r in arm_supports(p,arm):path=path.united(capsule_path(a,b,r+clearance))
     outline=beam_profile_polygon(p,arm)
     if outline:
         extra=polygon_path(outline)
@@ -68,7 +70,8 @@ def arm_stem_path(p,arm,clearance=0.):
         path=path.united(extra)
     if p.MotorPadRotationPivot=='Pad beginning':
         path=path.united(capsule_path(arm['beam_end'],arm['motor'],p.ArmWidth/2+clearance))
-    return path
+    from .mount_blends import blend_path
+    return blend_path(p,path,tuple((a,b,r+clearance) for a,b,r in arm_supports(p,arm)))
 
 
 def arm_blank_path(p,arm,arms=None):
@@ -127,7 +130,7 @@ def profile_path(p,role,width,rear,front,radius,wide_override=None,trim_ends=Tru
             elif item[0]=='L':mask.lineTo(*item[1])
             else:mask.cubicTo(*(value for point in item[1:] for value in point))
         mask.closeSubpath();path=path.intersected(mask)
-    return path
+    return supported_path(p,role,path) if role=='TopPlate' else path
 
 
 def mid_tab_paths(p,arms=None):
@@ -143,13 +146,13 @@ def mid_tab_paths(p,arms=None):
     return tuple(paths)
 
 
-def mid_plate_path(p,arms=None):
+def _base_mid_plate_path(p,arms=None):
     path=profile_path(p,'MidPlate',p.BodyWidth,*mid_bounds(p),p.CornerRadius)
     for tab in mid_tab_paths(p,arms):path=path.united(tab)
     return path
 
 
-def bottom_plate_path(p,arms=None):
+def _base_bottom_plate_path(p,arms=None):
     arms=arm_layouts(p) if arms is None else arms
     path=profile_path(p,'BottomPlate',p.BodyWidth,*bottom_body_bounds(p),p.CornerRadius)
     boundary=profile_path(p,'BottomPlate',p.BodyWidth,*bottom_bounds(p),p.CornerRadius)
@@ -163,7 +166,7 @@ def bottom_plate_path(p,arms=None):
     return path
 
 
-def clamp_plate_path(p,role='ArmClampPlate'):
+def _base_clamp_plate_path(p,role='ArmClampPlate'):
     from .clamp_outline import clamp_outline_layout
     from .arm_roots import root_width
     c=arm_brace_layouts(p)[0];rear,front,pads=clamp_outline_layout(p);arms=arm_layouts(p)
@@ -177,6 +180,26 @@ def clamp_plate_path(p,role='ArmClampPlate'):
         path=path.united(capsule_path(*arm['bolts'],root_width(p)/2).intersected(root))
     for a,b,r in pads:path=path.united(capsule_path(a,b,r))
     return path.intersected(boundary)
+
+
+def supported_path(p,role,path):
+    from .mount_support import plate_supports
+    from .mount_blends import blend_path
+    supports=plate_supports(p,role)
+    for a,b,r in supports:path=path.united(capsule_path(a,b,r))
+    return blend_path(p,path,supports)
+
+
+def bottom_plate_path(p,arms=None):
+    return supported_path(p,'BottomPlate',_base_bottom_plate_path(p,arms))
+
+
+def mid_plate_path(p,arms=None):
+    return supported_path(p,'MidPlate',_base_mid_plate_path(p,arms))
+
+
+def clamp_plate_path(p,role='ArmClampPlate'):
+    return supported_path(p,role,_base_clamp_plate_path(p,role))
 
 
 def motor_pad_path(p):

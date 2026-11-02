@@ -116,7 +116,8 @@ def _straight_arm_stem(p, arm, z, height, clearance=0.):
 
 
 def arm_stem(p,arm,z,height,clearance=0.):
-    shape=_straight_arm_stem(p,arm,z,height,clearance)
+    from .mount_support import arm_supports
+    shape=fuse([_straight_arm_stem(p,arm,z,height,clearance)]+[capsule(a,b,r+clearance,z,height) for a,b,r in arm_supports(p,arm)])
     outline=beam_profile_polygon(p,arm)
     if outline:
         points=[App.Vector(x,y,z) for x,y in outline]
@@ -125,7 +126,8 @@ def arm_stem(p,arm,z,height,clearance=0.):
         shape=fuse([shape,face.extrude(App.Vector(0,0,height))])
     if p.MotorPadRotationPivot=='Pad beginning':
         shape=fuse([shape,capsule(arm['beam_end'],arm['motor'],p.ArmWidth/2+clearance,z,height)])
-    return shape
+    from .mount_blends import blend_shape
+    return blend_shape(p,shape,tuple((a,b,r+clearance) for a,b,r in arm_supports(p,arm)))
 
 
 def rounded_plate(width, length, radius, z, thickness, centre_y=0.0):
@@ -194,7 +196,7 @@ def mid_tab_shapes(p,z,height,arms=None):
     return tuple(result)
 
 
-def mid_plate_blank(p,z,height,arms=None):
+def _base_mid_plate_blank(p,z,height,arms=None):
     main=profiled_plate(p,'MidPlate',p.BodyWidth,*mid_bounds(p),p.CornerRadius,z,height)
     return fuse([main]+[tab for tab in mid_tab_shapes(p,z,height,arms) if not tab.isNull() and tab.Volume>1e-8])
 
@@ -211,12 +213,12 @@ def bottom_tab_shapes(p,z,height,arms=None):
     return tuple(tabs)
 
 
-def bottom_plate_blank(p,z,height,arms=None):
+def _base_bottom_plate_blank(p,z,height,arms=None):
     main=profiled_plate(p,'BottomPlate',p.BodyWidth,*bottom_body_bounds(p),p.CornerRadius,z,height)
     return fuse([main]+[tab for tab in bottom_tab_shapes(p,z,height,arms) if not tab.isNull() and tab.Volume>1e-8])
 
 
-def clamp_plate_blank(p,role,z,height):
+def _base_clamp_plate_blank(p,role,z,height):
     from .arm_roots import root_width
     from .clamp_outline import clamp_outline_layout
     c=arm_brace_layouts(p)[0];rear,front,pads=clamp_outline_layout(p);arms=arm_layouts(p)
@@ -227,6 +229,25 @@ def clamp_plate_blank(p,role,z,height):
         pieces.append(capsule(*arm['bolts'],root_width(p)/2,z,height).common(root))
     pieces.extend(capsule(a,b,r,z,height) for a,b,r in pads)
     return fuse([shape for shape in pieces if not shape.isNull() and shape.Volume>1e-8]).common(boundary).removeSplitter()
+
+
+def supported_plate(p,role,blank,z,height):
+    from .mount_support import plate_supports
+    from .mount_blends import blend_shape
+    supports=plate_supports(p,role)
+    return blend_shape(p,fuse([blank]+[capsule(a,b,r,z,height) for a,b,r in supports]),supports)
+
+
+def bottom_plate_blank(p,z,height,arms=None):
+    return supported_plate(p,'BottomPlate',_base_bottom_plate_blank(p,z,height,arms),z,height)
+
+
+def mid_plate_blank(p,z,height,arms=None):
+    return supported_plate(p,'MidPlate',_base_mid_plate_blank(p,z,height,arms),z,height)
+
+
+def clamp_plate_blank(p,role,z,height):
+    return supported_plate(p,role,_base_clamp_plate_blank(p,role,z,height),z,height)
 
 
 def cut_holes(shape, holes, z, thickness, other_tools=()):
@@ -547,7 +568,7 @@ def _component_top(p,role,inputs,include_strap_notches=True):
     if include_strap_notches:
         slots += [polygon_plate(poly,top_z-1,p.TopThickness+2) for poly in notch_polygons(p)]
     top_rear,top_front=top_bounds(p)
-    result["TopPlate"] = cut_holes(profiled_plate(p,'TopPlate',p.TopWidth,top_rear,top_front,p.CornerRadius,top_z,p.TopThickness),
+    result["TopPlate"] = cut_holes(supported_plate(p,'TopPlate',profiled_plate(p,'TopPlate',p.TopWidth,top_rear,top_front,p.CornerRadius,top_z,p.TopThickness),top_z,p.TopThickness),
                                     [(pt, p.StandoffHoleDiameter / 2) for pt in standoff_holes(p)],
                                     top_z, p.TopThickness, slots)
 

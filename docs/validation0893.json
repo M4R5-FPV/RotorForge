@@ -1,0 +1,24 @@
+{
+  "native_checks": [
+    "Default",
+    "Displaced roots",
+    "Displaced posts",
+    "Two plates posts",
+    "Upper clamp roots",
+    "Lower clamp roots",
+    "Fitted roots",
+    "Press nut roots",
+    "Short rear mid",
+    "Shared posts on arms",
+    "Shared posts on upper clamp",
+    "Native save/reopen, exports and reversible growth",
+    "Arm root tangent additive blends",
+    "Plate standoff tangent additive blends",
+    "Flange margin",
+    "Large recessed insert",
+    "Stack press nuts",
+    "Insert edge fillets"
+  ],
+  "portable_tests": 479,
+  "failures": []
+}
