@@ -1,0 +1,20 @@
+{
+  "status": "passed",
+  "checks": [
+    "Seven icon categories switch correctly",
+    "Subsection labels retained",
+    "All field search targets navigate correctly",
+    "Default settings unchanged",
+    "Original seven workbench commands retained; no trial editors"
+  ],
+  "FreeCAD": [
+    "26",
+    "3",
+    "0",
+    "20260916 (Git shallow)",
+    "Unknown",
+    "2026/09/16 06:32:59",
+    "(HEAD detached at a4ce44d33)",
+    "a4ce44d33b7e42e16cb8156058a1894237042ab4"
+  ]
+}

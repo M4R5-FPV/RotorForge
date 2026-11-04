@@ -365,7 +365,7 @@ def _build(signature):
     result['Standoffs']=COMPONENTS.get('Standoffs',p,{},lambda t,i:_component_standoffs(t,'Standoffs',i))
     carbon=dict(result)
     for role in FLEX_ROLES:
-        result[role]=COMPONENTS.get(role,p,result if role=='FrontBumper' else carbon,lambda t,i,r=role:_component_flex(t,r,i))
+        result[role]=COMPONENTS.get(role,p,result if role in ('FrontBumper','RearAntennaMount','ELRSAntennaMount') else carbon,lambda t,i,r=role:_component_flex(t,r,i))
     for role in flex_roles(p):
         for other in physical_roles(p):
             if other!=role and overlap_volume(result[role],result.get(other,Part.Shape()))>1e-6:
@@ -714,6 +714,12 @@ def _component_carbon(p,role,inputs,include_strap_notches=True):
 def _component_flex(p,role,inputs):
     from .flex_geometry import camera_pads
     from .protection_geometry import motor_protectors,side_guards
+    if role=='ELRSAntennaMount':
+        from .elrs_geometry import elrs_mount
+        return elrs_mount(p,inputs)
+    if role=='RearAntennaMount':
+        from .antenna_geometry import rear_antenna_mount
+        return rear_antenna_mount(p,inputs)
     if role=='FrontBumper':
         from .bumper_geometry import front_bumper
         return front_bumper(p,inputs)

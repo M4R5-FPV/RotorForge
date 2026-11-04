@@ -1,0 +1,134 @@
+{
+  "before": {
+    "startup": 0.40577112400023907,
+    "load": 0.028426004999346333,
+    "paint_seconds": {
+      "Overall": 0.015508963200045401,
+      "AllParts": 0.013432481800009555,
+      "ELRSAntennaMount": 0.0037158200000703802
+    }
+  },
+  "bench": {
+    "startup": 0.3060368770002242,
+    "load": 0.025359371000376996,
+    "paint_seconds": {
+      "Overall": 0.0030962006000663676,
+      "AllParts": 0.0017717831000481966,
+      "ELRSAntennaMount": 0.0016090871499727655
+    }
+  },
+  "before-build": {
+    "cold": 10.094878478001192,
+    "update": 1.3729115109999839,
+    "reopen": 0.08734055900094972
+  },
+  "after-build": {
+    "cold": 9.088535435001177,
+    "update": 1.2165647910005646,
+    "reopen": 0.07563382900116267
+  },
+  "equivalence": [
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "Slots"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "Outline cutouts"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "Slots"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "Outline cutouts"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "Slots"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "Outline cutouts"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "Slots"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "Outline cutouts"
+      ],
+      "ok": true
+    }
+  ],
+  "preview-tests": {
+    "ok": true,
+    "zoom_rebuilds": 0,
+    "invalidations": 5
+  },
+  "help-audit": {
+    "controls": 374,
+    "label_differences": []
+  },
+  "persist": {
+    "ok": true,
+    "reach_update_seconds": 0.8540571880002972,
+    "reused_parts": [
+      {
+        "role": "ElectronicsGuardLeft",
+        "action": "reused",
+        "seconds": 0.000115533999633044
+      },
+      {
+        "role": "ElectronicsGuardRight",
+        "action": "reused",
+        "seconds": 0.00013302099978318438
+      },
+      {
+        "role": "RearAntennaMount",
+        "action": "reused",
+        "seconds": 8.300500121549703e-05
+      }
+    ]
+  },
+  "version": "0.90.8",
+  "unit_tests": 513,
+  "notes": [
+    "Single headless FreeCAD 1.1.4 sample on this host, not a universal speed guarantee.",
+    "Preview timings include 20 QWidget grabs per mode under cProfile.",
+    "Cold build comparisons disable disk cache in both versions.",
+    "Native interactive 3D display frame rate was not measured."
+  ]
+}

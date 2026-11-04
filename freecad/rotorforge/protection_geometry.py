@@ -93,7 +93,7 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
   # Intersect the actual curve; coarse whole-wire sampling can select the
   # opposite arm tab near a short tip and produce a cross-frame spike.
   z=face.BoundBox.ZMin
-  section=face.common(Part.makeLine(App.Vector(-1000,y,z),App.Vector(1000,y,z)))
+  section=face.OuterWire.section(Part.makeLine(App.Vector(-1000,y,z),App.Vector(1000,y,z)))
   xs=[v.Point.x for v in section.Vertexes if sign*v.Point.x>=-1e-6]
   result=(max(xs) if sign>0 else min(xs)) if xs else None
   edge_cache[key]=result
@@ -177,7 +177,11 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
    # The join stays at the forward posts; original post supports stay.
    body=body.cut(box(-500,closure['start']+4,-500,1000,1000,1000))
    body=body.fuse(extra)
-  body=guard_union([body]+pads);tools=[];hardware=[]
+  body=guard_union([body]+pads);tools=[];hardware=[];bearing_hardware=[]
+  from .antenna_geometry import antenna_guard_clearance
+  tools.extend(antenna_guard_clearance(p))
+  from .elrs_geometry import elrs_guard_clearance
+  tools.extend(elrs_guard_clearance(p))
   if include_strap_passages:tools.extend(guard_top_strap_tools(p,collars,body))
   for vent in guard_vents(p,g):
    y,z,width,height=vent['y'],vent['z'],vent['width'],vent['height'];poly=vent_polygon(vent)
@@ -219,7 +223,7 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
     relief=guard_plate_gap(p) if role in ('BottomPlate','MidPlate','TopPlate') else .15
     profile=outer_face(stock)
     if relief>0:profile=offset_face(profile,relief)
-    tool=profile.extrude(App.Vector(0,0,stock.BoundBox.ZLength+2*relief));tool.translate(App.Vector(0,0,stock.BoundBox.ZMin-relief));hardware.append(tool)
+    tool=profile.extrude(App.Vector(0,0,stock.BoundBox.ZLength+2*relief));tool.translate(App.Vector(0,0,stock.BoundBox.ZMin-relief));hardware.append(tool);bearing_hardware.append(stock if role in ('BottomPlate','MidPlate','TopPlate') else tool)
   if closure:
    hardware.extend(stock for role,stock in carbon.items() if role.startswith('CameraMount') and not stock.isNull())
   from .parameters import motor_centres,plate_levels
@@ -236,7 +240,8 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
    # outer wall locally, retaining a continuous minimum 0.8 mm circular shell.
    for index,(stand,band) in enumerate(zip(g['stands'],g['bands'])):
     sx,sy=stand['point'];low,high=band
-    nearby=[tool for tool in hardware if collars[index].BoundBox.intersect(tool.BoundBox)]
+    rear_flush=(p.FlexRearAntenna or p.FlexELRSEnabled) and abs(sy-g['rear'])<1e-6
+    nearby=[tool for tool in (bearing_hardware if rear_flush else hardware) if collars[index].BoundBox.intersect(tool.BoundBox)]
     if not nearby:continue
     clearance=guard_union(nearby)
     if collars[index].common(clearance).Volume<1e-6:continue

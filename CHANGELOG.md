@@ -1,3 +1,114 @@
+# v0.90.10 - flush rear grip stack
+
+- Seat VTX grips against the top plate and ELRS grips on the bottom/mid carrier by default.
+- Fill the remaining rear standoff height with side-guard grips when either antenna mount is enabled.
+- Add Top plate gap, VTX to side-guard gap and ELRS to side-guard gap, all defaulting to zero. Retain ELRS height above plate as the lower plate gap.
+- Remove fixed vertical clearances from mount seating and rear grip reliefs. Preserve minimum guard bearing and collision checks.
+
+# v0.90.9 - flat VTX tube underside
+
+- Trim u.FL/MMCX tube and clip roots flush with the carrier underside. Preserve upper sleeves and pigtail tabs.
+
+# v0.90.8 - preview and layout performance
+
+- Reuse vector preview drawings during zoom and pan; invalidate on design, mode, size and mass-overlay changes.
+- Memoize arm layouts while preserving dependency tracking and caller-owned results.
+- Locate side-guard stations with exact boundary intersections instead of face booleans.
+- Audit all 374 documented controls against the current editor, correct ten labels and add missing rear-antenna navigation entries.
+
+# v0.90.7 - full-section ELRS hook connections
+
+- Extend the equal-width/height ELRS support bars into the hook body instead of joining through a rounded tip.
+- Retain rounded edges, clear hook bores and upward insertion openings.
+- Update the ELRS preview and Help illustration. VTX geometry is unchanged.
+
+# v0.90.6 - smoother rear antenna mounts
+
+- Slim ELRS hook extensions to equal width and height, limited by hook width and available grip height; round their edges.
+- Remove the added VTX rear brace. Keep front-facing openings through the full axial thickness at the clips, while preserving the remote carrier.
+- Update editor schematics and Help illustrations. Existing settings remain compatible.
+
+# v0.90.5 - independent ELRS hook reach and full VTX entry channels
+
+- Add ELRS hook rearward offset independent of the main bar reach, with two connecting ribs.
+- Add an adjustable centre pass-through through the ELRS bar, with minimum surrounding material checks.
+- Turn u.FL/MMCX side-entry slots toward frame front and extend them through all supporting stock.
+- Add rear bracing so the full entry channels do not separate the standoff grips from the holders.
+- Update schematics, persistence tests and Help illustrations.
+
+# v0.90.4 - side-entry VTX clips and lower ELRS mount
+
+- Add Closed tube / Side-entry clip choice for u.FL/MMCX stems, with adjustable retaining lips and flared entry channels. Preserve closed tubes as the default and keep SMA/RP-SMA tabs unchanged.
+- Add an independently enabled ELRS T-antenna mount below the rear guard grips, with two open hooks and a connecting bar.
+- Adjust ELRS rearward reach, height above the carrier, grip size/fit, bar shape/width, hook spacing/width, antenna diameter, wall and retaining lip.
+- Cap ELRS grip height to available space and relieve the guards locally without changing their mounting band.
+- Retain actual-solid collision checks, cached unchanged guards, native/JSON persistence and separate printable exports.
+- Update the editor schematic, integrated Help and CAD regression coverage.
+
+# v0.90.3 - rear mount performance and SMA pigtail tabs
+
+- Keep the rear VTX antenna mount as an integrated workbench feature.
+- Extrude the curved bar from a single outline; use single-face capsule ribs.
+- Reuse unchanged side guards when antenna length, tilt, offset or connector changes.
+- Reuse pure layout calculations across edits of unrelated parameters while preserving cache dependencies.
+- Use bounded/cached exact collision checks; retain real plate and guard protection.
+- Give SMA/RP-SMA rounded bulkhead tabs with independent 2-5 mm thickness and nut/washer access; retain u.FL/MMCX sleeves.
+- Update controls, preview, Help and regression coverage.
+
+# v0.90.2 - independent antenna sleeve length and offset
+
+- Limit only the standoff grips to the upper rear standoff space.
+- Lengthen antenna sleeves outward along their axes from fixed roots; keep the guard seat independent of sleeve dimensions.
+- Add signed Holder fore/aft offset, separate from connecting-bar reach.
+- Allow sleeves above the top plate behind the frame while checking actual bottom/mid/top plate and guard collisions.
+- Update preview, persistence and both Help copies.
+
+# v0.90.1 - antenna and side-guard fit
+
+- Seat antenna grips directly on resized rear side-guard sleeves, with at least 4 mm of guard bearing.
+- Reserve mount clearance in the guard walls instead of trimming away antenna grips.
+- Add a direct standoff-hole diameter override, independent of antenna bore diameter.
+- Add 0-90 degree antenna elevation, default 60 degrees above horizontal; keep symmetric dual outward yaw.
+- Update native angle properties, editor control limits, saved settings and both Help copies.
+
+# v0.90.0 - experimental rear VTX antenna mount
+
+- Add TPU > Rear antenna, disabled by default.
+- SMA/RP-SMA bulkhead bores; u.FL/MMCX stem holders with measured diameter/length overrides.
+- Fixed 30 degree elevation and dual outward yaw; curved, triangle and rectangle bars.
+- Adjustable reach, spacing, bar width, grip height, grip wall and fit; cap to available space and relieve guard interference.
+- Integrate preview, persistence, mass, collision checks, caching and STEP/STL export.
+- Update both Help copies and document all 352 visible controls.
+
+# v0.89.6 — Help correction
+
+- Synchronize both packaged Help PDFs, including the copy opened by FreeCAD.
+- Update section navigation, bottom search, preview zoom, Airflow workspace and saved hardware guidance. Remove the outdated editor screenshot.
+- Validate all 339 visible controls against current defaults and choices during guide generation.
+
+# v0.89.6 — saved reference hardware (2026-11-04)
+
+- Save reference-hardware choices with RotorForge settings JSON and exported FrameParameters.json: selected groups, retaining hardware, engagement, whether references were created, and their visibility.
+- Restore saved reference hardware automatically when Create/Update builds a loaded design. Loading or cancelling the editor does not modify the existing frame.
+- Preserve explicitly hidden hardware and per-owner visibility; preserve loaded preferences when saving again before creating a frame.
+- Continue accepting legacy JSON files without hardware preferences. Create/Refresh the desired references and save again once to add the missing preferences.
+
+# v0.89.5 — editor workspace improvements (2026-11-03)
+
+- Place the seven upright category icons in a vertical rail on the left.
+- Wrap subsection buttons into visible rows; TPU fits two rows at the minimum editor size in the tested environment.
+- Move control search beside the bottom Create/Update, Maximize and Cancel actions.
+- Add pointer-centred wheel zoom, drag-to-pan, double-click reset and Fit view to the overall/parts preview.
+- Give Airflow / outlines a full-width workspace: saved patterns, editing controls and preview side by side, with adjustable column widths. All existing cutout actions remain available. Guidance is available through How to use cutouts.
+- Keep maximize/restore, saved settings, geometry generation and manufacturing export behavior.
+
+# v0.89.4 — editor category icons (2026-11-03)
+
+- Use icon tabs for the seven main sections inside the complete editor: Frame, Arms, Hardware, Battery, FPV, TPU and Finishing. Hover shows each section name.
+- Keep subsection text tabs, search navigation, live preview and all existing editing behavior.
+- Based on stable v0.89.3. The modular editor trial is discontinued and is not included.
+- Frame geometry, saved settings and build/render pipeline are unchanged.
+
 # 0.89.3
 
 - Enlarged press-nut mounting pads around the complete bore, shank and flange/counterbore footprint, using the configured minimum material with a 1 mm floor. FC stack inserts receive the same support.

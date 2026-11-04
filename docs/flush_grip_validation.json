@@ -1,0 +1,351 @@
+{
+  "version": "0.90.10",
+  "unit_tests": 517,
+  "contacts": [
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        true,
+        false,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        false,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        true,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        true,
+        true,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        true,
+        false,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        false,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        true,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        true,
+        true,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        true,
+        false,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        false,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        true,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        true,
+        true,
+        0.5
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        true,
+        false,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        false,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        true,
+        true,
+        0.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        true,
+        true,
+        0.5
+      ],
+      "ok": true
+    }
+  ],
+  "cad": [
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 1.3870626490006543
+    },
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.8320994910009176
+    },
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 0.9410293199998705
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 2.5763669059997483
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.0047578449994035
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.1528734900002746
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 2.9203411750004307
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.014285884999481
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.2496454619995347
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 2.3106133170003886
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.9554800330006401
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.0420093379998434
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 8.22435546700217
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.2993338599990238
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.7021801519986184
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 7.727854572000069
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.5454297920005047
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.931420747001539
+    }
+  ],
+  "persistence": {
+    "ok": true,
+    "reach_update_seconds": 0.9532510450007976,
+    "reused_parts": [
+      {
+        "role": "ElectronicsGuardLeft",
+        "action": "reused",
+        "seconds": 0.00011838800128316507
+      },
+      {
+        "role": "ElectronicsGuardRight",
+        "action": "reused",
+        "seconds": 0.00013354099792195484
+      },
+      {
+        "role": "RearAntennaMount",
+        "action": "reused",
+        "seconds": 7.827800072846003e-05
+      }
+    ]
+  }
+}

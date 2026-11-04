@@ -151,6 +151,45 @@ class Parameters:
     FlexGuardWireWidth: float = 10.0
     FlexGuardWireHeight: float = 5.0
 
+    FlexELRSEnabled: bool = False
+    FlexELRSBarShape: str = 'Curved'
+    FlexELRSReach: float = 20.0
+    FlexELRSHookReach: float = 0.0
+    FlexELRSPassThroughDiameter: float = 3.0
+    FlexELRSHeightOffset: float = 0.0
+    FlexELRSGripHeight: float = 6.0
+    FlexELRSGripWall: float = 3.0
+    FlexELRSStandoffBore: float = 0.0
+    FlexELRSFit: float = 0.2
+    FlexELRSBarWidth: float = 6.0
+    FlexELRSHookSpacing: float = 16.0
+    FlexELRSAntennaDiameter: float = 3.0
+    FlexELRSHookWidth: float = 4.0
+    FlexELRSHookWall: float = 1.5
+    FlexELRSRetainingLip: float = 0.4
+    FlexRearAntenna: bool = False
+    FlexAntennaConnector: str = 'u.FL'
+    FlexAntennaCount: str = '1 antenna'
+    FlexAntennaBarShape: str = 'Curved'
+    FlexAntennaHolderOffset: float = 0.0
+    FlexAntennaReach: float = 20.0
+    FlexAntennaTopGap: float = 0.0
+    FlexAntennaGuardGap: float = 0.0
+    FlexELRSGuardGap: float = 0.0
+    FlexAntennaGripHeight: float = 8.0
+    FlexAntennaGripWall: float = 3.0
+    FlexAntennaTilt: float = 60.0
+    FlexAntennaStandoffBore: float = 0.0
+    FlexAntennaFit: float = 0.2
+    FlexAntennaBarWidth: float = 6.0
+    FlexAntennaBore: float = 0.0
+    FlexAntennaSocketWall: float = 1.2
+    FlexAntennaBulkheadThickness: float = 2.4
+    FlexAntennaHolderStyle: str = 'Closed tube'
+    FlexAntennaRetainingLip: float = 0.4
+    FlexAntennaSocketLength: float = 0.0
+    FlexAntennaSpacing: float = 14.0
+
     FlexSideGuards: bool = False
     FlexGuardWall: float = 2.0
     FlexGuardFit: float = .25
@@ -617,7 +656,14 @@ def arm_root_x(p,front):
     return width/2-p.RootInset
 
 
+from .parameter_memo import parameter_cache as _layout_cache
+
 def arm_layouts(p):
+    # Preserve caller ownership of dictionaries while reusing pure calculations.
+    return [dict(arm) for arm in _arm_layouts_cached(p)]
+
+@_layout_cache(maxsize=64)
+def _arm_layouts_cached(p):
     result = []
     for name, (mx, my) in zip(ARM_NAMES, nominal_motor_centres(p)):
         rx = math.copysign(arm_root_x(p,my>0), mx)
@@ -1424,10 +1470,14 @@ def require_valid(p):
     return list(_checked_parameters(p.signature()))
 
 
-def save_parameters(path, p):
+def save_parameters(path, p, hardware_preferences=None):
     require_valid(p)
+    data = {"schema": SCHEMA, "units": "mm", "parameters": p.to_dict()}
+    if hardware_preferences is not None:
+        from .hardware_preferences import validate_preferences
+        data['hardware_references'] = validate_preferences(hardware_preferences)
     with open(path, "w", encoding="utf-8") as stream:
-        json.dump({"schema": SCHEMA, "units": "mm", "parameters": p.to_dict()}, stream, indent=2, allow_nan=False)
+        json.dump(data, stream, indent=2, allow_nan=False)
         stream.write("\n")
 
 

@@ -36,6 +36,7 @@ def arm_supports(p,arm):
     return _arm_supports(p,tuple(sorted(arm.items())))
 
 
+@parameter_cache(maxsize=512)
 def base_plate_distance(p,role,point):
     from . import parameters as m
     fn={'BottomPlate':m._base_bottom_interior_distance,'TopPlate':m._base_top_interior_distance,

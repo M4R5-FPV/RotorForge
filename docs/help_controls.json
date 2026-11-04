@@ -54,10 +54,10 @@
     "key": "LengthToWidth",
     "label": "Length / rear width",
     "tab": "Layout",
-    "tip": "Stretched X: left–right motor span divided by front–rear spacing. Deadcat: length divided by rear span. Ignored for True X.",
+    "tip": "Stretched X: left\u2013right motor span divided by front\u2013rear spacing. Deadcat: length divided by rear span. Ignored for True X.",
     "default": 1.18,
     "choices": [],
-    "help": "Stretched X: left–right motor span divided by front–rear spacing. Deadcat: length divided by rear span. Ignored for True X.",
+    "help": "Stretched X: left\u2013right motor span divided by front\u2013rear spacing. Deadcat: length divided by rear span. Ignored for True X.",
     "category": "Frame",
     "group": "Motor positions"
   },
@@ -107,7 +107,7 @@
   },
   {
     "key": "CornerRadius",
-    "label": "CornerRadius",
+    "label": "Corner Radius",
     "tab": "Layout",
     "tip": "",
     "default": 5.0,
@@ -198,7 +198,7 @@
   },
   {
     "key": "BottomThickness",
-    "label": "BottomThickness",
+    "label": "Bottom Thickness",
     "tab": "Bottom plate",
     "tip": "",
     "default": 2.0,
@@ -537,7 +537,7 @@
   },
   {
     "key": "TopRearReach",
-    "label": "Top reach toward rear (−Y)",
+    "label": "Top reach toward rear (\u2212Y)",
     "tab": "Top plate",
     "tip": "",
     "default": 90.0,
@@ -559,7 +559,7 @@
   },
   {
     "key": "TopThickness",
-    "label": "TopThickness",
+    "label": "Top Thickness",
     "tab": "Top plate",
     "tip": "",
     "default": 2.0,
@@ -838,7 +838,7 @@
   },
   {
     "key": "ArmThickness",
-    "label": "ArmThickness",
+    "label": "Arm Thickness",
     "tab": "Roots",
     "tip": "",
     "default": 5.0,
@@ -849,7 +849,7 @@
   },
   {
     "key": "ArmWidth",
-    "label": "ArmWidth",
+    "label": "Arm Width",
     "tab": "Roots",
     "tip": "",
     "default": 14.0,
@@ -1027,7 +1027,7 @@
   },
   {
     "key": "RootHoleDiameter",
-    "label": "RootHoleDiameter",
+    "label": "Root Hole Diameter",
     "tab": "Bolts",
     "tip": "",
     "default": 3.2,
@@ -1476,7 +1476,7 @@
   },
   {
     "key": "MotorHoleDiameter",
-    "label": "MotorHoleDiameter",
+    "label": "Motor Hole Diameter",
     "tab": "Motors",
     "tip": "",
     "default": 3.2,
@@ -1723,7 +1723,7 @@
   },
   {
     "key": "StandoffWidth",
-    "label": "Outer pairs left–right spacing",
+    "label": "Outer pairs left\u2013right spacing",
     "tab": "Standoffs",
     "tip": "",
     "default": 34.0,
@@ -1734,7 +1734,7 @@
   },
   {
     "key": "StandoffLength",
-    "label": "Outer pairs front–rear spacing",
+    "label": "Outer pairs front\u2013rear spacing",
     "tab": "Standoffs",
     "tip": "",
     "default": 92.0,
@@ -1773,7 +1773,7 @@
   },
   {
     "key": "StandoffPair3Width",
-    "label": "Pair 3 left–right spacing",
+    "label": "Pair 3 left\u2013right spacing",
     "tab": "Standoffs",
     "tip": "",
     "default": 16.0,
@@ -1812,7 +1812,7 @@
   },
   {
     "key": "StandoffPair4Width",
-    "label": "Pair 4 left–right spacing",
+    "label": "Pair 4 left\u2013right spacing",
     "tab": "Standoffs",
     "tip": "",
     "default": 16.0,
@@ -1856,7 +1856,7 @@
   },
   {
     "key": "StackOffsetY",
-    "label": "StackOffsetY",
+    "label": "Stack Offset Y",
     "tab": "Stack",
     "tip": "",
     "default": 0.0,
@@ -2049,7 +2049,7 @@
   },
   {
     "key": "StrapSlotWidth",
-    "label": "StrapSlotWidth",
+    "label": "Strap Slot Width",
     "tab": "Straps",
     "tip": "",
     "default": 3.5,
@@ -2060,7 +2060,7 @@
   },
   {
     "key": "StrapSlotLength",
-    "label": "StrapSlotLength",
+    "label": "Strap Slot Length",
     "tab": "Straps",
     "tip": "",
     "default": 18.0,
@@ -2701,10 +2701,10 @@
     "key": "CameraBaseRearExtension",
     "label": "Lower attachment rear extension",
     "tab": "Side plates",
-    "tip": "Extra contact length toward the stack (−Y), beyond the normal lower edge, in Custom sizing. The bottom attachment refits around fasteners; check the live fit. Automatic camera placement follows the resulting cage.",
+    "tip": "Extra contact length toward the stack (\u2212Y), beyond the normal lower edge, in Custom sizing. The bottom attachment refits around fasteners; check the live fit. Automatic camera placement follows the resulting cage.",
     "default": 0.0,
     "choices": [],
-    "help": "Extra contact length toward the stack (−Y), beyond the normal lower edge, in Custom sizing. The bottom attachment refits around fasteners; check the live fit. Automatic camera placement follows the resulting cage.",
+    "help": "Extra contact length toward the stack (\u2212Y), beyond the normal lower edge, in Custom sizing. The bottom attachment refits around fasteners; check the live fit. Automatic camera placement follows the resulting cage.",
     "category": "FPV",
     "group": "Lower contact"
   },
@@ -2800,14 +2800,14 @@
     "key": "VTXPattern",
     "label": "Rear VTX mounting pattern",
     "tab": "VTX",
-    "tip": "Select 20 × 20, 25.5 × 25.5, or both centred patterns. Both makes eight holes; fit one set of four VTX screws.",
+    "tip": "Select 20 \u00d7 20, 25.5 \u00d7 25.5, or both centred patterns. Both makes eight holes; fit one set of four VTX screws.",
     "default": "Both (20 + 25.5 mm)",
     "choices": [
       "20 x 20 mm",
       "25.5 x 25.5 mm",
       "Both (20 + 25.5 mm)"
     ],
-    "help": "Select 20 × 20, 25.5 × 25.5, or both centred patterns. Both makes eight holes; fit one set of four VTX screws.",
+    "help": "Select 20 \u00d7 20, 25.5 \u00d7 25.5, or both centred patterns. Both makes eight holes; fit one set of four VTX screws.",
     "category": "FPV",
     "group": "Mounting"
   },
@@ -2824,7 +2824,7 @@
   },
   {
     "key": "VTX20HoleDiameter",
-    "label": "20 × 20 hole diameter",
+    "label": "20 \u00d7 20 hole diameter",
     "tab": "VTX",
     "tip": "Clearance-hole diameter, independent of spacing. 2.2 mm for M2 or 3.2 mm for M3; match your VTX and spacers.",
     "default": 2.2,
@@ -2835,7 +2835,7 @@
   },
   {
     "key": "VTX25HoleDiameter",
-    "label": "25.5 × 25.5 hole diameter",
+    "label": "25.5 \u00d7 25.5 hole diameter",
     "tab": "VTX",
     "tip": "Clearance-hole diameter, independent of spacing. Default 2.2 mm for M2. Check material between nested patterns when choosing both.",
     "default": 2.2,
@@ -4129,5 +4129,442 @@
     "help": "Move FC rows up (positive) or down (negative), limited to retain top and bottom webs.",
     "category": "TPU",
     "group": "FC section vents"
+  },
+  {
+    "key": "FlexRearAntenna",
+    "label": "Rear VTX antenna mount",
+    "tab": "Rear antenna",
+    "tip": "One-piece TPU mount on the rearmost upper standoffs.",
+    "default": false,
+    "choices": [],
+    "help": "One-piece TPU mount on the rearmost upper standoffs.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaConnector",
+    "label": "Antenna connection",
+    "tab": "Rear antenna",
+    "tip": "SMA/RP-SMA: flat bulkhead tab for a pigtail secured by its nut and washer. u.FL/MMCX: tubular holder for the measured antenna stem, not the PCB connector.",
+    "default": "u.FL",
+    "choices": [
+      "SMA",
+      "RP-SMA",
+      "u.FL",
+      "MMCX"
+    ],
+    "help": "SMA/RP-SMA: flat bulkhead tab for a pigtail secured by its nut and washer. u.FL/MMCX: tubular holder for the measured antenna stem, not the PCB connector.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaCount",
+    "label": "Antenna count",
+    "tab": "Rear antenna",
+    "tip": "One rear antenna or two with symmetric outward yaw of 30 degrees each. Elevation uses Antenna tilt.",
+    "default": "1 antenna",
+    "choices": [
+      "1 antenna",
+      "2 antennas"
+    ],
+    "help": "One rear antenna or two with symmetric outward yaw of 30 degrees each. Elevation uses Antenna tilt.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaBarShape",
+    "label": "Connecting bar shape",
+    "tab": "Rear antenna",
+    "tip": "Broad rounded connecting bar, triangular brace or filled rectangular platform in top view.",
+    "default": "Curved",
+    "choices": [
+      "Curved",
+      "Triangle",
+      "Rectangle"
+    ],
+    "help": "Broad rounded connecting bar, triangular brace or filled rectangular platform in top view.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaReach",
+    "label": "Rearward reach",
+    "tab": "Rear antenna",
+    "tip": "Distance from the rear standoff row to the connecting bar apex. Holder fore/aft offset moves the sleeves independently.",
+    "default": 20.0,
+    "choices": [],
+    "help": "Distance from the rear standoff row to the connecting bar apex. Holder fore/aft offset moves the sleeves independently.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaGripHeight",
+    "label": "Standoff grip height",
+    "tab": "Rear antenna",
+    "tip": "Requested sleeve height. The side-guard rear grip adjusts to support the antenna grip directly. Available height caps the request while retaining at least 4 mm of guard bearing.",
+    "default": 8.0,
+    "choices": [],
+    "help": "Requested sleeve height. The side-guard rear grip adjusts to support the antenna grip directly. Available height caps the request while retaining at least 4 mm of guard bearing.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexAntennaGripWall",
+    "label": "Standoff grip wall",
+    "tab": "Rear antenna",
+    "tip": "Radial sleeve wall thickness. Only grip rings may extend outside plate or guard width.",
+    "default": 3.0,
+    "choices": [],
+    "help": "Radial sleeve wall thickness. Only grip rings may extend outside plate or guard width.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexAntennaFit",
+    "label": "Standoff fit allowance",
+    "tab": "Rear antenna",
+    "tip": "Diametral standoff clearance. Tune with a test print.",
+    "default": 0.2,
+    "choices": [],
+    "help": "Diametral standoff clearance. Tune with a test print.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexAntennaBarWidth",
+    "label": "Connecting bar width",
+    "tab": "Rear antenna",
+    "tip": "Fore/aft rib thickness. Minimum 4 mm.",
+    "default": 6.0,
+    "choices": [],
+    "help": "Fore/aft rib thickness. Minimum 4 mm.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaBore",
+    "label": "Antenna bore diameter",
+    "tab": "Rear antenna",
+    "tip": "Zero uses 6.5 mm for SMA/RP-SMA, 4 mm u.FL stems or 3 mm MMCX stems. Override using measured hardware and print allowance.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Zero uses 6.5 mm for SMA/RP-SMA, 4 mm u.FL stems or 3 mm MMCX stems. Override using measured hardware and print allowance.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaSocketWall",
+    "label": "Antenna holder wall",
+    "tab": "Rear antenna",
+    "tip": "Radial tube wall for u.FL/MMCX. For SMA/RP-SMA it enlarges the tab when the hole needs more surrounding stock; the tab is at least 12 mm wide.",
+    "default": 1.2,
+    "choices": [],
+    "help": "Radial tube wall for u.FL/MMCX. For SMA/RP-SMA it enlarges the tab when the hole needs more surrounding stock; the tab is at least 12 mm wide.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaSocketLength",
+    "label": "Antenna holder length",
+    "tab": "Rear antenna",
+    "tip": "u.FL/MMCX sleeve length along the antenna axis; zero uses 6 mm. Extends outward from a fixed root. Retained but inactive for SMA/RP-SMA, which use bulkhead tab thickness.",
+    "default": 0.0,
+    "choices": [],
+    "help": "u.FL/MMCX sleeve length along the antenna axis; zero uses 6 mm. Extends outward from a fixed root. Retained but inactive for SMA/RP-SMA, which use bulkhead tab thickness.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaSpacing",
+    "label": "Dual antenna spacing",
+    "tab": "Rear antenna",
+    "tip": "Distance between holder centres; active for two antennas. Must fit the rear width.",
+    "default": 14.0,
+    "choices": [],
+    "help": "Distance between holder centres; active for two antennas. Must fit the rear width.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaTilt",
+    "label": "Antenna tilt",
+    "tab": "Rear antenna",
+    "tip": "Elevation above horizontal: 0 degrees rearward and level, 90 degrees upright. Default 60 degrees is 30 degrees from vertical; dual outward yaw remains 30 degrees per side.",
+    "default": 60.0,
+    "choices": [],
+    "help": "Elevation above horizontal: 0 degrees rearward and level, 90 degrees upright. Default 60 degrees is 30 degrees from vertical; dual outward yaw remains 30 degrees per side.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexAntennaStandoffBore",
+    "label": "Standoff hole diameter",
+    "tab": "Rear antenna",
+    "tip": "Direct finished hole diameter. Zero uses standoff diameter plus fit allowance. A nonzero value overrides that allowance; must be at least the modeled standoff diameter.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Direct finished hole diameter. Zero uses standoff diameter plus fit allowance. A nonzero value overrides that allowance; must be at least the modeled standoff diameter.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexAntennaHolderOffset",
+    "label": "Holder fore/aft offset",
+    "tab": "Rear antenna",
+    "tip": "Move the antenna sleeves independently of the connecting bar. Positive moves rearward/out; negative moves toward the frame. Actual plate and guard collisions remain blocked.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Move the antenna sleeves independently of the connecting bar. Positive moves rearward/out; negative moves toward the frame. Actual plate and guard collisions remain blocked.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaBulkheadThickness",
+    "label": "SMA bulkhead tab thickness",
+    "tab": "Rear antenna",
+    "tip": "Thickness clamped between the pigtail shoulder and its nut/washer. SMA and RP-SMA only; 2 to 5 mm. Verify enough thread remains for the nut and antenna.",
+    "default": 2.4,
+    "choices": [],
+    "help": "Thickness clamped between the pigtail shoulder and its nut/washer. SMA and RP-SMA only; 2 to 5 mm. Verify enough thread remains for the nut and antenna.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaHolderStyle",
+    "label": "Stem holder style",
+    "tab": "Rear antenna",
+    "tip": "Closed tube slides over the stem. Side-entry clip opens toward frame front through the full axial thickness at the clip, without an added rear brace. At zero tilt, a horizontal rearward stem uses upward radial entry because front is along its axis. u.FL/MMCX only.",
+    "default": "Closed tube",
+    "choices": [
+      "Closed tube",
+      "Side-entry clip"
+    ],
+    "help": "Closed tube slides over the stem. Side-entry clip opens toward frame front through the full axial thickness at the clip, without an added rear brace. At zero tilt, a horizontal rearward stem uses upward radial entry because front is along its axis. u.FL/MMCX only.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaRetainingLip",
+    "label": "Stem retaining lip",
+    "tab": "Rear antenna",
+    "tip": "Per-side retention for the side-entry opening. Opening width equals stem bore minus twice this lip. Tune to TPU and the measured stem.",
+    "default": 0.4,
+    "choices": [],
+    "help": "Per-side retention for the side-entry opening. Opening width equals stem bore minus twice this lip. Tune to TPU and the measured stem.",
+    "category": "TPU",
+    "group": "Bar and holders"
+  },
+  {
+    "key": "FlexAntennaTopGap",
+    "label": "Top plate gap",
+    "tab": "Rear antenna",
+    "tip": "Vertical gap below the top plate. Zero seats the VTX grips flush.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Vertical gap below the top plate. Zero seats the VTX grips flush.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexAntennaGuardGap",
+    "label": "VTX to side-guard gap",
+    "tab": "Rear antenna",
+    "tip": "Vertical gap between VTX and side-guard grips. Zero gives direct contact.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Vertical gap between VTX and side-guard grips. Zero gives direct contact.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexELRSEnabled",
+    "label": "ELRS T-antenna mount",
+    "tab": "ELRS antenna",
+    "tip": "Separate TPU mount on the rear upper standoffs below the side-guard grips.",
+    "default": false,
+    "choices": [],
+    "help": "Separate TPU mount on the rear upper standoffs below the side-guard grips.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexELRSBarShape",
+    "label": "ELRS bar shape",
+    "tab": "ELRS antenna",
+    "tip": "Connecting bar joining both rear grips.",
+    "default": "Curved",
+    "choices": [
+      "Curved",
+      "Triangle",
+      "Rectangle"
+    ],
+    "help": "Connecting bar joining both rear grips.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexELRSReach",
+    "label": "ELRS rearward reach",
+    "tab": "ELRS antenna",
+    "tip": "Distance rearward from the standoff row to the antenna axis. Moves both hooks and the bar together.",
+    "default": 20.0,
+    "choices": [],
+    "help": "Distance rearward from the standoff row to the antenna axis. Moves both hooks and the bar together.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexELRSHeightOffset",
+    "label": "ELRS height above plate",
+    "tab": "ELRS antenna",
+    "tip": "Raise the mount from the lower carrier: bottom plate in two-plate frames, mid plate in three-plate frames. The grip must remain below the guard grip.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Raise the mount from the lower carrier: bottom plate in two-plate frames, mid plate in three-plate frames. The grip must remain below the guard grip.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexELRSGripHeight",
+    "label": "ELRS grip height",
+    "tab": "ELRS antenna",
+    "tip": "Requested grip height, capped to the available space below the guard grips. At least 4 mm must remain.",
+    "default": 6.0,
+    "choices": [],
+    "help": "Requested grip height, capped to the available space below the guard grips. At least 4 mm must remain.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexELRSGripWall",
+    "label": "ELRS grip wall",
+    "tab": "ELRS antenna",
+    "tip": "Radial TPU around the standoff hole. Minimum 1.2 mm.",
+    "default": 3.0,
+    "choices": [],
+    "help": "Radial TPU around the standoff hole. Minimum 1.2 mm.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexELRSStandoffBore",
+    "label": "ELRS standoff hole",
+    "tab": "ELRS antenna",
+    "tip": "Finished hole diameter. Zero uses standoff diameter plus fit allowance. Must not be smaller than the standoff.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Finished hole diameter. Zero uses standoff diameter plus fit allowance. Must not be smaller than the standoff.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexELRSFit",
+    "label": "ELRS standoff fit allowance",
+    "tab": "ELRS antenna",
+    "tip": "Diametral clearance when ELRS standoff hole is zero.",
+    "default": 0.2,
+    "choices": [],
+    "help": "Diametral clearance when ELRS standoff hole is zero.",
+    "category": "TPU",
+    "group": "Standoff grips"
+  },
+  {
+    "key": "FlexELRSBarWidth",
+    "label": "ELRS bar width",
+    "tab": "ELRS antenna",
+    "tip": "Fore/aft connecting rib width, at least 4 mm.",
+    "default": 6.0,
+    "choices": [],
+    "help": "Fore/aft connecting rib width, at least 4 mm.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSHookSpacing",
+    "label": "ELRS hook spacing",
+    "tab": "ELRS antenna",
+    "tip": "Centre-to-centre spacing across the two hooks. Leave room between them for the T junction and coax.",
+    "default": 16.0,
+    "choices": [],
+    "help": "Centre-to-centre spacing across the two hooks. Leave room between them for the T junction and coax.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSAntennaDiameter",
+    "label": "ELRS antenna diameter",
+    "tab": "ELRS antenna",
+    "tip": "Finished bore for the insulated horizontal antenna housing. Measure your T-antenna; this is not a connector diameter.",
+    "default": 3.0,
+    "choices": [],
+    "help": "Finished bore for the insulated horizontal antenna housing. Measure your T-antenna; this is not a connector diameter.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSHookWidth",
+    "label": "ELRS hook width",
+    "tab": "ELRS antenna",
+    "tip": "Contact length of each hook along the horizontal antenna.",
+    "default": 4.0,
+    "choices": [],
+    "help": "Contact length of each hook along the horizontal antenna.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSHookWall",
+    "label": "ELRS hook wall",
+    "tab": "ELRS antenna",
+    "tip": "Radial TPU around the antenna. Minimum 1.2 mm.",
+    "default": 1.5,
+    "choices": [],
+    "help": "Radial TPU around the antenna. Minimum 1.2 mm.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSRetainingLip",
+    "label": "ELRS retaining lip",
+    "tab": "ELRS antenna",
+    "tip": "Per-side retention. Upward opening equals antenna diameter minus twice this lip. Snap in from above or slide in along the antenna axis; test the fit in your TPU.",
+    "default": 0.4,
+    "choices": [],
+    "help": "Per-side retention. Upward opening equals antenna diameter minus twice this lip. Snap in from above or slide in along the antenna axis; test the fit in your TPU.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSHookReach",
+    "label": "ELRS hook rearward offset",
+    "tab": "ELRS antenna",
+    "tip": "Additional rearward movement of the hooks only. The main bar and grips stay in place; two ribs connect the hooks to the bar.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Additional rearward movement of the hooks only. The main bar and grips stay in place; two ribs connect the hooks to the bar.",
+    "category": "TPU",
+    "group": "Mount"
+  },
+  {
+    "key": "FlexELRSPassThroughDiameter",
+    "label": "ELRS antenna pass-through diameter",
+    "tab": "ELRS antenna",
+    "tip": "Front-to-back hole through the centre of the connecting bar for the T-antenna centre leg/coax. Measure the part that must pass through. Zero disables it; retain at least 1 mm above and below the hole.",
+    "default": 3.0,
+    "choices": [],
+    "help": "Front-to-back hole through the centre of the connecting bar for the T-antenna centre leg/coax. Measure the part that must pass through. Zero disables it; retain at least 1 mm above and below the hole.",
+    "category": "TPU",
+    "group": "Bar and hooks"
+  },
+  {
+    "key": "FlexELRSGuardGap",
+    "label": "ELRS to side-guard gap",
+    "tab": "ELRS antenna",
+    "tip": "Vertical gap above the ELRS grips. Zero gives direct contact with side-guard grips.",
+    "default": 0.0,
+    "choices": [],
+    "help": "Vertical gap above the ELRS grips. Zero gives direct contact with side-guard grips.",
+    "category": "TPU",
+    "group": "Standoff grips"
   }
 ]

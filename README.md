@@ -7,6 +7,11 @@ For installation and usage, see the PDFs included in this folder:
 - [Installation guide](RotorForge_Installation.pdf) — how to install and update RotorForge on Windows, macOS and Linux.
 - [User guide](RotorForge_Help.pdf) — how the workbench works, its settings, and the workflow for designing and exporting a frame.
 
+The editor uses a vertical icon rail for its main sections and wrapping text buttons for subsections. See [Editor navigation](EDITOR_NAVIGATION.md) for preview zoom and the updated Airflow workspace.
+
 You can also open the user guide from **RotorForge > Help** in FreeCAD.
 
 Copyright (c) 2026 Michael Struggl. Released under the [MIT License](LICENSE).
+
+
+The integrated **TPU > Rear antenna** section supports closed or side-entry stem holders and SMA/RP-SMA pigtail tabs. **TPU > ELRS antenna** adds an adjustable lower T-antenna mount. See [Rear antenna mounts](REAR_ANTENNA.md) and the bundled Help PDF.

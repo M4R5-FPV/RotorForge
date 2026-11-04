@@ -85,7 +85,7 @@ def draw_parts(painter,rect,p,selected):
   painter.setPen(QtGui.QColor('#294554'));painter.drawText(QtCore.QRectF(cell.x(),cell.y(),cell.width(),25),QtCore.Qt.AlignCenter,label)
   scale=min((cw-24)/max(1,b.width()),(ch-40)/max(1,b.height()))
   painter.save();painter.translate(cell.center().x(),cell.center().y()+9);painter.scale(scale,-scale);painter.translate(-b.center().x(),-b.center().y())
-  painter.setPen(QtGui.QPen(QtGui.QColor(CARBON_EDGE),.4));painter.setBrush(QtGui.QColor(printed_hex(p)) if role=='LiPoPad' or role.startswith(('CameraPad','MotorProtector','ElectronicsGuard','FrontBumper')) else QtGui.QColor(CARBON_HEX));painter.drawPath(path)
+  painter.setPen(QtGui.QPen(QtGui.QColor(CARBON_EDGE),.4));painter.setBrush(QtGui.QColor(printed_hex(p)) if role=='LiPoPad' or role.startswith(('CameraPad','MotorProtector','ElectronicsGuard','FrontBumper','RearAntennaMount','ELRSAntennaMount')) else QtGui.QColor(CARBON_HEX));painter.drawPath(path)
   if role=='LiPoPad':
    try:painter.fillPath(grip_path(p,path),QtGui.QColor(printed_groove(p)))
    except ValueError:pass

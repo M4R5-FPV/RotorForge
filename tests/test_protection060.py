@@ -8,10 +8,12 @@ from freecad.rotorforge.parameters import arm_layouts
 from freecad.rotorforge.arm_roots import fillet_root_limit
 class Protection060Tests(unittest.TestCase):
  def test_removed_mounts_have_no_controls_parameters_or_roles(self):
+  from freecad.rotorforge.elrs_options import FIELDS
+  allowed=set(FIELDS)|{'FlexRearAntenna'}
   for prefix in ('FlexRear','FlexVTX','FlexGPS','FlexELRS','FlexClampSlit'):
-   self.assertFalse(any(k.startswith(prefix) for k in Parameters.__dataclass_fields__))
-   self.assertFalse(any(k.startswith(prefix) for k in FLEX_OPTIONS))
-  self.assertFalse(any(r.startswith('Rear') for r in FLEX_ROLES))
+   self.assertFalse(any(k.startswith(prefix) and k not in allowed for k in Parameters.__dataclass_fields__))
+   self.assertFalse(any(k.startswith(prefix) and k not in allowed for k in FLEX_OPTIONS))
+  self.assertFalse(any(r.startswith('Rear') and r!='RearAntennaMount' for r in FLEX_ROLES))
  def test_old_saved_settings_are_ignored_and_zip_choice_migrates(self):
   p=Parameters.from_dict(dict(FlexRearEnabled=True,FlexRearGPS=True,FlexVTXCount='2',FlexProtectorRetention='Zip ties'))
   self.assertEqual(p.FlexProtectorRetention,'Linked screw access');self.assertEqual(flex_roles(p),());self.assertNotIn('FlexRearEnabled',p.to_dict())

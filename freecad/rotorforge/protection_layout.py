@@ -25,7 +25,7 @@ def guard_layout(p):
  for index,(sign,name) in enumerate(((-1,'Left'),(1,'Right'))):
   stands={s['point']:s for s in (forward[index],fc[index],rear[index])};stands=tuple(sorted(stands.values(),key=lambda s:-s['point'][1]))
   bands=tuple((s['base']+.15,s['base']+s['length']-.15) if s['point']==forward[index]['point'] else rear_guard_band(p) if s['point']==rear[index]['point'] else (inner_top-10,inner_top) for s in stands)
-  if guard_between_plates(p):bands=tuple((max(low,bottom),min(high,top)) for low,high in bands)
+  if guard_between_plates(p):bands=tuple((low,high) if (p.FlexRearAntenna or p.FlexELRSEnabled) and s['point']==rear[index]['point'] else (max(low,bottom),min(high,top)) for s,(low,high) in zip(stands,bands))
   items.append(dict(role='ElectronicsGuard'+name,sign=sign,x=sign*(max(abs(s['point'][0]) for s in stands)+p.StandoffDiameter/2+p.FlexGuardWall),z=bottom,top=top,inner_bottom=levels['deck_z']+gap,inner_top=inner_top,deck_z=levels['deck_z'],grip=6.,stands=stands,bands=bands,rear=rear[index]['point'][1],front=forward[index]['point'][1],lower_role='MidPlate' if three_plate(p) else 'BottomPlate'))
  return tuple(items)
 

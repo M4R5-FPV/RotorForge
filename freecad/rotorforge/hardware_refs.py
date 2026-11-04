@@ -176,3 +176,40 @@ def _refresh(frame,o,automatic,recompute):
  if not automatic:t.ReferencesVisible=True
  if recompute:frame.Document.recompute()
  return specs_to_return
+
+
+def saved_preferences(frame=None):
+ """Capture choices without creating settings or changing the document."""
+ from .hardware_preferences import validate_preferences
+ t=existing_settings(frame) if frame is not None else None
+ current=objects(frame) if frame is not None else []
+ created=bool(getattr(t,'ReferencesCreated',bool(current)))
+ visible=bool(getattr(t,'ReferencesVisible',True))
+ stale=bool(getattr(t,'ReferencesStale',False))
+ hidden=[]
+ for obj in current:
+  shown=(bool(obj.HardwareVisible) if stale and 'HardwareVisible' in obj.PropertiesList else
+         bool(obj.ViewObject.Visibility) if App.GuiUp else bool(getattr(obj,'HardwareVisible',visible)))
+  if not shown:hidden.append(str(getattr(obj,'HardwareRole',obj.Label.removesuffix(' fasteners'))))
+ return validate_preferences(dict(version=1,created=created,visible=visible,
+                                  options=json.loads(t.Options) if t is not None else dict(DEFAULT_OPTIONS),hidden_roles=hidden))
+
+
+def restore_preferences(frame,value):
+ """Apply explicitly saved display choices after a frame has been built."""
+ from .hardware_preferences import validate_preferences
+ value=validate_preferences(value)
+ t=settings(frame);reference_flags(frame,t)
+ if value['created']:
+  refresh(frame,value['options'],recompute=False)
+ else:
+  for obj in list(objects(frame)):frame.Document.removeObject(obj.Name)
+  t.Options=json.dumps(value['options']);t.ReferencesCreated=False;t.ReferencesStale=False
+  t.SourceSignature=''
+ t.ReferencesVisible=value['visible']
+ hidden=set(value['hidden_roles'])
+ for obj in objects(frame):
+  shown=value['visible'] and str(obj.HardwareRole) not in hidden
+  obj.HardwareVisible=shown
+  if App.GuiUp:obj.ViewObject.Visibility=shown
+ frame.Document.recompute()

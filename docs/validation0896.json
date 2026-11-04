@@ -1,0 +1,22 @@
+{
+  "status": "passed",
+  "checks": [
+    "Save settings includes chosen groups, engagement, nuts and individual visibility",
+    "Load is non-mutating and Save before Create preserves loaded preferences",
+    "Create from JSON restores valid screws and press nuts without manual refresh",
+    "Explicitly hidden hardware remains hidden after loading and creating",
+    "Exported FrameParameters.json includes the same hardware preferences",
+    "Explicit no-hardware preference removes old references on an existing frame",
+    "Legacy JSON continues to build without opting into hardware"
+  ],
+  "FreeCAD": [
+    "26",
+    "3",
+    "0",
+    "20260916 (Git shallow)",
+    "Unknown",
+    "2026/09/16 06:32:59",
+    "(HEAD detached at a4ce44d33)",
+    "a4ce44d33b7e42e16cb8156058a1894237042ab4"
+  ]
+}

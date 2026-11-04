@@ -14,7 +14,7 @@ ICON = icon_path()
 from .parameters import RETIRED_PARAMETERS,STACK_PATTERNS,stack_label
 
 FLOATS = {"BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
-SIGNED_LENGTHS = {'StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
+SIGNED_LENGTHS = {'FlexAntennaHolderOffset','StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
 GEOMETRY_FIELDS = {"Layout", "PlateDesign", "Wheelbase", "LengthToWidth", "FrontSpread", "RearArmExtension", "PropDiameter", "RequiredPropGap"}
 ARM_FIELDS = {"ArmBeamShape","ArmProfileAmount","ArmThickness", "ArmWidth", "ArmRootY", "RootInset", "RootExtension", "RootBoltSpacing", "RootHoleDiameter"}|ARM_LOCK_FIELDS
 MOTOR_FIELDS = {"MotorPadNeckLength","MotorPadBlendRadius","MotorPadRelief","MotorPadReliefWidth","MotorPadReliefLength","MotorPadDiameter", "MotorSpacingX", "MotorSpacingY", "MotorHoleDiameter", "MotorCenterDiameter", 'MotorPadShape', 'MotorPadCornerRadius', 'MotorTipLength','MotorTipSlotEnabled','MotorTipSlotWidth','MotorTipSlotLength'}
@@ -120,7 +120,7 @@ def ensure_parameter_properties(obj, defaults=None):
                 "App::PropertyEnumeration" if f.name in ENUMERATIONS or f.name=='StackSpacing' else
                 "App::PropertyBool" if f.name in BOOLEANS else
                 "App::PropertyString" if f.name in STRINGS else
-                "App::PropertyAngle" if f.name in ("CameraTilt",'CameraTiltMin','CameraTiltMax','MotorHoleRotation','MotorPadRotation','BatteryRotation') else
+                "App::PropertyAngle" if f.name in ("FlexAntennaTilt","CameraTilt",'CameraTiltMin','CameraTiltMax','MotorHoleRotation','MotorPadRotation','BatteryRotation') else
                 "App::PropertyDistance" if f.name in SIGNED_LENGTHS else
                 "App::PropertyFloat" if f.name in FLOATS else "App::PropertyLength")
         obj.addProperty(kind, f.name, property_group(f.name), FLEX_OPTIONS[f.name][2] if f.name in FLEX_OPTIONS else f.name)

@@ -68,6 +68,12 @@ def make_flex(p,carbon=None):
  if p.FlexFrontBumper:
   from .bumper_geometry import front_bumper
   result['FrontBumper']=front_bumper(p,dict(carbon or {},**result))
+ if p.FlexRearAntenna:
+  from .antenna_geometry import rear_antenna_mount
+  result['RearAntennaMount']=rear_antenna_mount(p,dict(carbon or {},**result))
+ if p.FlexELRSEnabled:
+  from .elrs_geometry import elrs_mount
+  result['ELRSAntennaMount']=elrs_mount(p,dict(carbon or {},**result))
  for role,shape in result.items():
   if shape.isNull() or not shape.isValid() or len(shape.Solids)!=1:raise ValueError(role+' must be one valid connected printable part; review its dimensions.')
  return result

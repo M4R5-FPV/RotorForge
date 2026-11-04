@@ -260,7 +260,7 @@ def _profile_parameters(p):
     from .parameters import Parameters
     defaults=Parameters()
     return replace(p,**{name:getattr(defaults,name) for name in p.__dataclass_fields__
-                       if name.startswith(('FlexGuard','FlexProtector')) or name in ('FlexSideGuards','FlexMotorProtectors','PrintedPartColour')})
+                       if name.startswith(('FlexGuard','FlexProtector','FlexAntenna','FlexELRS')) or name in ('FlexRearAntenna','FlexSideGuards','FlexMotorProtectors','PrintedPartColour')})
 
 @lru_cache(maxsize=96)
 def _finished_part_path_cached(p,role,pattern_json,include_strap_notches=True):
@@ -503,6 +503,57 @@ class AirflowEditor(QtWidgets.QWidget):
         self.enabled.toggled.connect(self.update_pending_status)
         for control in self.inputs.values():control.valueChanged.connect(self.update_pending_status)
         self.update_capacity();self.filter_patterns()
+        # Full-width cutting workspace: saved patterns, editing, and inspection
+        # stay alongside each other instead of forming one long vertical page.
+        while layout.count():
+            layout.takeAt(0)
+        self.workspace = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        self.workspace.setChildrenCollapsible(False)
+        layout.addWidget(self.workspace, 1)
+        library = QtWidgets.QWidget(); library_layout = QtWidgets.QVBoxLayout(library)
+        library_layout.setContentsMargins(0, 0, 4, 0)
+        self.capacity.setWordWrap(True)
+        library_layout.addWidget(self.capacity)
+        # A vertical filter stack fits the saved-pattern column.
+        while filters.count():filters.takeAt(0)
+        library_layout.addWidget(self.find_pattern)
+        self.filter_role.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.filter_role.setMinimumContentsLength(10)
+        library_layout.addWidget(self.filter_role)
+        library_layout.addWidget(self.filter_count)
+        self.pattern_list.setMinimumHeight(80);self.pattern_list.setMaximumHeight(16777215)
+        library_layout.addWidget(self.pattern_list, 1)
+        library_layout.addWidget(self.remove_button)
+        help_button = QtWidgets.QPushButton('How to use cutouts')
+        help_button.clicked.connect(lambda: QtWidgets.QMessageBox.information(self, 'Airflow / outlines', note.text()))
+        library_layout.addWidget(help_button)
+        note.hide()
+        edit = QtWidgets.QWidget(); edit_layout = QtWidgets.QVBoxLayout(edit)
+        edit_layout.setContentsMargins(4, 0, 4, 0)
+        edit_layout.addLayout(form)
+        edit_layout.addWidget(self.coordinates)
+        while buttons.count():buttons.takeAt(0)
+        edit_actions = QtWidgets.QHBoxLayout()
+        edit_actions.addWidget(self.add_button);edit_actions.addWidget(self.apply_button)
+        edit_layout.addLayout(edit_actions)
+        edit_layout.addWidget(self.discard_button)
+        edit_layout.addWidget(self.copy_button)
+        edit_layout.addWidget(self.check_button)
+        edit_layout.addStretch()
+        inspect = QtWidgets.QWidget(); inspect_layout = QtWidgets.QVBoxLayout(inspect)
+        inspect_layout.setContentsMargins(4, 0, 0, 0)
+        # Two compact rows keep preview actions visible in narrower windows.
+        while locator.count():locator.takeAt(0)
+        inspect_layout.addWidget(self.show_numbers)
+        view_actions = QtWidgets.QHBoxLayout()
+        view_actions.addWidget(self.zoom_button);view_actions.addWidget(self.fit_button)
+        inspect_layout.addLayout(view_actions)
+        self.preview.setMinimumHeight(180)
+        inspect_layout.addWidget(self.preview, 1)
+        inspect_layout.addWidget(self.status)
+        for panel in (library, edit, inspect):self.workspace.addWidget(panel)
+        self.workspace.setSizes([210, 350, 420])
+
 
     def update_coordinates(self,*args):
         camera=self.role.currentData() in CAMERA_ROLES
@@ -674,3 +725,7 @@ def blend_motor_junction_path(p,arm,path):
     return result
 
 ROLE_LABELS.update({**{'MotorProtector'+name:'Motor protector '+name for name in ('FrontRight','FrontLeft','RearLeft','RearRight')},'ElectronicsGuardLeft':'Electronics guard left','ElectronicsGuardRight':'Electronics guard right'})
+
+ROLE_LABELS['RearAntennaMount']='Rear antenna mount'
+
+ROLE_LABELS['ELRSAntennaMount']='ELRS antenna mount'

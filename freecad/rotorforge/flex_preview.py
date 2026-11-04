@@ -20,6 +20,12 @@ def camera_interface_path(p,w,h,lip=0.):
  return path
 
 def flex_path(p,role):
+ if role=='ELRSAntennaMount':
+  from .elrs_preview import elrs_path
+  return elrs_path(p)
+ if role=='RearAntennaMount':
+  from .antenna_preview import antenna_path
+  return antenna_path(p)
  if role=='FrontBumper':
   from .bumper_preview import front_bumper_path
   return front_bumper_path(p)
@@ -186,5 +192,5 @@ def guard_plan_path(p,g):
  from dataclasses import replace
  from .parameters import Parameters
  defaults=Parameters()
- inactive={name:getattr(defaults,name) for name in p.__dataclass_fields__ if name.startswith(('FlexGuardWire','FlexGuardUSB','FlexGuardVent','FlexGuardSlot','FlexGuardVTX','FlexGuardFC','FlexProtector')) or name in ('FlexGuardStyle','FlexMotorProtectors','PrintedPartColour')}
+ inactive={name:getattr(defaults,name) for name in p.__dataclass_fields__ if name.startswith(('FlexGuardWire','FlexGuardUSB','FlexGuardVent','FlexGuardSlot','FlexGuardVTX','FlexGuardFC','FlexProtector','FlexELRS')) or (name.startswith('FlexAntenna') and name!='FlexAntennaGripHeight') or name in ('FlexGuardStyle','FlexMotorProtectors','PrintedPartColour')}
  return QtGui.QPainterPath(_guard_plan_cached(replace(p,**inactive),g['role']))

@@ -6,7 +6,7 @@ def soft_camera(p):return p.FPVEnabled and p.FlexCameraMode!='Hard mount'
 def camera_inner(p):
  return p.CameraWidth/2+(p.FlexPadThickness-p.FlexPadPreload if soft_camera(p) else p.CameraSideClearance/2)
 def flex_roles(p):
- return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper else ())
+ return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper else ())+(('RearAntennaMount',) if p.FlexRearAntenna else ())+(('ELRSAntennaMount',) if p.FlexELRSEnabled else ())
 
 def insert_rect(p):
  from .fpv import camera_position_y,camera_pivot_height
@@ -14,9 +14,15 @@ def insert_rect(p):
 
 def validate_flex(p):
  errors=[];warnings=[]
- numeric=[k for k in p.__dataclass_fields__ if k.startswith('Flex') and k not in ('FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset') and isinstance(getattr(p,k),(float,int)) and not isinstance(getattr(p,k),bool)]
+ if p.FlexELRSEnabled:
+  from .elrs_layout import validate_elrs
+  errors.extend(validate_elrs(p))
+ if p.FlexRearAntenna:
+  from .antenna_layout import validate_antenna
+  errors.extend(validate_antenna(p))
+ numeric=[k for k in p.__dataclass_fields__ if k.startswith('Flex') and k not in ('FlexAntennaHolderOffset','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset') and isinstance(getattr(p,k),(float,int)) and not isinstance(getattr(p,k),bool)]
  if any(not math.isfinite(getattr(p,k)) or getattr(p,k)<0 for k in numeric):return ['Flexible-part dimensions must be finite and non-negative.'],[]
- if any(not math.isfinite(getattr(p,k)) for k in ('FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset')):errors.append('Opening offsets must be finite.')
+ if any(not math.isfinite(getattr(p,k)) for k in ('FlexAntennaHolderOffset','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset')):errors.append('Opening offsets must be finite.')
  if p.FlexFrontBumper:
   from .parameters import bottom_bounds
   rear,front=bottom_bounds(p)

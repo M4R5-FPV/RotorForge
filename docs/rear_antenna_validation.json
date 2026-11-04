@@ -1,0 +1,413 @@
+{
+  "version": "0.90.7",
+  "FreeCAD": "1.1.4",
+  "unit_tests_passed": 510,
+  "limitations": [
+    "Not physically test-printed",
+    "Full antenna and coax envelopes not modeled"
+  ],
+  "cad": [
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 1.361960779000583
+    },
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.7212591440002143
+    },
+    {
+      "case": [
+        "2 plates",
+        "Off",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.0194985679991078
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 2.786064218998945
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.7972699680012738
+    },
+    {
+      "case": [
+        "2 plates",
+        "Plate-edge wrap",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.0134733690010762
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 2.2404907759992057
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.9959513169997081
+    },
+    {
+      "case": [
+        "2 plates",
+        "Between plates",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.324478458998783
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 3.174794192000263
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 0.786575776999598
+    },
+    {
+      "case": [
+        "3 plates",
+        "Off",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.033819124000729
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 8.67848054299975
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.5236527179986297
+    },
+    {
+      "case": [
+        "3 plates",
+        "Plate-edge wrap",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 2.3076941309991525
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "u.FL"
+      ],
+      "ok": true,
+      "seconds": 7.990538410000227
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "MMCX"
+      ],
+      "ok": true,
+      "seconds": 1.3148784170007275
+    },
+    {
+      "case": [
+        "3 plates",
+        "Between plates",
+        "SMA"
+      ],
+      "ok": true,
+      "seconds": 1.8163945199994487
+    }
+  ],
+  "full_section_joints": [
+    {
+      "case": [
+        "Curved",
+        0.5,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        0.5,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        0.5,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        8.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        8.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        8.0,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        20.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        20.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Curved",
+        20.0,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        0.5,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        0.5,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        0.5,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        8.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        8.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        8.0,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        20.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        20.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Triangle",
+        20.0,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        0.5,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        0.5,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        0.5,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        8.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        8.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        8.0,
+        8.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        20.0,
+        2.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        20.0,
+        4.0
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "Rectangle",
+        20.0,
+        8.0
+      ],
+      "ok": true
+    }
+  ],
+  "persistence": {
+    "ok": true,
+    "reach_update_seconds": 1.07641736900041,
+    "reused_parts": [
+      {
+        "role": "ElectronicsGuardLeft",
+        "action": "reused",
+        "seconds": 0.00019196799985365942
+      },
+      {
+        "role": "ElectronicsGuardRight",
+        "action": "reused",
+        "seconds": 0.00024941499941633083
+      },
+      {
+        "role": "RearAntennaMount",
+        "action": "reused",
+        "seconds": 0.00012859299931733403
+      }
+    ]
+  },
+  "vtx_source_unchanged_from": "0.90.6"
+}

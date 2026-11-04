@@ -1,0 +1,295 @@
+{
+  "version": "0.90.9",
+  "unit_tests": 513,
+  "cad": [
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        0.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        0.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        30.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        30.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        60.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        60.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        90.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Closed tube",
+        90.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        0.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        0.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        30.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        30.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        60.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        60.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        90.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "u.FL",
+        "Side-entry clip",
+        90.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        0.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        0.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        30.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        30.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        60.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        60.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        90.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Closed tube",
+        90.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        0.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        0.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        30.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        30.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        60.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        60.0,
+        "2 antennas"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        90.0,
+        "1 antenna"
+      ],
+      "ok": true
+    },
+    {
+      "case": [
+        "MMCX",
+        "Side-entry clip",
+        90.0,
+        "2 antennas"
+      ],
+      "ok": true
+    }
+  ],
+  "checks": "Connected valid solids, no volume below seat, mesh underside at seat, clear bores"
+}

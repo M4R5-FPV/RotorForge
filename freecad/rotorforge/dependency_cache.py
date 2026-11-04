@@ -55,13 +55,16 @@ class ShapeInputs(dict):
 
 class ComponentCache:
  def __init__(self,max_entries=160,max_bytes=64*1024*1024):
-  self.entries=OrderedDict();self.max_entries=max_entries;self.max_bytes=max_bytes;self.bytes=0;self.serial=0;self.events=[];self.latest={};self.last_entry=None
- def clear(self):self.entries.clear();self.bytes=0;self.latest.clear();self.events=[];self.last_entry=None
+  self.entries=OrderedDict();self._by_key={};self.max_entries=max_entries;self.max_bytes=max_bytes;self.bytes=0;self.serial=0;self.events=[];self.latest={};self.last_entry=None
+ def clear(self):self.entries.clear();self._by_key.clear();self.bytes=0;self.latest.clear();self.events=[];self.last_entry=None
  def begin(self):self.events=[]
  def get(self,key,p,inputs,builder):
   start=time.perf_counter();values=inputs or {}
-  for serial,entry in reversed(list(self.entries.items())):
-   if entry['key']!=key:continue
+  # Entries are keyed by role, so retain only that role's candidates. Avoid
+  # allocating a full reversed snapshot of every BRep entry on every lookup.
+  for serial in reversed(self._by_key.get(key,())):
+   entry=self.entries.get(serial)
+   if entry is None:continue
    if any(getattr(p,n)!=v for n,v in entry['parameters'].items()):continue
    if any(shape_token(values.get(n))!=token for n,token in entry['inputs'].items()):continue
    self.entries.move_to_end(serial);self.latest[key]=entry;self.last_entry=entry
@@ -74,9 +77,11 @@ class ComponentCache:
   if 'payload' not in entry:entry['payload']=entry['shape'].exportBrepToString()
   entry['token']='null' if entry['shape'].isNull() else hashlib.sha256(entry['payload'].encode()).hexdigest()
   remember_shape(entry['shape'],entry['token']);entry['bytes']=len(entry['payload'])
-  self.serial+=1;self.entries[self.serial]=entry;self.bytes+=entry['bytes'];self.latest[entry['key']]=entry;self.last_entry=entry
+  self.serial+=1;self.entries[self.serial]=entry;self._by_key.setdefault(entry['key'],[]).append(self.serial);self.bytes+=entry['bytes'];self.latest[entry['key']]=entry;self.last_entry=entry
   while self.entries and (len(self.entries)>self.max_entries or self.bytes>self.max_bytes):
-   _,old=self.entries.popitem(last=False);self.bytes-=old['bytes']
+   serial,old=self.entries.popitem(last=False);self.bytes-=old['bytes']
+   if serial in self._by_key.get(old['key'],()):self._by_key[old['key']].remove(serial)
+   if not self._by_key.get(old['key']):self._by_key.pop(old['key'],None)
    if self.latest.get(old['key']) is old:self.latest.pop(old['key'],None)
   return entry
  def manifest(self,key):

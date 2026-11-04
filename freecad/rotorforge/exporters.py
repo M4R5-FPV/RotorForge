@@ -285,7 +285,8 @@ def export_package(settings, destination):
         from .mass_properties import mass_properties
         metrics=mass_properties(p,shapes)
         (folder/'MassProperties.json').write_text(json.dumps(metrics,indent=2)+'\n',encoding='utf-8')
-        save_parameters(folder / "FrameParameters.json", p)
+        from .hardware_refs import saved_preferences
+        save_parameters(folder / "FrameParameters.json", p, saved_preferences(settings))
         carbon_mass = sum(shapes[role].Volume for role in active_carbon) * p.CarbonDensity / 1000
         with (folder / "PartsList.csv").open("w", newline="", encoding="utf-8") as stream:
             writer = csv.writer(stream)

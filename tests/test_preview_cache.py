@@ -27,3 +27,11 @@ class PreviewCacheTests(unittest.TestCase):
   from freecad.rotorforge.airflow_gui import QtCore
   p=Parameters(FlexSideGuards=True)
   path=guard_plan_path(p,guard_layout(p)[1]);self.assertFalse(path.contains(QtCore.QPointF(20,-30)))
+
+ @unittest.skipIf(QtGui is None,'Qt bindings unavailable')
+ def test_antenna_tuning_reuses_carbon_paths(self):
+  _finished_part_path_cached.cache_clear();p=Parameters();a=finished_part_path(p,'TopPlate');misses=_finished_part_path_cached.cache_info().misses
+  for reach in (18.,25.,30.):
+   q=replace(p,FlexELRSEnabled=True,FlexELRSReach=reach,FlexRearAntenna=True,FlexAntennaHolderStyle='Side-entry clip')
+   self.assertEqual(finished_part_path(q,'TopPlate').boundingRect(),a.boundingRect())
+  self.assertEqual(_finished_part_path_cached.cache_info().misses,misses)

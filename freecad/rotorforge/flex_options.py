@@ -237,3 +237,11 @@ for _name,_extra in {
  'FlexGuardVTXOpening':' A fully covering opening also permits lateral VTX overhang beyond the plates while retaining mounting-hole support and collision checks.'
 }.items():
  _entry=FLEX_OPTIONS[_name];FLEX_OPTIONS[_name]=(_entry[0],_entry[1],_entry[2]+_extra)+_entry[3:]
+
+from .antenna_options import FIELDS as ANTENNA_FIELDS
+FLEX_OPTIONS.update(ANTENNA_FIELDS)
+FLEX_ROLES=FLEX_ROLES+('RearAntennaMount',)
+
+from .elrs_options import FIELDS as ELRS_FIELDS
+FLEX_OPTIONS.update(ELRS_FIELDS)
+FLEX_ROLES=FLEX_ROLES+('ELRSAntennaMount',)

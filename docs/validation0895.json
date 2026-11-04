@@ -1,0 +1,26 @@
+{
+  "status": "passed",
+  "checks": [
+    "Seven vertical main icons",
+    "Wrapping subsections visible at 950x650",
+    "Control search navigation across all fields",
+    "Cursor-anchored zoom and reset",
+    "Full-width airflow without outer scroll at 950x650",
+    "Default parameters unchanged",
+    "Original commands retained",
+    "Airflow add/apply/discard/remove operations",
+    "Preview painting after zoom in overall and AllParts modes",
+    "Maximize window flag retained",
+    "Control search alongside bottom actions"
+  ],
+  "FreeCAD": [
+    "26",
+    "3",
+    "0",
+    "20260916 (Git shallow)",
+    "Unknown",
+    "2026/09/16 06:32:59",
+    "(HEAD detached at a4ce44d33)",
+    "a4ce44d33b7e42e16cb8156058a1894237042ab4"
+  ]
+}

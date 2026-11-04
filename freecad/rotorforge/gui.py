@@ -373,18 +373,78 @@ class TopPreview(QtWidgets.QWidget):
         self.view_mode = 'Overall'
         self.mass_metrics = None
         self.last_error = None
-        self.setMinimumSize(320, 260)
+        self.zoom = 1.0
+        self.pan = QtCore.QPointF()
+        self._drag = None
+        self.setToolTip('Scroll to zoom around the pointer. Drag to pan. Double-click or Fit view to reset.')
+        self.setMinimumSize(320, 180)
         self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
 
+    def reset_view(self):
+        self.zoom = 1.0
+        self.pan = QtCore.QPointF()
+        self.update()
+
+    def zoom_at(self, point, factor):
+        new_zoom = max(0.25, min(20.0, self.zoom * factor))
+        ratio = new_zoom / self.zoom
+        self.pan = point - (point - self.pan) * ratio
+        self.zoom = new_zoom
+        self.update()
+
+    def wheelEvent(self, event):
+        point = event.position() if hasattr(event, 'position') else QtCore.QPointF(event.pos())
+        self.zoom_at(point, 1.2 ** (event.angleDelta().y() / 120.0))
+        event.accept()
+
+    def mousePressEvent(self, event):
+        if event.button() in (QtCore.Qt.LeftButton, QtCore.Qt.MiddleButton):
+            self._drag = event.position() if hasattr(event, 'position') else QtCore.QPointF(event.pos())
+            self.setCursor(QtCore.Qt.ClosedHandCursor)
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._drag is not None:
+            point = event.position() if hasattr(event, 'position') else QtCore.QPointF(event.pos())
+            self.pan += point - self._drag
+            self._drag = point
+            self.update()
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self._drag = None
+        self.unsetCursor()
+
+    def mouseDoubleClickEvent(self, event):
+        self.reset_view()
+        event.accept()
+
     def paintEvent(self, event):
+        # Record vector drawing only when the design, mode or viewport changes.
+        # QPicture retains vector detail at every zoom without rebuilding paths.
+        key = (self.params, self.view_mode, self.width(), self.height(),
+               repr(self.mass_metrics), self.font().toString())
+        if key != getattr(self, '_picture_key', None):
+            self._picture = QtGui.QPicture()
+            self._record_picture(self._picture)
+            self._picture_key = key
         painter = QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         painter.fillRect(self.rect(), QtGui.QColor("#f3f6f8"))
+        painter.translate(self.pan)
+        painter.scale(self.zoom, self.zoom)
+        painter.drawPicture(0, 0, self._picture)
+        painter.end()
+
+    def _record_picture(self, picture):
+        painter = QtGui.QPainter(picture)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
         p = self.params
         self.last_error = None
         try:
             if self.view_mode!='Overall':
                 draw_parts(painter,QtCore.QRectF(6,30,self.width()-12,self.height()-60),p,self.view_mode)
+                painter.resetTransform()
                 painter.setPen(QtGui.QColor('#294554'))
                 painter.drawText(QtCore.QRectF(0,5,self.width(),20),QtCore.Qt.AlignCenter,'Part inspection — carbon flats / TPU schematics')
                 painter.end();return
@@ -504,6 +564,10 @@ class TopPreview(QtWidgets.QWidget):
             if p.FlexMotorProtectors:
                 for a in arm_layouts(p):
                     painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'MotorProtector'+a['name']))
+            if p.FlexELRSEnabled:
+                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'ELRSAntennaMount'))
+            if p.FlexRearAntenna:
+                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'RearAntennaMount'))
             if p.FlexSideGuards:
                 from .protection_layout import guard_layout
                 from .flex_preview import guard_plan_path
@@ -519,10 +583,11 @@ class TopPreview(QtWidgets.QWidget):
                 painter.drawEllipse(QtCore.QPointF(x,y),2.5,2.5)
                 painter.drawLine(QtCore.QPointF(x-5,y),QtCore.QPointF(x+5,y));painter.drawLine(QtCore.QPointF(x,y-5),QtCore.QPointF(x,y+5))
             painter.restore()
+            painter.resetTransform()
             painter.setPen(QtGui.QColor("#3b4c5b"))
             painter.drawText(QtCore.QRectF(0, 8, self.width(), 24), QtCore.Qt.AlignCenter, "FRONT  +Y")
             painter.drawText(QtCore.QRectF(0, self.height() - 27, self.width(), 20), QtCore.Qt.AlignCenter,
-                             "Top view • orange: LiPo reference • red cross: calculated frame CG" if p.BatteryReferenceEnabled and p.ShowReferences else
+                             "Top view • LiPo: orange • CG: red" if p.BatteryReferenceEnabled and p.ShowReferences else
                              "Top view • camera: teal • VTX: purple" if p.FPVEnabled else
                              "Top view • beige: bottom • blue: mid • dashed: top")
         except Exception as exc:
@@ -540,6 +605,7 @@ class FrameDialog(QtWidgets.QDialog):
         super().__init__(Gui.getMainWindow())
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowMaximizeButtonHint)
         self.settings = settings
+        self._loaded_hardware_preferences = None
         self.controls = {}
         self.field_labels = {}
         self.setWindowTitle("RotorForge — Drone Frame Editor — " + ("Edit frame" if settings else "New frame"))
@@ -554,16 +620,22 @@ class FrameDialog(QtWidgets.QDialog):
         settings_files.addWidget(save)
         outer.addLayout(settings_files)
         main = QtWidgets.QHBoxLayout()
-        tabs = QtWidgets.QTabWidget()
+        from .editor_navigation import CategorySections
+        tabs = CategorySections()
         self.tabs = tabs
-        tabs.setMinimumWidth(440)
+        tabs.setMinimumWidth(550)
         forms = {}; field_forms = {}; self.section_pages = {}; self.category_tabs = {}
         for category, title, description, groups in SECTIONS:
             if category not in self.category_tabs:
-                section_tabs=QtWidgets.QTabWidget()
+                from .editor_navigation import WrappingSections
+                section_tabs=WrappingSections()
                 section_tabs.setObjectName('Sections_'+category)
                 self.category_tabs[category]=section_tabs
-                tabs.addTab(section_tabs,category)
+                icon = QtGui.QIcon(os.path.join(os.path.dirname(ICON),
+                                                'category-' + category.lower() + '.svg'))
+                index = tabs.addTab(section_tabs, icon, '')
+                tabs.setTabToolTip(index, category)
+                tabs.setTabWhatsThis(index, 'Open the ' + category + ' section.')
             section_tabs=self.category_tabs[category]
             page=QtWidgets.QWidget();page_layout=QtWidgets.QVBoxLayout(page)
             intro=QtWidgets.QLabel(description);intro.setWordWrap(True)
@@ -584,7 +656,7 @@ class FrameDialog(QtWidgets.QDialog):
         self.find_control.setPlaceholderText('Find a control… (e.g. keystone, strap, camera tilt)')
         self.find_control.setClearButtonEnabled(True)
         self.find_control.setToolTip('Type a control name or topic, then choose a result to open its page.')
-        settings_files.insertWidget(0,self.find_control,1)
+        # Control search is placed next to the bottom frame actions.
         self.fpv_info=QtWidgets.QLabel()
         self.fpv_info.setWordWrap(True)
         forms['Side plates'].addRow(self.fpv_info)
@@ -632,7 +704,13 @@ class FrameDialog(QtWidgets.QDialog):
                 control.setDecimals(3 if name in FLOATS else 2)
                 control.setRange(-300 if name in ROOT_BOLT_COORDINATES or name in ("StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY') else 0, 1000)
                 control.setSingleStep(0.05 if name in FLOATS else 0.5)
-                if name=='FlexInsertCornerRadius':
+                if name=='FlexAntennaHolderOffset':
+                    control.setRange(-80,100);control.setSuffix(' mm');control.setSingleStep(.5)
+                elif name=='FlexAntennaBulkheadThickness':
+                    control.setRange(2,5);control.setSuffix(' mm');control.setSingleStep(.1)
+                elif name=='FlexAntennaTilt':
+                    control.setRange(0,90);control.setSuffix(' degrees');control.setSingleStep(1)
+                elif name=='FlexInsertCornerRadius':
                     control.setRange(.25,20);control.setSuffix(' mm');control.setSingleStep(.25)
                 elif name=='CameraTabCutterDiameter':
                     control.setRange(.2,6);control.setSuffix(' mm');control.setSingleStep(.5)
@@ -780,6 +858,14 @@ class FrameDialog(QtWidgets.QDialog):
         self.preview_mode.currentIndexChanged.connect(self.set_preview_mode)
         right.addWidget(self.preview_mode)
         self.preview = TopPreview()
+        preview_tools = QtWidgets.QHBoxLayout()
+        preview_hint = QtWidgets.QLabel('Wheel: zoom • drag: pan • double-click: fit')
+        preview_tools.addWidget(preview_hint, 1)
+        fit_preview = QtWidgets.QPushButton('Fit view')
+        fit_preview.setAutoDefault(False)
+        fit_preview.clicked.connect(self.preview.reset_view)
+        preview_tools.addWidget(fit_preview)
+        right.addLayout(preview_tools)
         right.addWidget(self.preview, 1)
         self.summary = QtWidgets.QLabel()
         self.summary.setWordWrap(True)
@@ -795,7 +881,15 @@ class FrameDialog(QtWidgets.QDialog):
         self.messages.setReadOnly(True)
         self.messages.setMaximumHeight(130)
         right.addWidget(self.messages)
-        main.addLayout(right, 6)
+        self.preview_panel = QtWidgets.QWidget()
+        self.preview_panel.setLayout(right)
+        main.addWidget(self.preview_panel, 6)
+        def workspace_changed(*_):
+            airflow_active = (tabs.currentWidget() is finishing and
+                              finishing.currentWidget() is airflow_scroll)
+            self.preview_panel.setVisible(not airflow_active)
+        tabs.currentChanged.connect(workspace_changed)
+        finishing.currentChanged.connect(workspace_changed)
         outer.addLayout(main, 1)
         self.note = QtWidgets.QLabel()
         self.note.setWordWrap(True)
@@ -811,7 +905,10 @@ class FrameDialog(QtWidgets.QDialog):
         for button in self.findChildren(QtWidgets.QPushButton):
             button.setAutoDefault(False)
             button.setDefault(False)
-        outer.addWidget(self.buttons)
+        actions = QtWidgets.QHBoxLayout()
+        actions.addWidget(self.find_control, 1)
+        actions.addWidget(self.buttons)
+        outer.addLayout(actions)
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(80)
@@ -826,7 +923,9 @@ class FrameDialog(QtWidgets.QDialog):
 
     def set_preview_mode(self,*_):
         if not hasattr(self,'preview'):return
-        self.preview.view_mode=self.preview_mode.currentData() or 'Overall';self.preview.update()
+        mode = self.preview_mode.currentData() or 'Overall'
+        if mode != self.preview.view_mode:self.preview.reset_view()
+        self.preview.view_mode=mode;self.preview.update()
 
     def update_preview_modes(self,p):
         from .airflow_gui import ROLE_LABELS
@@ -1103,6 +1202,8 @@ class FrameDialog(QtWidgets.QDialog):
             if name.startswith('FlexBumper'):enabled=p.FlexFrontBumper and (name not in ('FlexBumperProjection','FlexBumperWidth','FlexBumperTipWidth','FlexBumperRecess') or p.FlexBumperShape!='Follow bottom plate')
             if name=='FlexBumperTipWidth':enabled=enabled and p.FlexBumperShape in ('Chamfered shoe','Swept-shoulder shoe','Flat-tip shoe','Centre-crown shoe','Recessed-centre shoe','Stepped shoe','Capsule shoe','Bullnose shoe','Arrowhead shoe','V-recess shoe','Twin-shoulder shoe','Clipped-corner shoe')
             if name=='FlexBumperRecess':enabled=enabled and p.FlexBumperShape in ('Twin-lobe shoe','Recessed-centre shoe','V-recess shoe','Twin-shoulder shoe')
+            elif name.startswith('FlexELRS') and name!='FlexELRSEnabled':enabled=p.FlexELRSEnabled
+            elif name.startswith('FlexAntenna'):enabled=p.FlexRearAntenna and (name!='FlexAntennaSpacing' or p.FlexAntennaCount=='2 antennas')
             elif name.startswith('FlexProtector'):enabled=p.FlexMotorProtectors
             elif name.startswith('FlexGuardStrap'):enabled=p.FlexSideGuards and (name=='FlexGuardStraps' or p.FlexGuardStraps)
             elif name.startswith('FlexGuard'):enabled=p.FlexSideGuards
@@ -1110,6 +1211,16 @@ class FrameDialog(QtWidgets.QDialog):
             elif name.startswith(('FlexPad','FlexInsert')):enabled=soft_camera(p) and (not name.startswith('FlexInsert') or p.FlexCameraMode=='Captured inserts')
             elif name=='FlexCameraMode':enabled=p.FPVEnabled
             self.controls[name].setEnabled(enabled)
+        self.controls['FlexAntennaGuardGap'].setEnabled(p.FlexRearAntenna and p.FlexSideGuards)
+        self.controls['FlexELRSGuardGap'].setEnabled(p.FlexELRSEnabled and p.FlexSideGuards)
+        self.controls['FlexELRSFit'].setEnabled(p.FlexELRSEnabled and p.FlexELRSStandoffBore==0)
+        self.controls['FlexAntennaHolderStyle'].setEnabled(p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX'))
+        self.controls['FlexAntennaRetainingLip'].setEnabled(p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX') and p.FlexAntennaHolderStyle=='Side-entry clip')
+        bulkhead=p.FlexAntennaConnector in ('SMA','RP-SMA')
+        self.controls['FlexAntennaBulkheadThickness'].setEnabled(p.FlexRearAntenna and bulkhead)
+        self.controls['FlexAntennaSocketLength'].setEnabled(p.FlexRearAntenna and not bulkhead)
+        self.field_labels['FlexAntennaBore'].setText('Pigtail mounting hole' if bulkhead else 'Antenna bore diameter')
+        self.controls['FlexAntennaFit'].setEnabled(p.FlexRearAntenna and p.FlexAntennaStandoffBore==0)
         for name in ('DetailedMotorReferences','DetailedPropReferences','DetailedStackReference','DetailedCameraReference','DetailedVTXReference','DetailedBatteryReference'):
             self.controls[name].setEnabled(p.ShowReferences and (name not in ('DetailedCameraReference','DetailedVTXReference') or p.FPVEnabled) and (name!='DetailedBatteryReference' or p.BatteryReferenceEnabled))
         self.controls['PropReferenceHeight'].setEnabled(not p.DetailedPropReferences)
@@ -1190,6 +1301,17 @@ class FrameDialog(QtWidgets.QDialog):
             ' Standoff lengths follow their actual mounting surfaces and keep the top level.'))
         if underside_clamp_active(p):
             self.note.setText(self.note.text()+f' A {p.UndersideClampThickness:g} mm lower clamp captures the arms and optional key. Eight arm bolts secure it; stack access is {p.StackAccessDiameter:g} mm from below.')
+        if p.FlexRearAntenna:
+            from .antenna_layout import antenna_layout
+            try:
+                antenna=antenna_layout(p)
+                self.note.setText(self.note.text()+f" Antenna grip: {antenna['height']:.2f} mm used / {antenna['available']:.2f} mm available. Tilt {p.FlexAntennaTilt:g} degrees; dual yaw 30 degrees each.")
+            except (ValueError,IndexError):pass
+        if p.FlexELRSEnabled:
+            from .elrs_layout import elrs_seat
+            try:
+                seat=elrs_seat(p);self.note.setText(self.note.text()+f" ELRS grip: {seat['height']:.2f} mm / {seat['available']:.2f} mm available below the guards.")
+            except (ValueError,IndexError):pass
         errors, warnings = validate(p)
         for name in BATTERY_FIELDS:
             if name.startswith('LiPoPad') and name!='LiPoPadEnabled':self.controls[name].setEnabled(p.LiPoPadEnabled and (not name.startswith('LiPoPadGroove') or p.LiPoPadPattern!='Solid'))
@@ -1240,7 +1362,12 @@ class FrameDialog(QtWidgets.QDialog):
             try:
                 import json
                 with open(path,encoding='utf-8') as stream:raw=json.load(stream)
-                p=parameters_from_settings(raw);old=raw['parameters'].get('StackSpacing',30.5);self.set_values(p)
+                from .hardware_preferences import from_settings
+                p=parameters_from_settings(raw)
+                hardware=from_settings(raw)
+                old=raw['parameters'].get('StackSpacing',30.5)
+                self.set_values(p)
+                self._loaded_hardware_preferences=hardware
                 if isinstance(old,(int,float)) and old not in (20.,30.5):
                     QtWidgets.QMessageBox.warning(self,'FC mounting pattern updated',f'The saved {old:g} mm stack pattern was changed to {stack_label(p.StackSpacing)}. Other dimensions are retained. Review stack hardware before manufacturing.')
             except Exception as exc:
@@ -1251,7 +1378,10 @@ class FrameDialog(QtWidgets.QDialog):
         path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save RotorForge frame settings", "frame.json", "RotorForge settings (*.json)")
         if path:
             try:
-                save_parameters(path if path.lower().endswith(".json") else path + ".json", self.values())
+                from .hardware_refs import saved_preferences
+                hardware = self._loaded_hardware_preferences
+                if hardware is None:hardware = saved_preferences(self.settings)
+                save_parameters(path if path.lower().endswith(".json") else path + ".json", self.values(), hardware)
             except Exception as exc:
                 QtWidgets.QMessageBox.warning(self, "Cannot save settings", str(exc))
 
@@ -1264,6 +1394,9 @@ class FrameDialog(QtWidgets.QDialog):
                 update_frame(self.settings, p)
             else:
                 self.settings = create_frame(p)
+            if self._loaded_hardware_preferences is not None:
+                from .hardware_refs import restore_preferences
+                restore_preferences(self.settings, self._loaded_hardware_preferences)
             view_front()
             Gui.Selection.clearSelection()
             Gui.Selection.addSelection(self.settings)
