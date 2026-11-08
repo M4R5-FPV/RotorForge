@@ -312,8 +312,19 @@ class Parameters:
     DetailedPropReferences: bool = False
     DetailedStackReference: bool = False
     DetailedVTXReference: bool = False
+    VTXReferenceStyle: str = "Automatic"
     DetailedBatteryReference: bool = False
     DetailedCameraReference: bool = False
+    ShowVTXAntennaReference: bool = False
+    VTXAntennaReferencePreset: str = 'Lollipop 85 mm'
+    VTXAntennaHeadColour: str = 'Matte black'
+    VTXAntennaReferenceLength: float = 85.0
+    VTXAntennaReferenceDiameter: float = 11.0
+    ShowELRSTReference: bool = False
+    ELRSTReferencePreset: str = 'T 51 mm'
+    ELRSTReferenceSpan: float = 51.0
+    ELRSTReferenceFeedPreset: str = '70 mm'
+    ELRSTReferenceStemLength: float = 70.0
     MotorReferenceDiameter: float = 28.0
     MotorReferenceHeight: float = 16.0
     PropReferenceHeight: float = 17.0
@@ -484,6 +495,14 @@ class Parameters:
         if not isinstance(data, dict):
             raise ValueError("Parameters must be a JSON object.")
         data = dict(data)
+        # v0.90.11 saved free-form antenna sizes. Keep their original geometry
+        # when the newer preset selector was absent, instead of overriding it.
+        if 'VTXAntennaReferencePreset' not in data and any(k in data for k in ('VTXAntennaReferenceLength','VTXAntennaReferenceDiameter')):
+            data['VTXAntennaReferencePreset']='Custom'
+        if 'ELRSTReferencePreset' not in data and 'ELRSTReferenceSpan' in data:
+            data['ELRSTReferencePreset']='Custom'
+        if 'ELRSTReferenceFeedPreset' not in data and 'ELRSTReferenceStemLength' in data:
+            data['ELRSTReferenceFeedPreset']='Custom'
         if data.get("StrapOpeningStyle")=="None":
             data.update(StrapOpeningStyle="Slots",StrapSlotsEnabled=False)
         # Preserve square legacy hole centres exactly; unequal rectangles cannot
@@ -1454,8 +1473,21 @@ def _validation_result(p):
 
 
 def validate(p):
+    antenna_errors=[]
+    if p.ShowVTXAntennaReference and p.FlexRearAntenna:
+        if not math.isfinite(p.VTXAntennaReferenceLength) or not 20<=p.VTXAntennaReferenceLength<=250:
+            antenna_errors.append('VTX antenna reference length must be 20–250 mm.')
+        if not math.isfinite(p.VTXAntennaReferenceDiameter) or not 2<=p.VTXAntennaReferenceDiameter<=24:
+            antenna_errors.append('VTX antenna reference head diameter must be 2–24 mm.')
+    if p.ShowELRSTReference and p.FlexELRSEnabled:
+        from .antenna_preset_specs import elrs_spec
+        spec=elrs_spec(p)
+        if not math.isfinite(p.ELRSTReferenceSpan) or not 8<=p.ELRSTReferenceSpan<=250:
+            antenna_errors.append('Custom ELRS T-antenna span must be 8–250 mm.')
+        if not math.isfinite(spec['span']) or not p.FlexELRSHookSpacing+p.FlexELRSHookWidth<=spec['span']<=250:
+            antenna_errors.append('ELRS T-antenna span must cover both hooks and be at most 250 mm.')
     errors,warnings=_validation_result(p)
-    return list(errors),list(warnings)
+    return list(errors)+antenna_errors,list(warnings)
 
 
 from functools import lru_cache as _validation_cache

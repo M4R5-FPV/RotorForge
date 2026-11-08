@@ -75,5 +75,22 @@ OPTIONS.update({
  'DetailedCameraReference':(False,'Detailed FPV camera','Display a shaped camera housing, side fixing recesses and stepped lens with glass. Keeps the current body size, camera position and tilt. The original envelope remains the clearance check.')})
 
 OPTIONS.update({
- 'DetailedVTXReference':(False,'Detailed VTX reference','Generic populated VTX board with RF shield, heatsink fins, cable header and RF sockets. Follows the existing VTX size, mounting pattern and plate level; FPV required.'),
+ 'DetailedVTXReference':(False,'Detailed VTX reference','Commercial-style enclosed analog or digital VTX reference, with an optional populated exposed analog PCB. Seated parts, clear mounting bores and independent analog/digital geometry. Visualization only.'),
+ 'VTXReferenceStyle':('Automatic','VTX reference appearance','Automatic: commercial enclosed analog transmitter or ribbed digital module. Analog enclosed: dark commercial-style casing and front control header. Exposed PCB: visibly populated analog board. Finned enclosure: digital-style ribbed case. All are visual references, not manufacturer CAD.',('Automatic','Exposed PCB','Finned enclosure','Analog enclosed')),
  'DetailedBatteryReference':(False,'Detailed LiPo reference','Generic shrink-wrapped LiPo with end protection, cell seams, label, leads and an XT-style plug. Dimensions describe the pack body; schematic leads extend beyond it. Follows its position, rotation and top/bottom mounting; requires the LiPo reference.')})
+
+# Visual-only antennas; the presets define nominal catalogue dimensions.
+from .antenna_preset_specs import VTX_PRESETS,ELRS_SPAN_PRESETS
+from .antenna_reference_models_palette import VTX_HEAD_CHOICES
+OPTIONS.update({
+ 'ShowVTXAntennaReference':(False,'Show VTX antenna reference','Display a narrow cable/stem with a compact rounded 5.8 GHz-style antenna head, following the existing TPU rear VTX mount(s). Show references must be enabled.'),
+ 'VTXAntennaReferencePreset':('Lollipop 85 mm','VTX antenna type / nominal length','Choose common commercial-style overall antenna lengths. Avatar V2 is approximately 105 mm with a 15 mm head. These are visual references, not manufacturer-accurate cable routes.',tuple(VTX_PRESETS)),
+ 'VTXAntennaHeadColour':('Matte black','VTX antenna head finish','Color only the rounded radome/head. The thin black coax and strain relief retain their own realistic finish.',VTX_HEAD_CHOICES),
+ 'VTXAntennaReferenceLength':(85.,'Custom VTX antenna length','Custom nominal overall length from the mount seating reference to the tip. Retail lengths may include cable and connector; cable bends are not simulated. Active only with Custom preset.'),
+ 'VTXAntennaReferenceDiameter':(11.,'Custom VTX antenna head diameter','Diameter of the short enlarged radome, NOT of the entire cable or TPU socket. Active only with Custom preset.'),
+ 'ShowELRSTReference':(False,'Show ELRS T-antenna reference','Display a compact horizontal 2.4 GHz T dipole, moulded centre and thin coax feed, seated on the existing two ELRS hooks.'),
+ 'ELRSTReferencePreset':('T 51 mm','ELRS horizontal T span','Approximate overall horizontal tip-to-tip length. 50–51 mm examples represent commercial shortened dipoles; 62.5 mm is a theoretical half-wave span, not a universal antenna size.',tuple(ELRS_SPAN_PRESETS)),
+ 'ELRSTReferenceSpan':(51.,'Custom ELRS T span','Horizontal width between the T ends in mm. Active only with Custom span.'),
+ 'ELRSTReferenceFeedPreset':('70 mm','ELRS coax nominal feed length (legacy)','Saved for older JSON files; the reference lead now stops automatically 3 mm before the VTX board. Not editable.',('40 mm','70 mm','85 mm','95 mm','Custom')),
+ 'ELRSTReferenceStemLength':(70.,'Custom ELRS coax feed length (legacy)','Retained for loading older frame settings but no longer controls the visible coax. The reference automatically stops before the VTX.'),
+})

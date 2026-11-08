@@ -131,19 +131,167 @@ def stack_model(spacing,height,hole,usb_side="Left",usb_y=0.):
    items.append((box(x-w*.025,y,high+t,w*.05,w*.045,cap*.45),METAL))
  return compound(items)
 
-@lru_cache(maxsize=16)
-def vtx_model(w,l,h,holes,digital):
- t=min(1.2,h*.18);board=chamfer_box(w,l,t,corner=min(w,l)*.06)
- tools=[cyl(rad,t+.1,x,y,-.05) for x,y,rad in holes]
- if tools:board=board.cut(Part.makeCompound(tools))
- items=[(board,PCB)]
- shield=chamfer_box(w*.62,l*.62,h*.44,t,min(w,l)*.07);items.append((shield,METAL))
- # Low fins, RF sockets and a cable header remain within the selected envelope.
- z=t+h*.44
- for i in range(7):items.append((box(-w*.26+i*w*.08,-l*.24,z,w*.025,l*.48,min(h*.30,h-z)),BLACK))
- for x in ((-w*.16,w*.16) if digital else (0.,)):
-  items.append((ring(min(w,l)*.045,min(w,l)*.023,h*.10,t,x,-l*.40),(.68,.49,.18)))
- items.append((box(-w*.22,l*.36,t,w*.44,l*.10,h*.18),BLACK))
+def vtx_reference_kind(digital,style='Automatic'):
+ """Resolve the exact *exclusive* transmitter style, independent of CAD state."""
+ if style == 'Automatic':
+  return 'digital' if digital else 'analog_enclosed'
+ return {'Exposed PCB':'analog_exposed',
+         'Finned enclosure':'digital',
+         'Analog enclosed':'analog_enclosed'}[style]
+
+@lru_cache(maxsize=24)
+def vtx_model(w,l,h,holes,digital,style='Automatic'):
+ """Self-contained, product-inspired FPV transmitter presentation reference.
+
+ The three mutually exclusive branches prevent any shared analog detailing
+ from appearing on the digital unit. All subparts are supported by either the
+ main body or PCB; former z-gaps under shield cans, chips and sockets are gone.
+ Models are illustrative rather than exact manufacturer CAD.
+ """
+ kind=vtx_reference_kind(digital,style)
+ gold=(.73,.50,.16);silver=(.66,.69,.72)
+ dark=(.11,.12,.135);anodised=(.17,.185,.205)
+ lid=(.24,.255,.27);rib=(.30,.32,.34)
+ board_green=(.052,.21,.17);board_black=(.058,.080,.087)
+ chip=(.067,.075,.08);white=(.82,.82,.77);ceramic=(.55,.44,.29)
+ copper=(.67,.39,.15);indicator=((.65,.10,.095),(.08,.54,.14),(.13,.30,.62))
+ items=[]
+ through=tuple((x,y,rad,Part.makeCylinder(rad+.025,h+.2,App.Vector(x,y,-.1))) for x,y,rad in holes)
+ def add(shape,colour,clear=True):
+  if clear and through:
+   bb=shape.BoundBox
+   cutters=[tool for x,y,rad,tool in through if
+    bb.XMin<x+rad+.025 and bb.XMax>x-rad-.025 and
+    bb.YMin<y+rad+.025 and bb.YMax>y-rad-.025]
+   if cutters:shape=shape.cut(Part.makeCompound(cutters))
+  if not shape.isNull():items.append((shape,colour))
+
+ # Details at the case edges are machined clear, so side connectors remain
+ # visibly accessible rather than becoming swallowed by an opaque housing.
+ rr=min(1.18 if kind=='digital' else 1.49,h*.16,w*.065)
+ rf_depth=min(2.35,l*.16)
+ rf_positions=(-w*.235,w*.235) if kind=='digital' else (0.,)
+ hw=min(8.5,w*.27);hd=min(3.05,l*.125)
+ hh=min(2.25,h*.25)
+ front_hz=h*.19
+ hy=l*.5-hd-.045
+ def machined_housing(s):
+  for x in rf_positions:
+   tool=Part.makeCylinder(rr*1.045,rf_depth+.38,
+       App.Vector(x,-l*.5-.12,h*.43),App.Vector(0,1,0))
+   s=s.cut(tool)
+  s=s.cut(box(-hw*.54,hy-.08,front_hz-.12,
+              hw*1.08,hd+.18,hh+.27))
+  if kind=='digital':
+   s=s.cut(box(w*.15,l*.33,h*.30,w*.21,l*.18,h*.18))
+  return s
+
+ # Use one full-height board/enclosure per branch. No analog base PCB is
+ # retained under the digital reference, even when updating an older frame.
+ if kind=='analog_exposed':
+  t=min(1.20,max(.5,h*.15))
+  body=chamfer_box(w,l,t,0,min(w,l)*.065)
+  add(body,board_green)
+  # Exposed commercial RF board: a broad stamped shield at the RF side,
+  # discrete PA and controller, densely populated small passives and header.
+  shield_h=min(h*.40,3.15);shield_z=t-.035
+  add(chamfer_box(w*.53,l*.46,shield_h,shield_z,min(.8,w*.024)),silver)
+  # Raised stamped seam is seated on the RF can (not a floating insert).
+  add(chamfer_box(w*.45,l*.375,min(.11,h*.02),shield_z+shield_h-.035,
+                  min(.5,w*.018)),(.54,.57,.59))
+  # Adjacent PA and power stage lie on the same top surface as the PCB.
+  add(box(-w*.17,-l*.425,t-.03,w*.34,l*.135,min(h*.21,1.4)),dark)
+  for x,y,sx,sy in ((-w*.34,-l*.11,w*.135,l*.13),
+                    (w*.34,-l*.11,w*.135,l*.13),
+                    (-w*.32,l*.24,w*.14,l*.11),
+                    (w*.31,l*.25,w*.14,l*.105)):
+   height=min(h*.17,1.35)
+   add(box(x-sx/2,y-sy/2,t-.03,sx,sy,height),chip)
+   # Package mould mark lies directly atop the body.
+   add(box(x-sx*.24,y-sy*.13,t-.03+height-.015,sx*.48,sy*.26,.025),rib)
+  for sign in (-1,1):
+   for j in range(6):
+    x=(w*.405 if sign>0 else -w*.435)
+    y=-l*.12+j*l*.067
+    add(box(x,y,t-.025,w*.035,l*.026,min(.42,h*.06)),white if j%3 else ceramic)
+  # SMT footprints and front-edge status indicators (LEDs sit on the PCB).
+  for j in range(3):
+   add(box(-w*.18+j*w*.09,l*.38,t-.020,w*.038,l*.027,.04),gold)
+   add(cyl(min(.31,w*.010),min(.19,h*.024),
+           -w*.17+j*w*.09,l*.315,t-.02),indicator[j])
+  add(box(w*.31,l*.31,t-.025,w*.075,l*.065,min(.52,h*.07)),dark)
+  # Low annular copper around the actual through holes.
+  for x,y,rad in holes:
+   edge=min(w*.5-abs(x),l*.5-abs(y));outer=min(rad+.5,edge-.08)
+   if outer>rad+.06:add(ring(outer,rad+.03,.046,t-.018,x,y),gold,False)
+  # RF connector support extends down to PCB; the end barrel is horizontal.
+  port_z=t+min(.68,(h-t)*.16)
+  mount_h=min(1.55,(h-t)*.44)
+  add(box(-w*.094,-l*.49,t-.035,w*.188,l*.16,mount_h),dark)
+ else:
+  # Enclosed units are opaque CNC-style metal housings with no exposed
+  # analog circuit-board base, loose ICs or detached copper pads.
+  if kind=='analog_enclosed':
+   # Inspired by enclosed Foxeer / RUSH analog VTX designs: squat dark slab,
+   # one rear RF output, front control header and modest cooling grooves.
+   add(machined_housing(chamfer_box(w,l,h*.76,0,min(w,l)*.075)),dark)
+   top_z=h*.76-.045
+   add(chamfer_box(w*.944,l*.92,h*.155,top_z,min(w,l)*.054),anodised)
+   # Shallow edge ridges, not the broad field of fins used by a digital unit.
+   for j in range(6):
+    x=-w*.30+j*w*.12
+    add(box(x,-l*.26,top_z+h*.155-.02,w*.018,l*.46,
+            min(h*.038,.30)),rib)
+   # Inset power/status strip (black bezel with three actual LEDs).
+   add(box(-w*.34,l*.19,top_z+h*.156-.03,w*.28,l*.07,
+           min(h*.033,.26)),lid)
+   for j,c in enumerate(indicator):
+    add(cyl(min(.39,w*.014),min(h*.018,.14),
+            -w*.265+j*w*.075,l*.225,top_z+h*.156-.02),c)
+   # Real analog VTX frequently includes a tiny channel/power mode switch.
+   add(box(w*.27,l*.255,h*.68,w*.085,l*.07,h*.06),anodised)
+   add(box(w*.294,l*.274,h*.735,w*.035,l*.036,min(.22,h*.025)),silver)
+   port_z=h*.43
+  else:
+   # Walksnail-style digital slab with a densely ribbed heat spreader.
+   add(machined_housing(chamfer_box(w,l,h*.78,0,min(1.8,w*.06,l*.06))),dark)
+   top_z=h*.78-.055
+   add(chamfer_box(w*.90,l*.90,h*.10,top_z,min(1.4,w*.05)),anodised)
+   for j in range(15):
+    x=-w*.33+j*w*.66/14
+    add(box(x-w*.006,-l*.33,top_z+h*.10-.03,w*.012,l*.66,
+            min(h*.055,.55)),rib)
+   # A front-facing camera/data socket unique to digital transmitters.
+   add(box(w*.16,l*.34,h*.31,w*.19,l*.13,h*.16),dark)
+   add(box(w*.186,l*.445,h*.346,w*.13,l*.016,h*.073),silver)
+   # Gold contacts are recessed in the digital socket, not analog test pads.
+   for j in range(4):
+    add(box(w*(.198+.027*j),l*.447,h*.356,w*.013,l*.01,h*.029),gold)
+   port_z=h*.43
+
+ # RF connections are built for this branch only. Their plastic support is
+ # anchored in the underlying body, not separated from it by a z gap.
+ for x in rf_positions:
+  if kind=='analog_exposed':
+   # PCB-footprint housing physically supports the MMCX barrel.
+   add(box(x-rr*1.1,-l*.49,t-.045,rr*2.2,l*.18,
+           max(.16,port_z+rr-t+.055)),dark)
+  outer=Part.makeCylinder(rr,rf_depth,App.Vector(x,-l*.5+rf_depth+.015,port_z),App.Vector(0,-1,0))
+  inner=Part.makeCylinder(rr*.53,rf_depth+.05,App.Vector(x,-l*.5+rf_depth+.04,port_z),App.Vector(0,-1,0))
+  add(outer.cut(inner),gold)
+  # Recessed dielectric/captive pin within the metal barrel.
+  add(Part.makeCylinder(rr*.37,.18,App.Vector(x,-l*.5+.17,port_z),App.Vector(0,1,0)),dark)
+  add(Part.makeCylinder(rr*.15,.15,App.Vector(x,-l*.5+.17,port_z),App.Vector(0,1,0)),silver)
+
+ # Front/side power header: a real contact housing inset into its chassis or
+ # seated on the bare PCB; never a detached connector hovering in midair.
+ hz=(t-.04) if kind=='analog_exposed' else front_hz
+ add(box(-hw*.5,hy,hz,hw,hd,hh),white if kind!='digital' else dark)
+ add(box(-hw*.40,l*.5-hd*.24,hz+hh*.25,hw*.80,hd*.16,hh*.43),
+     chip if kind!='digital' else silver)
+ for j in range(5):
+  x=-hw*.285+j*hw*.14
+  add(box(x,l*.5-hd*.18,hz+hh*.37,hw*.05,hd*.065,hh*.12),gold)
  return compound(items)
 
 @lru_cache(maxsize=16)
@@ -204,7 +352,7 @@ def detailed_reference(p,role):
  elif role=='VTXEnvelope':
   from .fpv import vtx_holes,vtx_deck_z
   holes=tuple((x,y-p.VTXOffsetY,rad) for (x,y),rad,pattern in vtx_holes(p))
-  shape,c=vtx_model(p.VTXWidth,p.VTXLength,p.VTXHeight,holes,p.VideoSystem=='Digital');shape=shape.copy();shape.translate(App.Vector(0,p.VTXOffsetY,vtx_deck_z(p)));items.append(shape);colours.extend(c)
+  shape,c=vtx_model(p.VTXWidth,p.VTXLength,p.VTXHeight,holes,p.VideoSystem=='Digital',p.VTXReferenceStyle);shape=shape.copy();shape.translate(App.Vector(0,p.VTXOffsetY,vtx_deck_z(p)));items.append(shape);colours.extend(c)
  elif role=='BatteryEnvelope':
   from .battery import battery_levels
   shape,c=lipo_model(p.BatteryWidth,p.BatteryLength,p.BatteryHeight);shape=shape.copy()
@@ -221,10 +369,13 @@ def apply_reference_material(view,role,p):
  detailed=enabled(p,role)
  base,trans=SIMPLE[role];colours=(base,)
  if detailed:
-  base=PROP if role=='PropellerDiscs' else PCB if role in ('StackEnvelope','VTXEnvelope') else (.82,.34,.07) if role=='BatteryEnvelope' else BLACK
+  base=PROP if role=='PropellerDiscs' else (BLACK if role=='VTXEnvelope' and vtx_reference_kind(p.VideoSystem=='Digital',p.VTXReferenceStyle)!='analog_exposed' else PCB) if role in ('StackEnvelope','VTXEnvelope') else (.82,.34,.07) if role=='BatteryEnvelope' else BLACK
   trans=8 if role=='PropellerDiscs' else 0
   # Construction only happens during document updates, never live editor paint.
   if p.ShowReferences and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):_,colours=detailed_reference(p,role)
  view.ShapeColor=base;view.LineColor=(.08,.09,.10)
+ # Explicitly replace the complete material array; no face colouring from the
+ # preceding VTX style may survive a switch between analog and digital.
+ view.DiffuseColor=[base]
  view.DiffuseColor=list(colours);view.Transparency=trans
 

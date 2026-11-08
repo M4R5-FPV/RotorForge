@@ -1,3 +1,71 @@
+## 0.90.19 — front bumper STEP rebuilt from STL mesh
+
+- Generate the front-bumper STL **before** creating its STEP variants, then reconstruct both STEP files from the very same watertight triangle mesh used for that STL.
+- Export the print STEP at the STL print origin; translate the second, assembled STEP into its original frame position.
+- Validate single closed solid, bounding dimensions and volume before writing STEP, and stage both files until both writes finish.
+- Restrict changes to the front bumper: preserve all other STEP/STL and CNC exports. If conversion fails, keep the successful STL and full export package, omit faulty bumper STEP files and write `FlexibleParts/FrontBumper_STEP_WARNING.txt` plus an export warning.
+- These two STEP outputs are faceted (triangle surfaces), not smooth editable parametric solids; native FreeCAD testing is still required.
+
+## 0.90.18 — restore full export after front bumper regression
+
+- Remove v0.90.17's mandatory front-bumper STEP round-trip, mesh closure and strict print-origin gates, which could abort otherwise successful exports.
+- Restore the previously working print-placement geometry and normal STL export path for every flexible component.
+- When a front bumper contains a single valid solid plus stray non-solid faces, optionally export only that solid; otherwise fall back to the previously working STEP writer without failing a valid export.
+- Keep every feature introduced up through v0.90.16, including analog/digital VTX and antenna references.
+- Add portable regression tests for normal export, optional cleanup and its failure fallback. STEP/slicer verification remains a recommended external check; no claim is made that all source-geometry problems are resolved.
+
+## 0.90.17 — front bumper print STEP export repair
+
+- Extract the front bumper's single printable solid before placing it at the print origin. Prevent any auxiliary faces or edges left by a Boolean compound from entering STEP or STL export.
+- Verify assembled and print STEP files by re-importing them as closed, valid, single solids with the original volume and bounding dimensions. Retry with conservative splitter cleanup when needed; reject a broken STEP rather than silently leaving an unusable file.
+- Verify the print pose is at Z=0 and add native/portable regression checks. The bumper shape, user settings and other TPU exports are unchanged.
+
+## 0.90.16 — commercial VTX reference overhaul
+
+- Default analog VTX now resembles an enclosed commercial FPV video transmitter: shallow dark metal housing, surface ridges, status LEDs, button, five-contact front header and single rear RF socket.
+- New **Analog enclosed** override; existing **Exposed PCB** and **Finned enclosure** options remain valid. Automatic chooses commercial analog or digital based on video system.
+- The exposed analog option has PCB-mounted components and RF shield: former vertical gaps beneath components, status lights and connector hardware were removed.
+- Digital air-unit geometry is now a separate exclusive branch, without inherited analog PCB, copper mounting rings, chips or analog can.
+- Face materials are reset fully on appearance changes to eliminate stale colouring.
+- VTX dimensions, hole clearance, TPU attachments, antennas, cutting output and mass estimation are unchanged.
+
+## 0.90.15 — detailed VTX geometry repair
+
+- Rebuilt analog and digital VTX references with more realistic component proportions and lower-profile assembly details.
+- Digital: dark, compact ribbed air-unit enclosure with 12 shallow crosswise cooling ribs, fastener openings, front header and dual rear RF sockets.
+- Analog: low-profile RF shield, PA package, SMD parts, test pads, status LEDs and rear-facing RF socket instead of oversized heatsink details.
+- Cut all decorative geometry clear of selected mounting holes for 20 mm, 25.5 mm and dual patterns; preserve VTX envelope and display-only operation.
+- Update user guide with the new analog/digital appearance reference. Existing settings, TPU mounts, frame solids, CG and CNC exports are unchanged.
+
+## 0.90.14 — VTX transmitter appearance
+
+- Detailed VTX reference reworked to resemble a real FPV transmitter, with separate analog exposed-PCB and enclosed heatsink styles. Automatic picks the style from the selected video system.
+- More realistic material colors, RF shields, fin array, screw-hole rings, RF sockets, discrete passives and front wiring header.
+- Reference appearance never modifies VTX mounting geometry, the collision envelope, weight/CG or CNC exports.
+
+# v0.90.13 - automatic ELRS lead clearance and antenna finishes
+
+- Automatically end the ELRS T-reference coax at least 3 mm ahead of the modelled VTX board rear boundary. Never run the visual feed into the VTX; omit it when the T centre is already inside/beyond the safe gap. Recompute with VTX and mount changes.
+- Remove manual feed-length controls from the Finishing editor; keep their older JSON values readable but ignored for presentation geometry.
+- Give the VTX antenna head independent matte black, charcoal grey, white, red, orange and blue finishes, while retaining separate dark coax, strain relief and metallic accents.
+- Make the ELRS T housing, centre junction and coax near-black; update the Help PDF and tests.
+
+# v0.90.12 - commercial-style antenna geometry and length presets
+
+- Replace long, thick VTX reference cylinders with slim leads, connector relief, short widened antenna radomes and rounded tips. Retain the existing mount pose, tilt, count and splay.
+- Offer common nominal lollipop lengths (60, 85, 95, 100, 150, 165 mm), Walksnail Avatar V2 (105 mm, 15 mm head), and a custom dimension mode. Catalog lengths are not universal standards.
+- Draw the ELRS T with a centre junction, realistic thinner horizontal arms, and a separate forward coax lead. Choose 50/51 mm compact T or theoretical 62.5 mm dipole spans, 40/70/85/95 mm feed lengths or custom values.
+- Preserve v0.90.11 custom dimensions when importing older saved JSON. Keep all antenna references display-only and outside manufacturing, mass, and solid collision checks.
+- Update the in-workbench Help and unit/native smoke tests.
+
+# v0.90.11 - optional VTX and ELRS antenna references
+
+- Add independent 3D visualization toggles for rear VTX antennas and a horizontal ELRS T antenna.
+- Place them from the existing TPU holder/hook layout, including dual VTX tilt and splay.
+- Expose editable antenna body length, diameter, T-antenna span, and centre leg length.
+- Keep visual antenna references out of physical validation, weight/CG and manufacture exports.
+- Update the Finishing editor, JSON persistence, native FreeCAD objects and Help PDF.
+
 # v0.90.10 - flush rear grip stack
 
 - Seat VTX grips against the top plate and ELRS grips on the bottom/mid carrier by default.

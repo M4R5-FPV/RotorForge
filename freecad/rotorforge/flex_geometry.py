@@ -79,6 +79,8 @@ def make_flex(p,carbon=None):
  return result
 
 def printable_flex(shape,role):
+ # Preserve the previously working FreeCAD export geometry.  Solid isolation
+ # happens only as a non-blocking STEP file optimisation (not for STL).
  flat=shape.copy()
  if role.startswith(('CameraPad','ElectronicsGuard')):flat.rotate(App.Vector(),App.Vector(1,1,1),-120)
  b=flat.BoundBox;flat.translate(App.Vector(-b.XMin,-b.YMin,-b.ZMin));return flat

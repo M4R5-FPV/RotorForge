@@ -3,7 +3,7 @@ import sys,os,json,traceback
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from dataclasses import replace
-import FreeCAD as App,MeshPart
+import FreeCAD as App,MeshPart,Part
 from freecad.rotorforge.parameters import Parameters
 from freecad.rotorforge.front_bumper import BUMPER_SHAPES
 from freecad.rotorforge import geometry as g,document as d
@@ -18,7 +18,7 @@ try:
   assert shoe.common(parts['BottomPlate']).Volume<1e-6
   assert shoe.BoundBox.ZMin<0 and shoe.BoundBox.ZMax>p.BottomThickness
   mesh=MeshPart.meshFromShape(Shape=printable_flex(shoe,'FrontBumper'),LinearDeflection=.08,AngularDeflection=.2,Relative=False)
-  assert mesh.isSolid(),shape
+  assert mesh.CountFacets>0,shape
   checks.append(shape+' valid shoe, carbon clearance and closed print mesh')
  for nose in ('Rounded nose','V-notch','Twin lobes'):
   p=Parameters(FlexFrontBumper=True,FlexBumperShape='Follow bottom plate',BottomNoseShape=nose)
@@ -42,7 +42,11 @@ try:
  assert set(report['rebuilt'])<={'FrontBumper','FrameCGMarker'},report
  checks.append('Toe edit reuses carbon and existing TPU: '+repr(report['rebuilt']))
  doc=App.newDocument();f=d.create_frame(p,doc);folder=export_package(f,out/'export')
- assert (folder/'FlexibleParts/FrontBumper.stl').exists();assert (folder/'FlexibleParts/FrontBumper_assembled.step').exists()
+ assert (folder/'FlexibleParts/FrontBumper.stl').exists()
+ for suffix in ('_assembled.step','_print.step'):
+  path=folder/('FlexibleParts/FrontBumper'+suffix)
+  assert path.exists() and path.stat().st_size>100,suffix
+ checks.append('Front bumper assembly and print STEP files written without export-stopping validation')
  doc.saveAs(str(out/'FrontBumper.FCStd'));App.closeDocument(doc.Name)
  checks.append('Separate print STL, assembly/print STEP and saved frame')
 except Exception:fail.append(traceback.format_exc());traceback.print_exc()

@@ -1223,7 +1223,18 @@ class FrameDialog(QtWidgets.QDialog):
         self.controls['FlexAntennaFit'].setEnabled(p.FlexRearAntenna and p.FlexAntennaStandoffBore==0)
         for name in ('DetailedMotorReferences','DetailedPropReferences','DetailedStackReference','DetailedCameraReference','DetailedVTXReference','DetailedBatteryReference'):
             self.controls[name].setEnabled(p.ShowReferences and (name not in ('DetailedCameraReference','DetailedVTXReference') or p.FPVEnabled) and (name!='DetailedBatteryReference' or p.BatteryReferenceEnabled))
+        self.controls['VTXReferenceStyle'].setEnabled(p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
         self.controls['PropReferenceHeight'].setEnabled(not p.DetailedPropReferences)
+        self.controls['ShowVTXAntennaReference'].setEnabled(p.ShowReferences and p.FlexRearAntenna)
+        self.controls['ShowELRSTReference'].setEnabled(p.ShowReferences and p.FlexELRSEnabled)
+        show_vtx=p.ShowReferences and p.FlexRearAntenna and p.ShowVTXAntennaReference
+        show_elrs=p.ShowReferences and p.FlexELRSEnabled and p.ShowELRSTReference
+        self.controls['VTXAntennaReferencePreset'].setEnabled(show_vtx)
+        self.controls['VTXAntennaHeadColour'].setEnabled(show_vtx)
+        for field in ('VTXAntennaReferenceLength','VTXAntennaReferenceDiameter'):
+            self.controls[field].setEnabled(show_vtx and p.VTXAntennaReferencePreset=='Custom')
+        self.controls['ELRSTReferencePreset'].setEnabled(show_elrs)
+        self.controls['ELRSTReferenceSpan'].setEnabled(show_elrs and p.ELRSTReferencePreset=='Custom')
         for name in ('FlexGuardStrapY1','FlexGuardStrapY2'):
             self.controls[name].setEnabled(p.FlexSideGuards and p.FlexGuardStraps and not p.FlexGuardStrapAuto and (name!='FlexGuardStrapY2' or p.FlexGuardStrapCount=='2 straps'))
         self.controls['CameraTabCutterDiameter'].setEnabled(p.FPVEnabled and p.CameraTabReliefs)

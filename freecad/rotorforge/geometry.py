@@ -25,7 +25,7 @@ ARM_LOCK_ROLES = ('ArmKeystone','ArmClampPlate','ArmLowerClampPlate')
 LEGACY_ARM_ROLES = ('FrontArmBrace','RearArmBrace')
 CARBON_ROLES = MAIN_CARBON_ROLES+CAMERA_ROLES+ARM_LOCK_ROLES
 PHYSICAL_ROLES = CARBON_ROLES + ("Standoffs", "LiPoPad")+FLEX_ROLES
-REFERENCE_ROLES = ("PropellerDiscs", "MotorEnvelopes", "StackEnvelope", "CameraEnvelope", "VTXEnvelope", "BatteryEnvelope", "FrameCGMarker")
+REFERENCE_ROLES = ("PropellerDiscs", "MotorEnvelopes", "StackEnvelope", "CameraEnvelope", "VTXEnvelope", "BatteryEnvelope", "VTXAntennaReference", "ELRSTReference", "FrameCGMarker")
 ALL_ROLES = PHYSICAL_ROLES + REFERENCE_ROLES
 
 
@@ -744,6 +744,9 @@ def _component_flex(p,role,inputs):
     return shape
 
 def _component_reference(p,role,inputs):
+    if role in ("VTXAntennaReference","ELRSTReference"):
+        from .antenna_reference_models import antenna_reference
+        return antenna_reference(p,role)[0]
     from .battery import battery_envelope
     if not p.ShowReferences:return Part.Shape()
     from .detailed_references import enabled,detailed_reference
@@ -780,9 +783,9 @@ _BUILD_REPORTS={}
 _BUILD_MANIFESTS={}
 _BUILD_PAYLOADS={}
 def _geometry_signature(p):
-    if p.PrintedPartColour!='Black':
+    if p.PrintedPartColour!='Black' or p.VTXAntennaHeadColour!='Matte black':
         from dataclasses import replace
-        p=replace(p,PrintedPartColour='Black')
+        p=replace(p,PrintedPartColour='Black',VTXAntennaHeadColour='Matte black')
     return p.signature()
 
 def build_report(p):return _BUILD_REPORTS.get(_geometry_signature(p),{})

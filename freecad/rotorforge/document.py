@@ -41,6 +41,8 @@ def property_group(name):
         return "03 Arms"
     if name in MOTOR_FIELDS:
         return "04 Motor mounts"
+    if name.startswith(('ShowVTXAntenna','VTXAntennaReference','ShowELRST','ELRSTReference')):
+        return '08 Checks and references'
     if name.startswith("Stack"):
         return "05 Electronics"
     if name.startswith("Standoff"):
@@ -289,6 +291,10 @@ class PartProxy:
                 from .reference_options import enabled
                 obj.Label={'MotorEnvelopes':'Motor references','PropellerDiscs':'Propeller references','StackEnvelope':'FC / ESC stack reference'}[role]+(' (detailed)' if enabled(p,role) else ' (simple)')
                 if App.GuiUp:obj.ViewObject.Visibility=p.ShowReferences
+            elif role in ('VTXAntennaReference','ELRSTReference'):
+                from .antenna_reference_models import reference_enabled
+                obj.Label=('VTX antenna reference' if role=='VTXAntennaReference' else 'ELRS T-antenna reference')
+                if App.GuiUp:obj.ViewObject.Visibility=reference_enabled(p,role)
             elif role in FLEX_ROLES:
                 obj.Label={"CameraPadLeft":"Camera isolation left","CameraPadRight":"Camera isolation right"}.get(role,role.replace("MotorProtector","Motor protector ").replace("ElectronicsGuard","Electronics guard "))
                 if App.GuiUp:obj.ViewObject.Visibility=role in flex_roles(p)
@@ -387,6 +393,8 @@ def ensure_components(settings):
                 view.ShapeColor,view.Transparency=(.18,.21,.25),15
             elif role=='VTXEnvelope':
                 view.ShapeColor,view.Transparency=(.58,.27,.68),35
+            elif role in ('VTXAntennaReference','ELRSTReference'):
+                view.ShapeColor=(.105,.110,.118) if role=='VTXAntennaReference' else (.035,.039,.045)
             apply_material(view,role,CARBON_ROLES,p)
 
 

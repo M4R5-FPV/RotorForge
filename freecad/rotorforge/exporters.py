@@ -273,15 +273,34 @@ def export_package(settings, destination):
             import MeshPart
             soft_folder=folder/'FlexibleParts';soft_folder.mkdir()
             for role in flex_roles(p):
-                shapes[role].exportStep(str(soft_folder/(role+'_assembled.step')))
                 printable=printable_flex(shapes[role],role)
-                printable.exportStep(str(soft_folder/(role+'_print.step')))
-                mesh=MeshPart.meshFromShape(Shape=printable,LinearDeflection=.08,AngularDeflection=.2,Relative=False)
-                if role.startswith('ElectronicsGuard'):
-                    from .mesh_cleanup import weld_micro_seams
-                    mesh=weld_micro_seams(mesh)
-                mesh.write(str(soft_folder/(role+'.stl')))
-            (soft_folder/'PRINT_NOTES.txt').write_text('Dimensions are millimetres. Each file is a separate printable part. Test fit flexible material and compress camera pads only by the configured preload. Captured inserts retain the existing camera tilt paths. Check connector retention, screw length, wiring, props and real hardware. Printed flexibility and vibration performance are not simulated.\n')
+                if role=='FrontBumper':
+                    # Unlike the old buggy STEP path, both bumper STEP files
+                    # are made from exactly the mesh written as its STL.
+                    mesh=MeshPart.meshFromShape(Shape=printable,LinearDeflection=.08,AngularDeflection=.2,Relative=False)
+                    mesh.write(str(soft_folder/(role+'.stl')))
+                    from .step_safety import export_bumper_mesh_steps
+                    try:
+                        export_bumper_mesh_steps(shapes[role],printable,mesh,soft_folder)
+                    except Exception as exc:
+                        # Do not block the export package or emit a broken
+                        # STEP when STL-to-solid conversion fails.
+                        note=('Front bumper STL exported successfully, but its faceted '
+                              'STEP conversion failed: '+str(exc)+'\n'
+                              'Other files are unaffected. The STEP was omitted instead '
+                              'of exporting potentially incorrect geometry.\n')
+                        (soft_folder/'FrontBumper_STEP_WARNING.txt').write_text(note,encoding='utf-8')
+                        warnings.append(note.strip())
+                else:
+                    # Preserve v0.90.18 behavior for every other TPU part.
+                    shapes[role].exportStep(str(soft_folder/(role+'_assembled.step')))
+                    printable.exportStep(str(soft_folder/(role+'_print.step')))
+                    mesh=MeshPart.meshFromShape(Shape=printable,LinearDeflection=.08,AngularDeflection=.2,Relative=False)
+                    if role.startswith('ElectronicsGuard'):
+                        from .mesh_cleanup import weld_micro_seams
+                        mesh=weld_micro_seams(mesh)
+                    mesh.write(str(soft_folder/(role+'.stl')))
+            (soft_folder/'PRINT_NOTES.txt').write_text('Dimensions are millimetres. Each file is a separate printable part. Test fit flexible material and compress camera pads only by the configured preload. Captured inserts retain the existing camera tilt paths. Check connector retention, screw length, wiring, props and real hardware. Printed flexibility and vibration performance are not simulated. FrontBumper STEP files, when present, are faceted solids reconstructed from the FrontBumper STL mesh. They are suitable as faceted references but not smooth editable parametric CAD. If they cannot be constructed, consult FrontBumper_STEP_WARNING.txt and use the STL.\n')
         from .mass_properties import mass_properties
         metrics=mass_properties(p,shapes)
         (folder/'MassProperties.json').write_text(json.dumps(metrics,indent=2)+'\n',encoding='utf-8')

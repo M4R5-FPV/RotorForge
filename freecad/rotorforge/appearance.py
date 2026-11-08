@@ -19,6 +19,14 @@ def printed_groove(p=None):
 
 
 def apply_material(view,role,carbon_roles,p=None):
+    if role in ('VTXAntennaReference','ELRSTReference'):
+        from .antenna_reference_models import antenna_reference,reference_enabled,VTX_COLOUR,ELRS_COLOUR
+        base=VTX_COLOUR if role=='VTXAntennaReference' else ELRS_COLOUR
+        colours=antenna_reference(p,role)[1] if p is not None and reference_enabled(p,role) else ()
+        view.ShapeColor=base;view.LineColor=(.035,.042,.050)
+        view.DiffuseColor=list(colours) if colours else [base]
+        view.Transparency=0
+        return
     """Apply physical-part appearance; leave reference electronics untouched."""
     if role in ('MotorEnvelopes','PropellerDiscs','StackEnvelope','CameraEnvelope','VTXEnvelope','BatteryEnvelope'):
         from .reference_options import enabled,SIMPLE
@@ -53,4 +61,4 @@ def apply_material(view,role,carbon_roles,p=None):
         if 'Shininess' in view.PropertiesList:view.Shininess=32. if carbon else 2.
 
 def design_signature(p):
-    return tuple('Black' if n=='PrintedPartColour' else getattr(p,n) for n in p.__dataclass_fields__)
+    return tuple('Black' if n=='PrintedPartColour' else 'Matte black' if n=='VTXAntennaHeadColour' else getattr(p,n) for n in p.__dataclass_fields__)
