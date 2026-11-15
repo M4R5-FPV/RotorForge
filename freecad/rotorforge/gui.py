@@ -1,5 +1,6 @@
 """Qt editor with a fast top-view preview; imports only inside GUI FreeCAD."""
 from dataclasses import fields, replace
+from functools import lru_cache
 import math
 import os
 import re
@@ -395,6 +396,19 @@ TIPS.update({k:v[2] for k,v in DESIGN_OPTIONS.items()})
 TIPS['PropReferenceHeight']='Height of simple prop discs above the arm. Detailed three-blade props instead seat their 6 mm hubs directly on the motor bells.'
 TIPS['MotorReferenceHeight']='Motor bell body height above the arm. Detailed motor shafts and self-locking nuts extend above this height.'
 
+# Preview pixel geometry deliberately ignores four optical simulation fields.
+# Avoid constructing a 460+ item tuple on every repaint/pan/zoom event: the
+# frozen Parameters snapshot already owns an immutable cached signature.
+_PREVIEW_UNUSED_INDICES=frozenset(
+    index for index,name in enumerate(Parameters.__dataclass_fields__)
+    if name in ('CameraViewProfile','CameraViewAspect','CameraViewFOV','CameraViewPupilOffset'))
+
+@lru_cache(maxsize=32)
+def _top_preview_visual_signature(signature):
+    return tuple(value for index,value in enumerate(signature)
+                 if index not in _PREVIEW_UNUSED_INDICES)
+
+
 class TopPreview(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
@@ -453,9 +467,8 @@ class TopPreview(QtWidgets.QWidget):
         # QPicture retains vector detail at every zoom without rebuilding paths.
         # Lens simulation settings do not affect this 2-D frame drawing.
         # Avoid redrawing thousands of Qt paths when changing only optics.
-        _not_drawing=('CameraViewProfile','CameraViewAspect','CameraViewFOV','CameraViewPupilOffset')
-        key = (tuple(getattr(self.params,n) for n in self.params.__dataclass_fields__
-                     if n not in _not_drawing), self.view_mode, self.width(), self.height(),
+        key = (_top_preview_visual_signature(self.params.signature()),
+               self.view_mode, self.width(), self.height(),
                repr(self.mass_metrics), self.font().toString())
         if key != getattr(self, '_picture_key', None):
             self._picture = QtGui.QPicture()
@@ -2039,91 +2052,115 @@ class FrameDialog(QtWidgets.QDialog):
             combo.setCurrentText(selected)
             combo.blockSignals(False)
 
+    def _mark_control_enabled(self, name, enabled):
+        """Record the final enabled state without toggling the same widget twice.
+
+        Previously every refresh enabled all ~470 controls, then disabled many
+        again. Repeated QWidget enabled-state transitions trigger expensive Qt
+        style/accessibility updates even when painting is temporarily disabled.
+        """
+        self._enabled_targets[name] = bool(enabled)
+
     def refresh(self):
         # A refresh toggles hundreds of controls and recomputes text, previews,
         # and section visibility. Batch painting to avoid showing half-updated
         # panels and unnecessary Windows/Qt widget repaints.
         self.setUpdatesEnabled(False)
+        self._enabled_targets = {}
         try:
             return self._refresh_impl()
+        except Exception as exc:
+            # A Qt timer callback has no caller to display its exception.
+            # Report it and prevent creating a frame from a stale preview.
+            import traceback
+            App.Console.PrintError('RotorForge editor refresh failed:\n'+traceback.format_exc())
+            self.generate.setEnabled(False)
+            self.messages.setPlainText('Cannot update frame preview: '+str(exc))
         finally:
+            # Unmentioned controls are enabled. Explicit rules may assign the
+            # same control several times; apply only the last rule, and only
+            # when its state actually changed since the previous refresh.
+            for name, control in self.controls.items():
+                enabled = self._enabled_targets.get(name, True)
+                if control.isEnabled() != enabled:
+                    control.setEnabled(enabled)
+            self._enabled_targets = {}
             self.setUpdatesEnabled(True)
 
     def _refresh_impl(self):
         self._sync_interface_shape_choices()
         p = self.values()
-        for control in self.controls.values():control.setEnabled(True)
         for name in ('StackSpacing','StackHoleDiameter','StackHeight','StackMountHeight'):self.field_labels[name].setText(label(name))
         if p.StackPressNuts:self.field_labels['StackMountHeight'].setText(f'Stack support (automatic; actual {stack_reference_z(p)-plate_levels(p)["stack_deck_z"]:.2f} mm)')
-        self.controls["StackMountHeight"].setEnabled(not p.StackPressNuts)
+        self._mark_control_enabled("StackMountHeight",not p.StackPressNuts)
         ratio = self.controls["LengthToWidth"]
         ratio.blockSignals(True)
         ratio.setRange(1.0 if p.Layout == "Squashed X" else .65, 1.8)
         ratio.setValue(p.LengthToWidth)
         ratio.blockSignals(False)
         self.field_labels["LengthToWidth"].setText("Width / front–rear spacing" if p.Layout == "Squashed X" else "Length / rear motor span")
-        self.controls["LengthToWidth"].setEnabled(p.Layout != "True X")
-        self.controls["FrontSpread"].setEnabled(p.Layout == "Deadcat")
-        self.controls['RearArmExtension'].setEnabled(p.Layout=='Deadcat')
+        self._mark_control_enabled("LengthToWidth",p.Layout != "True X")
+        self._mark_control_enabled("FrontSpread",p.Layout == "Deadcat")
+        self._mark_control_enabled('RearArmExtension',p.Layout=='Deadcat')
         extended=p.Layout=='Deadcat' and p.RearArmExtension>0
         self.field_labels['Wheelbase'].setText('Base diagonal wheelbase' if extended else 'Diagonal wheelbase')
         self.field_labels['FrontSpread'].setText('Base front / rear motor span' if extended else 'Front / rear motor span')
         if extended:self.field_labels['LengthToWidth'].setText('Base length / rear motor span')
         for name in ("ClampThickness", "MidFrontReach", "MidRearReach",'MidReachMode','MidCentreWidth','BottomBodyRearReach'):
-            self.controls[name].setEnabled(three_plate(p))
-        self.controls['BottomFrontExtension'].setEnabled(three_plate(p) and p.BottomReachMode=='Automatic')
-        self.controls['BodyLength'].setEnabled(p.BottomReachMode=='Automatic')
-        self.controls['TopLength'].setEnabled(p.TopReachMode=='Automatic')
+            self._mark_control_enabled(name,three_plate(p))
+        self._mark_control_enabled('BottomFrontExtension',three_plate(p) and p.BottomReachMode=='Automatic')
+        self._mark_control_enabled('BodyLength',p.BottomReachMode=='Automatic')
+        self._mark_control_enabled('TopLength',p.TopReachMode=='Automatic')
         for prefix in ('Bottom','Top'):
             for suffix in ('FrontReach','RearReach'):
-                self.controls[prefix+suffix].setEnabled(getattr(p,prefix+'ReachMode')=='Custom')
-        self.controls['MotorPadCornerRadius'].setEnabled(motor_corner_control(p))
+                self._mark_control_enabled(prefix+suffix,getattr(p,prefix+'ReachMode')=='Custom')
+        self._mark_control_enabled('MotorPadCornerRadius',motor_corner_control(p))
         from .motor_pads import NEW_MOTOR_PAD_SHAPES
         new_pad=p.MotorPadShape in NEW_MOTOR_PAD_SHAPES
-        self.controls['ArmProfileAmount'].setEnabled(p.ArmBeamShape!='Straight')
-        self.controls['MidEdgeFillet'].setEnabled(three_plate(p))
-        for flag,field,active in (('ArmFilletOpenings','ArmEdgeFillet',True),('BottomFilletOpenings','BottomEdgeFillet',True),('TopFilletOpenings','TopEdgeFillet',True),('MidFilletOpenings','MidEdgeFillet',three_plate(p)),('ClampFilletOpenings','ClampEdgeFillet',arm_braces(p) or underside_clamp_active(p))):self.controls[flag].setEnabled(active and getattr(p,field)>0)
-        self.controls['ClampEdgeFillet'].setEnabled(arm_braces(p) or underside_clamp_active(p))
-        self.controls['MidPlateShape'].setEnabled(three_plate(p))
-        self.controls['ClampPlateShape'].setEnabled(arm_braces(p) or underside_clamp_active(p))
+        self._mark_control_enabled('ArmProfileAmount',p.ArmBeamShape!='Straight')
+        self._mark_control_enabled('MidEdgeFillet',three_plate(p))
+        for flag,field,active in (('ArmFilletOpenings','ArmEdgeFillet',True),('BottomFilletOpenings','BottomEdgeFillet',True),('TopFilletOpenings','TopEdgeFillet',True),('MidFilletOpenings','MidEdgeFillet',three_plate(p)),('ClampFilletOpenings','ClampEdgeFillet',arm_braces(p) or underside_clamp_active(p))):self._mark_control_enabled(flag,active and getattr(p,field)>0)
+        self._mark_control_enabled('ClampEdgeFillet',arm_braces(p) or underside_clamp_active(p))
+        self._mark_control_enabled('MidPlateShape',three_plate(p))
+        self._mark_control_enabled('ClampPlateShape',arm_braces(p) or underside_clamp_active(p))
         for prefix,active in (('BottomRear',not three_plate(p)),('MidRear',three_plate(p)),('TopRear',True)):
             shape=getattr(p,prefix+'Shape')
-            self.controls[prefix+'Shape'].setEnabled(active)
-            self.controls[prefix+'Depth'].setEnabled(active and shape!='Straight')
-            self.controls[prefix+'TipWidth'].setEnabled(active and shape in ('Flat-tip end','Swept shoulders','Stepped end','Flat recess','Round U recess','Cable channel','Dual cable channels','Split tail','Stepped electronics tail'))
+            self._mark_control_enabled(prefix+'Shape',active)
+            self._mark_control_enabled(prefix+'Depth',active and shape!='Straight')
+            self._mark_control_enabled(prefix+'TipWidth',active and shape in ('Flat-tip end','Swept shoulders','Stepped end','Flat recess','Round U recess','Cable channel','Dual cable channels','Split tail','Stepped electronics tail'))
         from .bottom_nose import CAMERA_FRONT_SHAPES
         camera_front=p.TopFrontShape in CAMERA_FRONT_SHAPES
-        self.controls['TopFrontDepth'].setEnabled(p.TopFrontShape!='Straight')
-        self.controls['TopFrontTipWidth'].setEnabled(p.TopFrontShape in ('Flat-tip nose','Swept shoulders','Stepped nose','Flat recess','Round U recess'))
-        for name in ('TopFrontRecessWidth','TopFrontClearance','TopFrontSetback'):self.controls[name].setEnabled(camera_front)
-        self.controls['TopFrontClearance'].setEnabled(camera_front and p.TopFrontRecessWidth==0)
-        self.controls['BottomNoseDepth'].setEnabled(p.BottomNoseShape!='Straight')
-        self.controls['BottomNoseTipWidth'].setEnabled(p.BottomNoseShape in ('Flat-tip nose','Swept shoulders','Stepped nose','Flat recess','Round U recess'))
-        self.controls['PlateEndWidth'].setEnabled(any(getattr(p,k) in ('Tapered front','Tapered rear','Hexagonal','Faceted shield') for k in ('BottomPlateShape','MidPlateShape','TopPlateShape','ClampPlateShape')))
-        self.controls['MotorPadBlendRadius'].setEnabled(abs(p.MotorPadRotation)>1e-8)
-        for name in ('MotorPadNeckLength','MotorPadRelief','MotorPadReliefWidth','MotorPadReliefLength'):self.controls[name].setEnabled(new_pad and (name in ('MotorPadNeckLength','MotorPadRelief') or p.MotorPadRelief!='None'))
-        self.controls['MotorPadReliefLength'].setEnabled(new_pad and p.MotorPadRelief in ('Neck slot','Twin neck slots'))
-        for name in ('MotorTipLength','MotorTipSlotEnabled'):self.controls[name].setEnabled(extended_motor_pad(p) and (name=='MotorTipLength' or not new_pad))
-        for name in ('MotorTipSlotWidth','MotorTipSlotLength'):self.controls[name].setEnabled(extended_motor_pad(p) and p.MotorTipSlotEnabled and not new_pad)
+        self._mark_control_enabled('TopFrontDepth',p.TopFrontShape!='Straight')
+        self._mark_control_enabled('TopFrontTipWidth',p.TopFrontShape in ('Flat-tip nose','Swept shoulders','Stepped nose','Flat recess','Round U recess'))
+        for name in ('TopFrontRecessWidth','TopFrontClearance','TopFrontSetback'):self._mark_control_enabled(name,camera_front)
+        self._mark_control_enabled('TopFrontClearance',camera_front and p.TopFrontRecessWidth==0)
+        self._mark_control_enabled('BottomNoseDepth',p.BottomNoseShape!='Straight')
+        self._mark_control_enabled('BottomNoseTipWidth',p.BottomNoseShape in ('Flat-tip nose','Swept shoulders','Stepped nose','Flat recess','Round U recess'))
+        self._mark_control_enabled('PlateEndWidth',any(getattr(p,k) in ('Tapered front','Tapered rear','Hexagonal','Faceted shield') for k in ('BottomPlateShape','MidPlateShape','TopPlateShape','ClampPlateShape')))
+        self._mark_control_enabled('MotorPadBlendRadius',abs(p.MotorPadRotation)>1e-8)
+        for name in ('MotorPadNeckLength','MotorPadRelief','MotorPadReliefWidth','MotorPadReliefLength'):self._mark_control_enabled(name,new_pad and (name in ('MotorPadNeckLength','MotorPadRelief') or p.MotorPadRelief!='None'))
+        self._mark_control_enabled('MotorPadReliefLength',new_pad and p.MotorPadRelief in ('Neck slot','Twin neck slots'))
+        for name in ('MotorTipLength','MotorTipSlotEnabled'):self._mark_control_enabled(name,extended_motor_pad(p) and (name=='MotorTipLength' or not new_pad))
+        for name in ('MotorTipSlotWidth','MotorTipSlotLength'):self._mark_control_enabled(name,extended_motor_pad(p) and p.MotorTipSlotEnabled and not new_pad)
         bottom_rect=bottom_plate_path(p).boundingRect()
         mid_rect=mid_plate_path(p).boundingRect() if three_plate(p) else None
         self.plate_info.setText(f'Actual bottom bounds (rear → front Y): {bottom_rect.top():g} → {bottom_rect.bottom():g} mm. '+
                                (f'Body rear Y = {bottom_body_bounds(p)[0]:g} mm (stack − reach). Rear tabs follow the arms.' if three_plate(p) else 'Custom reaches cap the outline.'))
         self.mid_plate_info.setText((f'Actual mid bounds (rear → front Y): {mid_rect.top():g} → {mid_rect.bottom():g} mm. Front tabs follow the arms.' if mid_rect else 'The mid plate is used only in three-plate designs. Choose Plate design on Frame > Layout.'))
         self.top_plate_info.setText(f'Actual top bounds (rear → front Y): {top_bounds(p)[0]:g} → {top_bounds(p)[1]:g} mm. Custom reaches cap the outline.')
-        self.controls['TwoPlateArmPosition'].setEnabled(not three_plate(p))
-        self.controls['ArmBracesEnabled'].setEnabled(not three_plate(p))
-        self.controls['ArmBraceThickness'].setEnabled(upper_clamp_active(p))
-        self.controls['UndersideClampThickness'].setEnabled(underside_clamp_active(p))
-        self.controls['KeystoneEnabled'].setEnabled(three_plate(p) or arm_braces(p))
-        self.controls['KeystoneClearance'].setEnabled(keystone_active(p))
-        self.controls['KeystoneShape'].setEnabled(fitted_roots(p) and keystone_active(p))
-        self.controls['ArmJointClearance'].setEnabled(fitted_roots(p))
-        for name in ('ArmRootLength','ArmRootTaperLength'):self.controls[name].setEnabled(widened_roots(p))
-        self.controls['RootBoltSpacing'].setEnabled(p.RootBoltLayout=='Along arm')
-        for name in ROOT_BOLT_COORDINATES:self.controls[name].setEnabled(p.RootBoltLayout=='Custom coordinates')
+        self._mark_control_enabled('TwoPlateArmPosition',not three_plate(p))
+        self._mark_control_enabled('ArmBracesEnabled',not three_plate(p))
+        self._mark_control_enabled('ArmBraceThickness',upper_clamp_active(p))
+        self._mark_control_enabled('UndersideClampThickness',underside_clamp_active(p))
+        self._mark_control_enabled('KeystoneEnabled',three_plate(p) or arm_braces(p))
+        self._mark_control_enabled('KeystoneClearance',keystone_active(p))
+        self._mark_control_enabled('KeystoneShape',fitted_roots(p) and keystone_active(p))
+        self._mark_control_enabled('ArmJointClearance',fitted_roots(p))
+        for name in ('ArmRootLength','ArmRootTaperLength'):self._mark_control_enabled(name,widened_roots(p))
+        self._mark_control_enabled('RootBoltSpacing',p.RootBoltLayout=='Along arm')
+        for name in ROOT_BOLT_COORDINATES:self._mark_control_enabled(name,p.RootBoltLayout=='Custom coordinates')
         for name in ('KeystoneWidth','KeystoneLength','KeystoneFillet'):
-            self.controls[name].setEnabled(fitted_roots(p) and keystone_active(p))
+            self._mark_control_enabled(name,fitted_roots(p) and keystone_active(p))
         key_note=''
         if fitted_roots(p) and keystone_active(p):
             try:
@@ -2136,30 +2173,30 @@ class FrameDialog(QtWidgets.QDialog):
             f'Fitted root joints: {p.ArmJointClearance:g} mm total arm gap. Move the root centres inward and extend the tails until the joints meet. Dashed lines show the joints beneath the plates.'+
             key_note
             if fitted_roots(p) else 'Independent roots retain their rounded tails and need space between the arms. Select Fitted miters to let the roots meet along trimmed joint lines.'))
-        self.controls['ClampCentreWidth'].setEnabled(arm_braces(p))
-        self.controls['ArmRootsFollowCentre'].setEnabled(p.BottomCentreWidth>p.BodyWidth)
+        self._mark_control_enabled('ClampCentreWidth',arm_braces(p))
+        self._mark_control_enabled('ArmRootsFollowCentre',p.BottomCentreWidth>p.BodyWidth)
         for name in ('KeystoneRetainerDiameter','KeystoneRetainerHeadDiameter','KeystoneRetainerSpacing'):
-            self.controls[name].setEnabled(bool(keystone_retainers(p)))
-        self.controls['StackAccessDiameter'].setEnabled(three_plate(p) or arm_braces(p) or p.ArmRootReliefsEnabled)
-        self.controls['ArmRootReliefShape'].setEnabled(p.ArmRootReliefsEnabled)
-        self.controls['StrapOpeningStyle'].setEnabled(p.StrapSlotsEnabled)
+            self._mark_control_enabled(name,bool(keystone_retainers(p)))
+        self._mark_control_enabled('StackAccessDiameter',three_plate(p) or arm_braces(p) or p.ArmRootReliefsEnabled)
+        self._mark_control_enabled('ArmRootReliefShape',p.ArmRootReliefsEnabled)
+        self._mark_control_enabled('StrapOpeningStyle',p.StrapSlotsEnabled)
         for name in ('StrapSlotLength','StrapCount'):
-            self.controls[name].setEnabled(p.StrapSlotsEnabled and p.StrapOpeningStyle!='None')
-        self.controls['StrapSingleY'].setEnabled(p.StrapSlotsEnabled and p.StrapCount=='1 strap')
-        self.controls['StrapOffsetY'].setEnabled(p.StrapSlotsEnabled and p.StrapCount=='2 straps')
+            self._mark_control_enabled(name,p.StrapSlotsEnabled and p.StrapOpeningStyle!='None')
+        self._mark_control_enabled('StrapSingleY',p.StrapSlotsEnabled and p.StrapCount=='1 strap')
+        self._mark_control_enabled('StrapOffsetY',p.StrapSlotsEnabled and p.StrapCount=='2 straps')
         for name in ('StrapSlotWidth','StrapEdgeInset'):
-            self.controls[name].setEnabled(p.StrapSlotsEnabled and p.StrapOpeningStyle=='Slots')
-        self.controls['StrapNotchDepth'].setEnabled(p.StrapSlotsEnabled and p.StrapOpeningStyle=='Outline cutouts')
+            self._mark_control_enabled(name,p.StrapSlotsEnabled and p.StrapOpeningStyle=='Slots')
+        self._mark_control_enabled('StrapNotchDepth',p.StrapSlotsEnabled and p.StrapOpeningStyle=='Outline cutouts')
         for name in ('StackUSBFace','StackUSBOffsetY'):
-            self.controls[name].setEnabled(p.ShowReferences and p.DetailedStackReference)
+            self._mark_control_enabled(name,p.ShowReferences and p.DetailedStackReference)
         for index in (3, 4):
             for suffix in ("Y", "Width"):
-                self.controls[f"StandoffPair{index}{suffix}"].setEnabled(standoff_pair_count(p) >= index and getattr(p,f'StandoffPair{index}Mount')=='Custom position')
-            self.controls[f'StandoffPair{index}Mount'].setEnabled(standoff_pair_count(p)>=index)
+                self._mark_control_enabled(f"StandoffPair{index}{suffix}",standoff_pair_count(p) >= index and getattr(p,f'StandoffPair{index}Mount')=='Custom position')
+            self._mark_control_enabled(f'StandoffPair{index}Mount',standoff_pair_count(p)>=index)
         for name in ('StandoffWidth','StandoffLength'):
-            self.controls[name].setEnabled(p.StandoffFrontMount=='Custom position' or p.StandoffRearMount=='Custom position')
+            self._mark_control_enabled(name,p.StandoffFrontMount=='Custom position' or p.StandoffRearMount=='Custom position')
         for name in FPV_FIELDS-{'FPVEnabled'}:
-            self.controls[name].setEnabled(p.FPVEnabled)
+            self._mark_control_enabled(name,p.FPVEnabled)
         from .flex import soft_camera
         from .flex_options import FLEX_OPTIONS
         for name in FLEX_OPTIONS:
@@ -2178,122 +2215,122 @@ class FrameDialog(QtWidgets.QDialog):
             elif name=='FlexInterfaceShape':enabled=soft_camera(p)
             elif name.startswith(('FlexPad','FlexInsert')):enabled=soft_camera(p) and (not name.startswith('FlexInsert') or p.FlexCameraMode=='Captured inserts')
             elif name=='FlexCameraMode':enabled=p.FPVEnabled
-            self.controls[name].setEnabled(enabled)
-        self.controls['FlexAntennaGuardGap'].setEnabled(p.FlexRearAntenna and p.FlexSideGuards)
-        self.controls['FlexELRSGuardGap'].setEnabled(p.FlexELRSEnabled and p.FlexSideGuards)
-        self.controls['FlexELRSFit'].setEnabled(p.FlexELRSEnabled and p.FlexELRSStandoffBore==0)
-        self.controls['FlexAntennaHolderStyle'].setEnabled(p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX'))
-        self.controls['FlexAntennaRetainingLip'].setEnabled(p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX') and p.FlexAntennaHolderStyle=='Side-entry clip')
+            self._mark_control_enabled(name,enabled)
+        self._mark_control_enabled('FlexAntennaGuardGap',p.FlexRearAntenna and p.FlexSideGuards)
+        self._mark_control_enabled('FlexELRSGuardGap',p.FlexELRSEnabled and p.FlexSideGuards)
+        self._mark_control_enabled('FlexELRSFit',p.FlexELRSEnabled and p.FlexELRSStandoffBore==0)
+        self._mark_control_enabled('FlexAntennaHolderStyle',p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX'))
+        self._mark_control_enabled('FlexAntennaRetainingLip',p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX') and p.FlexAntennaHolderStyle=='Side-entry clip')
         bulkhead=p.FlexAntennaConnector in ('SMA','RP-SMA')
-        self.controls['FlexAntennaBulkheadThickness'].setEnabled(p.FlexRearAntenna and bulkhead)
-        self.controls['FlexAntennaSocketLength'].setEnabled(p.FlexRearAntenna and not bulkhead)
+        self._mark_control_enabled('FlexAntennaBulkheadThickness',p.FlexRearAntenna and bulkhead)
+        self._mark_control_enabled('FlexAntennaSocketLength',p.FlexRearAntenna and not bulkhead)
         self.field_labels['FlexAntennaBore'].setText('Pigtail mounting hole' if bulkhead else 'Antenna bore diameter')
-        self.controls['FlexAntennaFit'].setEnabled(p.FlexRearAntenna and p.FlexAntennaStandoffBore==0)
+        self._mark_control_enabled('FlexAntennaFit',p.FlexRearAntenna and p.FlexAntennaStandoffBore==0)
         for name in ('DetailedMotorReferences','DetailedPropReferences','DetailedStackReference','DetailedCameraReference','DetailedVTXReference','DetailedBatteryReference'):
-            self.controls[name].setEnabled(p.ShowReferences and (name not in ('DetailedCameraReference','DetailedVTXReference') or p.FPVEnabled) and (name!='DetailedBatteryReference' or p.BatteryReferenceEnabled))
-        self.controls['CameraReferenceStyle'].setEnabled(p.ShowReferences and p.FPVEnabled and p.DetailedCameraReference and p.FPVSystemProfile!='DJI O4 Air Unit Pro')
+            self._mark_control_enabled(name,p.ShowReferences and (name not in ('DetailedCameraReference','DetailedVTXReference') or p.FPVEnabled) and (name!='DetailedBatteryReference' or p.BatteryReferenceEnabled))
+        self._mark_control_enabled('CameraReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedCameraReference and p.FPVSystemProfile!='DJI O4 Air Unit Pro')
         from .camera_cages import screw_cage
         cage=p.FPVEnabled
         for name in ('CameraCageFrontShape','CameraCageRearShape','CameraCageProfileDepth','CameraCageFrontReach','CameraCageRearReach'):
-            self.controls[name].setEnabled(cage and p.CameraCageStyle!='TPU cage')
-        self.controls['CameraCageEdgeWeb'].setEnabled(cage)
-        for name in ('CameraTPUAttachment','CameraTPUBridge'):self.controls[name].setEnabled(p.FPVEnabled and p.CameraCageStyle=='TPU cage')
-        for name in ('CameraTPUScrewBore','CameraTPUScrewClearance'):self.controls[name].setEnabled(p.FPVEnabled and screw_cage(p))
-        self.controls['CameraBracketThickness'].setEnabled(p.FPVEnabled)
-        self.controls['CameraAutoExtend'].setEnabled(p.FPVEnabled)
-        for name in ('ArmTipBumperReach','ArmTipBumperWidth','ArmTipBumperDirection','ArmTipBumperCutout','ArmTipBumperCutoutWall'):self.controls[name].setEnabled(p.ArmTipBumperStyle!='Disabled')
+            self._mark_control_enabled(name,cage and p.CameraCageStyle!='TPU cage')
+        self._mark_control_enabled('CameraCageEdgeWeb',cage)
+        for name in ('CameraTPUAttachment','CameraTPUBridge'):self._mark_control_enabled(name,p.FPVEnabled and p.CameraCageStyle=='TPU cage')
+        for name in ('CameraTPUScrewBore','CameraTPUScrewClearance'):self._mark_control_enabled(name,p.FPVEnabled and screw_cage(p))
+        self._mark_control_enabled('CameraBracketThickness',p.FPVEnabled)
+        self._mark_control_enabled('CameraAutoExtend',p.FPVEnabled)
+        for name in ('ArmTipBumperReach','ArmTipBumperWidth','ArmTipBumperDirection','ArmTipBumperCutout','ArmTipBumperCutoutWall'):self._mark_control_enabled(name,p.ArmTipBumperStyle!='Disabled')
         full_bumper=p.FlexFrontBumper and p.FPVEnabled and p.FlexBumperVariant=='Integrated camera cage bumper'
-        self.controls['FlexBumperVariant'].setEnabled(p.FlexFrontBumper and p.CameraCageStyle!='TPU cage')
-        self.controls['FlexBumperCameraCover'].setEnabled(False)  # hidden legacy field
+        self._mark_control_enabled('FlexBumperVariant',p.FlexFrontBumper and p.CameraCageStyle!='TPU cage')
+        self._mark_control_enabled('FlexBumperCameraCover',False)  # hidden legacy field
         for name in ('FlexBumperCameraGripDepth','FlexBumperCameraHeight','FlexBumperCameraFrontProjection','FlexBumperCameraBlendReach'):
-            self.controls[name].setEnabled(full_bumper)
-        self.controls['FlexProtectorBumperSleeve'].setEnabled(p.ArmTipBumperStyle!='Disabled' and p.FlexMotorProtectors)
-        self.controls['PropReferenceColour'].setEnabled(p.ShowReferences and p.DetailedPropReferences)
-        self.controls['VTXReferenceStyle'].setEnabled(p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
-        self.controls['PropReferenceHeight'].setEnabled(not p.DetailedPropReferences)
-        self.controls['ShowVTXAntennaReference'].setEnabled(p.ShowReferences and p.FlexRearAntenna)
-        self.controls['ShowELRSTReference'].setEnabled(p.ShowReferences and p.FlexELRSEnabled)
+            self._mark_control_enabled(name,full_bumper)
+        self._mark_control_enabled('FlexProtectorBumperSleeve',p.ArmTipBumperStyle!='Disabled' and p.FlexMotorProtectors)
+        self._mark_control_enabled('PropReferenceColour',p.ShowReferences and p.DetailedPropReferences)
+        self._mark_control_enabled('VTXReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
+        self._mark_control_enabled('PropReferenceHeight',not p.DetailedPropReferences)
+        self._mark_control_enabled('ShowVTXAntennaReference',p.ShowReferences and p.FlexRearAntenna)
+        self._mark_control_enabled('ShowELRSTReference',p.ShowReferences and p.FlexELRSEnabled)
         show_vtx=p.ShowReferences and p.FlexRearAntenna and p.ShowVTXAntennaReference
         show_elrs=p.ShowReferences and p.FlexELRSEnabled and p.ShowELRSTReference
-        self.controls['VTXAntennaReferencePreset'].setEnabled(show_vtx)
-        self.controls['VTXAntennaHeadColour'].setEnabled(show_vtx)
+        self._mark_control_enabled('VTXAntennaReferencePreset',show_vtx)
+        self._mark_control_enabled('VTXAntennaHeadColour',show_vtx)
         for field in ('VTXAntennaReferenceLength','VTXAntennaReferenceDiameter'):
-            self.controls[field].setEnabled(show_vtx and p.VTXAntennaReferencePreset=='Custom')
-        self.controls['ELRSTReferencePreset'].setEnabled(show_elrs)
-        self.controls['ELRSTReferenceSpan'].setEnabled(show_elrs and p.ELRSTReferencePreset=='Custom')
+            self._mark_control_enabled(field,show_vtx and p.VTXAntennaReferencePreset=='Custom')
+        self._mark_control_enabled('ELRSTReferencePreset',show_elrs)
+        self._mark_control_enabled('ELRSTReferenceSpan',show_elrs and p.ELRSTReferencePreset=='Custom')
         for name in ('FlexGuardStrapY1','FlexGuardStrapY2'):
-            self.controls[name].setEnabled(p.FlexSideGuards and p.FlexGuardStraps and not p.FlexGuardStrapAuto and (name!='FlexGuardStrapY2' or p.FlexGuardStrapCount=='2 straps'))
-        self.controls['CameraTabCutterDiameter'].setEnabled(p.FPVEnabled and p.CameraTabReliefs)
-        self.controls['CameraSideClearance'].setEnabled(p.FPVEnabled and (p.CameraCageStyle=='TPU cage' or not soft_camera(p)))
-        self.controls['FlexPadWidth'].setEnabled(soft_camera(p) and p.FlexCameraMode=='Compression pads')
-        self.controls['FlexPadHeight'].setEnabled(soft_camera(p) and p.FlexCameraMode=='Compression pads')
+            self._mark_control_enabled(name,p.FlexSideGuards and p.FlexGuardStraps and not p.FlexGuardStrapAuto and (name!='FlexGuardStrapY2' or p.FlexGuardStrapCount=='2 straps'))
+        self._mark_control_enabled('CameraTabCutterDiameter',p.FPVEnabled and p.CameraTabReliefs)
+        self._mark_control_enabled('CameraSideClearance',p.FPVEnabled and (p.CameraCageStyle=='TPU cage' or not soft_camera(p)))
+        self._mark_control_enabled('FlexPadWidth',soft_camera(p) and p.FlexCameraMode=='Compression pads')
+        self._mark_control_enabled('FlexPadHeight',soft_camera(p) and p.FlexCameraMode=='Compression pads')
         tpu_cage=p.FPVEnabled and p.CameraCageStyle=='TPU cage'
         for name in ('CameraTPUScrewBore','CameraTPUInsertDepth','CameraTPUBossWall','CameraTPUScrewClearance','CameraTPUBridge'):
-            self.controls[name].setEnabled(tpu_cage)
+            self._mark_control_enabled(name,tpu_cage)
         for name in ('CameraTabLength','CameraTabClearance','CameraTabReliefs','CameraTabCutterDiameter'):
-            self.controls[name].setEnabled(p.FPVEnabled and not tpu_cage)
+            self._mark_control_enabled(name,p.FPVEnabled and not tpu_cage)
         for name in ('FlexFrontBumper',)+tuple(n for n in self.controls if n.startswith('FlexBumper')):
-            if tpu_cage:self.controls[name].setEnabled(False)
+            if tpu_cage:self._mark_control_enabled(name,False)
         self.controls['FlexFrontBumper'].blockSignals(True);self.controls['FlexFrontBumper'].setChecked(p.FlexFrontBumper);self.controls['FlexFrontBumper'].blockSignals(False)
         for name in ('CameraTPUBumperReach','CameraTPUBumperWidth','CameraTPUBumperToe'):
-            self.controls[name].setEnabled(False)
+            self._mark_control_enabled(name,False)
         for key,visible in (('CameraTabLength',not tpu_cage),('CameraTPUScrewBore',tpu_cage),('CameraCageFrontShape',not tpu_cage)):
             page=self.cage_control_pages[key];self.cage_tabs.setTabVisible(self.cage_tabs.indexOf(page),visible)
         bumper_page=self.cage_control_pages['CameraTPUBumperReach']
         self.cage_tabs.setTabVisible(self.cage_tabs.indexOf(bumper_page),False)
         o4=p.FPVSystemProfile=='DJI O4 Air Unit Pro'
-        self.controls['CameraTPUFlushInserts'].setEnabled(tpu_cage and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides'))
-        self.controls['CameraCarbonFlushInserts'].setEnabled(p.FPVEnabled and p.CameraCageStyle=='Carbon side plates' and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides'))
-        self.controls['O4InsertDiameter'].setEnabled(p.FPVEnabled and o4 and p.FlexCameraMode=='Captured inserts')
-        self.controls['O4PadDiameter'].setEnabled(p.FPVEnabled and o4 and p.FlexCameraMode=='Compression pads')
-        self.controls['CameraTPUInnerReach'].setEnabled(False)
-        self.controls['CameraTPUBridge'].setEnabled(tpu_cage)
+        self._mark_control_enabled('CameraTPUFlushInserts',tpu_cage and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides'))
+        self._mark_control_enabled('CameraCarbonFlushInserts',p.FPVEnabled and p.CameraCageStyle=='Carbon side plates' and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides'))
+        self._mark_control_enabled('O4InsertDiameter',p.FPVEnabled and o4 and p.FlexCameraMode=='Captured inserts')
+        self._mark_control_enabled('O4PadDiameter',p.FPVEnabled and o4 and p.FlexCameraMode=='Compression pads')
+        self._mark_control_enabled('CameraTPUInnerReach',False)
+        self._mark_control_enabled('CameraTPUBridge',tpu_cage)
         for name in ('CameraTPUBottomRearReach','CameraTPUTopRearReach','CameraTPUFrontBridgeRearReach','CameraTPUFrontBridgeHeight','CameraTPUFrontBridgeBlend'):
-            self.controls[name].setEnabled(tpu_cage)
-        self.controls['CameraTPUClampBottom'].setEnabled(False)
+            self._mark_control_enabled(name,tpu_cage)
+        self._mark_control_enabled('CameraTPUClampBottom',False)
         for name in ('CameraTPUClampFit','CameraTPUClampWall'):
-            self.controls[name].setEnabled(tpu_cage and p.CameraTPUBumper and p.CameraTPUClampBottom)
+            self._mark_control_enabled(name,tpu_cage and p.CameraTPUBumper and p.CameraTPUClampBottom)
         if o4:
             for name in ('CameraWidth','CameraHeight','CameraBodyDepth','CameraSideBoltSpacing','CameraSideHoleDiameter','CameraSideScrewRearInset','CameraLensProjection','VTXWidth','VTXLength','VTXHeight','VTX25HoleDiameter','VTX20HoleDiameter'):
                 control=self.controls[name];control.blockSignals(True);control.setValue(getattr(p,name));control.blockSignals(False);control.setEnabled(False)
-            self.controls['DetailedCameraReference'].blockSignals(True);self.controls['DetailedCameraReference'].setChecked(True);self.controls['DetailedCameraReference'].blockSignals(False);self.controls['DetailedCameraReference'].setEnabled(False)
+            self.controls['DetailedCameraReference'].blockSignals(True);self.controls['DetailedCameraReference'].setChecked(True);self.controls['DetailedCameraReference'].blockSignals(False);self._mark_control_enabled('DetailedCameraReference',False)
             for name in ('VideoSystem','VTXPattern'):
                 control=self.controls[name];control.blockSignals(True);control.setCurrentText(getattr(p,name));control.blockSignals(False);control.setEnabled(False)
             for name in ('FlexInsertWidth','FlexInsertHeight','FlexInsertCornerRadius','FlexInterfaceShape','FlexPadWidth','FlexPadHeight'):
-                self.controls[name].setEnabled(False)
+                self._mark_control_enabled(name,False)
 
         vented=p.FlexSideGuards and p.FlexGuardStyle=='Vented'
-        for name in ('FlexGuardVTXVents','FlexGuardFCVents','FlexGuardVentBoundaryOffset'):self.controls[name].setEnabled(vented)
-        for name in ('FlexGuardVentShape','FlexGuardVentWidth','FlexGuardVentWeb','FlexGuardSlotHeight','FlexGuardSlotCount','FlexGuardVTXVentRearInset','FlexGuardVTXVentFrontInset','FlexGuardVTXVentZOffset'):self.controls[name].setEnabled(vented and p.FlexGuardVTXVents)
-        for name in ('FlexGuardFCVentShape','FlexGuardFCVentWidth','FlexGuardFCVentWeb','FlexGuardFCSlotHeight','FlexGuardFCSlotCount','FlexGuardFCVentRearInset','FlexGuardFCVentFrontInset','FlexGuardFCVentZOffset'):self.controls[name].setEnabled(vented and p.FlexGuardFCVents)
-        self.controls['FlexGuardVentWidth'].setEnabled(vented and p.FlexGuardVTXVents and p.FlexGuardVentShape!='Horizontal slots')
-        self.controls['FlexGuardFCVentWidth'].setEnabled(vented and p.FlexGuardFCVents and p.FlexGuardFCVentShape!='Horizontal slots')
-        self.controls['FlexGuardWireEnabled'].setEnabled(p.FlexSideGuards)
-        for name in ('FlexGuardWireSide','FlexGuardWirePairs','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardWireWidth','FlexGuardWireHeight'):self.controls[name].setEnabled(p.FlexSideGuards and p.FlexGuardWireEnabled)
-        self.controls['FlexGuardWirePairs'].setEnabled(p.FlexSideGuards and p.FlexGuardWireEnabled and p.FlexGuardFitMode=='Plate-edge wrap')
-        self.controls['FlexGuardVTXOpening'].setEnabled(p.FlexSideGuards and p.FPVEnabled)
+        for name in ('FlexGuardVTXVents','FlexGuardFCVents','FlexGuardVentBoundaryOffset'):self._mark_control_enabled(name,vented)
+        for name in ('FlexGuardVentShape','FlexGuardVentWidth','FlexGuardVentWeb','FlexGuardSlotHeight','FlexGuardSlotCount','FlexGuardVTXVentRearInset','FlexGuardVTXVentFrontInset','FlexGuardVTXVentZOffset'):self._mark_control_enabled(name,vented and p.FlexGuardVTXVents)
+        for name in ('FlexGuardFCVentShape','FlexGuardFCVentWidth','FlexGuardFCVentWeb','FlexGuardFCSlotHeight','FlexGuardFCSlotCount','FlexGuardFCVentRearInset','FlexGuardFCVentFrontInset','FlexGuardFCVentZOffset'):self._mark_control_enabled(name,vented and p.FlexGuardFCVents)
+        self._mark_control_enabled('FlexGuardVentWidth',vented and p.FlexGuardVTXVents and p.FlexGuardVentShape!='Horizontal slots')
+        self._mark_control_enabled('FlexGuardFCVentWidth',vented and p.FlexGuardFCVents and p.FlexGuardFCVentShape!='Horizontal slots')
+        self._mark_control_enabled('FlexGuardWireEnabled',p.FlexSideGuards)
+        for name in ('FlexGuardWireSide','FlexGuardWirePairs','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardWireWidth','FlexGuardWireHeight'):self._mark_control_enabled(name,p.FlexSideGuards and p.FlexGuardWireEnabled)
+        self._mark_control_enabled('FlexGuardWirePairs',p.FlexSideGuards and p.FlexGuardWireEnabled and p.FlexGuardFitMode=='Plate-edge wrap')
+        self._mark_control_enabled('FlexGuardVTXOpening',p.FlexSideGuards and p.FPVEnabled)
         for name in ('FlexGuardVTXSide','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXLength','FlexGuardVTXHeight'):
-            self.controls[name].setEnabled(p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening)
-        self.controls['FlexGuardVTXClearance'].setEnabled(p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening and (not p.FlexGuardVTXLength or not p.FlexGuardVTXHeight))
-        self.controls['FlexGuardCloseFront'].setEnabled(p.FlexSideGuards and p.FPVEnabled)
-        self.controls['FlexGuardCameraOverlap'].setEnabled(p.FlexSideGuards and p.FPVEnabled and p.FlexGuardCloseFront)
-        self.controls['FlexGuardUSBEnabled'].setEnabled(p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront))
-        for name in ('FlexGuardUSBSide','FlexGuardUSBY','FlexGuardUSBZ','FlexGuardUSBWidth','FlexGuardUSBHeight'):self.controls[name].setEnabled(p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront) and p.FlexGuardUSBEnabled)
+            self._mark_control_enabled(name,p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening)
+        self._mark_control_enabled('FlexGuardVTXClearance',p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening and (not p.FlexGuardVTXLength or not p.FlexGuardVTXHeight))
+        self._mark_control_enabled('FlexGuardCloseFront',p.FlexSideGuards and p.FPVEnabled)
+        self._mark_control_enabled('FlexGuardCameraOverlap',p.FlexSideGuards and p.FPVEnabled and p.FlexGuardCloseFront)
+        self._mark_control_enabled('FlexGuardUSBEnabled',p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront))
+        for name in ('FlexGuardUSBSide','FlexGuardUSBY','FlexGuardUSBZ','FlexGuardUSBWidth','FlexGuardUSBHeight'):self._mark_control_enabled(name,p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront) and p.FlexGuardUSBEnabled)
         self.camera_width_sizes.setEnabled(p.FPVEnabled)
         self.camera_spacing_sizes.setEnabled(p.FPVEnabled)
         self.fit_camera_button.setEnabled(p.FPVEnabled)
-        self.controls['CameraPivotHeight'].setEnabled(p.FPVEnabled and p.CameraPivotMode=='Custom height')
-        self.controls['CameraMountY'].setEnabled(p.FPVEnabled and p.CameraPositionMode=='Custom position')
+        self._mark_control_enabled('CameraPivotHeight',p.FPVEnabled and p.CameraPivotMode=='Custom height')
+        self._mark_control_enabled('CameraMountY',p.FPVEnabled and p.CameraPositionMode=='Custom position')
         for name in ('CameraBaseFrontExtension','CameraBaseRearExtension'):
-            self.controls[name].setEnabled(p.FPVEnabled and p.CameraBaseMode=='Custom')
-        self.controls['CameraTiltMechanism'].setEnabled(p.FPVEnabled and p.CameraMountMode=='Variable' and p.CameraSideBoltSpacing>0)
+            self._mark_control_enabled(name,p.FPVEnabled and p.CameraBaseMode=='Custom')
+        self._mark_control_enabled('CameraTiltMechanism',p.FPVEnabled and p.CameraMountMode=='Variable' and p.CameraSideBoltSpacing>0)
         for name in ('CameraTiltMin','CameraTiltMax'):
-            self.controls[name].setEnabled(p.FPVEnabled and p.CameraMountMode=='Variable')
+            self._mark_control_enabled(name,p.FPVEnabled and p.CameraMountMode=='Variable')
         self._sync_camera_size(p.CameraWidth)
         self._sync_camera_spacing(p.CameraSideBoltSpacing)
         for name,active in (('VTX20HoleDiameter',p.VTXPattern!='25.5 x 25.5 mm'),
                             ('VTX25HoleDiameter',p.VTXPattern!='20 x 20 mm')):
-            self.controls[name].setEnabled(p.FPVEnabled and active and not o4)
+            self._mark_control_enabled(name,p.FPVEnabled and active and not o4)
         self.fpv_info.setText(
             f'{"M3 heat-set insert bosses attach the TPU cage to both plates" if tpu_cage else "Side plates use captured tabs"}. Cage gap {camera_cage_height(p):g} mm; '
             f'camera datum Y {camera_position_y(p):g} mm; height {camera_pivot_height(p):g} mm above bottom. '
@@ -2346,18 +2383,18 @@ class FrameDialog(QtWidgets.QDialog):
             except (ValueError,IndexError):pass
         errors, warnings = validate(p)
         for name in BATTERY_FIELDS:
-            if name.startswith('LiPoPad') and name!='LiPoPadEnabled':self.controls[name].setEnabled(p.LiPoPadEnabled and (not name.startswith('LiPoPadGroove') or p.LiPoPadPattern!='Solid'))
-        self.controls['LiPoPadCornerRadius'].setEnabled(p.LiPoPadEnabled and p.LiPoPadShape=='Rounded rectangle')
+            if name.startswith('LiPoPad') and name!='LiPoPadEnabled':self._mark_control_enabled(name,p.LiPoPadEnabled and (not name.startswith('LiPoPadGroove') or p.LiPoPadPattern!='Solid'))
+        self._mark_control_enabled('LiPoPadCornerRadius',p.LiPoPadEnabled and p.LiPoPadShape=='Rounded rectangle')
         outline=p.LiPoPadShape=='Mounting plate outline'
         for key,axis in (('LiPoPadWidth','width'),('LiPoPadLength','length')):
             self.field_labels[key].setText('Pad '+axis)
-            self.controls[key].setEnabled(p.LiPoPadEnabled and not outline)
-        for name in ('LiPoPadOutlineWidthScale','LiPoPadFrontReach','LiPoPadRearReach'):self.controls[name].setEnabled(p.LiPoPadEnabled and p.LiPoPadShape=='Mounting plate outline')
-        self.controls['LiPoPadFollowPlate'].setEnabled(p.LiPoPadEnabled and p.LiPoPadShape!='Mounting plate outline')
-        self.controls['LiPoPadCopyAirflow'].setEnabled(p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
+            self._mark_control_enabled(key,p.LiPoPadEnabled and not outline)
+        for name in ('LiPoPadOutlineWidthScale','LiPoPadFrontReach','LiPoPadRearReach'):self._mark_control_enabled(name,p.LiPoPadEnabled and p.LiPoPadShape=='Mounting plate outline')
+        self._mark_control_enabled('LiPoPadFollowPlate',p.LiPoPadEnabled and p.LiPoPadShape!='Mounting plate outline')
+        self._mark_control_enabled('LiPoPadCopyAirflow',p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
         self.airflow.copy_to_pad.setEnabled(p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
         from .equipment_mass import MASS_FIELDS
-        for name in MASS_FIELDS:self.controls[name].setEnabled(p.EstimateComponents and (name not in ('VTXMass','CameraMass') or p.FPVEnabled))
+        for name in MASS_FIELDS:self._mark_control_enabled(name,p.EstimateComponents and (name not in ('VTXMass','CameraMass') or p.FPVEnabled))
         self.update_preview_modes(p)
         if hasattr(self,'camera_view_picture'):
             self._camera_view_update_recording_modes(p)
@@ -2541,13 +2578,15 @@ class ReferencesCommand(EditCommand):
 
 class HelpCommand:
     def GetResources(self):
-        return {"Pixmap": icon_path("toolbar-help-pdf.png"), "MenuText": "Help manual (PDF)", "ToolTip": "Open the complete illustrated help in your PDF viewer"}
+        return {"Pixmap": icon_path("toolbar-help-pdf.png"), "MenuText": "Help manual (PDF)", "ToolTip": "Open the RotorForge user manual (PDF)"}
 
     def Activated(self):
         path=help_path()
         if not os.path.isfile(path):
             QtWidgets.QMessageBox.warning(Gui.getMainWindow(),"RotorForge help",
-                "The help PDF is missing:\n"+path+"\n\nReinstall the complete RotorForge folder.")
+                "The bundled RotorForge_Help.pdf was not found.\n\n"
+                "Reinstall the complete RotorForge workbench folder.\n"
+                "Expected location:\n"+path)
         elif not QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path)):
             QtWidgets.QMessageBox.warning(Gui.getMainWindow(),"RotorForge help",
                 "The PDF viewer could not be opened. Open this file manually:\n"+path)

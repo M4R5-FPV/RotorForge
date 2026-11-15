@@ -466,7 +466,7 @@ def camera_bracket(p, mount):
                 tools.append(cylinder(centre,y,rad,z-.01 if sign>0 else z-depth,depth+.01))
         from .fpv import camera_angles
         probes=[camera_envelope(p,a) for a in camera_angles(p)]
-        if any(boss.common(probe).Volume>1e-6 for boss in bosses for probe in probes):
+        if any(overlap_volume(boss,probe)>1e-6 for boss in bosses for probe in probes):
             raise ValueError('A TPU insert boss reaches the camera. Move its mounting position or increase cage clearance.')
         wall=fuse([wall]+bosses)
     # TPU forward protection belongs to the smoothly shaped cage cheek;
@@ -481,7 +481,7 @@ def camera_bracket(p, mount):
     if p.FlexCameraMode=='Captured inserts':
         from .flex_geometry import camera_window
         window=camera_window(p,blank.BoundBox.XMin-1,blank.BoundBox.XLength+2)
-        if screw_cage(p) and any(window.common(pocket).Volume>1e-6 for pocket in tools):
+        if screw_cage(p) and any(overlap_volume(window,pocket)>1e-6 for pocket in tools):
             raise ValueError('A camera insert opening reaches a heat-set pocket; move the cage mounting position away from the camera fixing.')
         from .carbon_insert_recess import recess_span,POCKET_RADIAL_FIT
         sign=-1 if mount['role'].endswith('Left') else 1
@@ -510,7 +510,7 @@ def camera_bracket(p, mount):
     for arc in mount['side_arcs']:
         tool=arc_slot(arc,xmin-1,xmax-xmin+2)
         side_tools.append(tool)
-    if screw_cage(p) and any(tool.common(pocket).Volume>1e-6 for tool in side_tools for pocket in tools):
+    if screw_cage(p) and any(overlap_volume(tool,pocket)>1e-6 for tool in side_tools for pocket in tools):
         raise ValueError('A camera screw passage reaches a heat-set pocket; move the cage mounting position.')
     boundaries=Part.makeCompound(blank.Edges)
     if any(boundaries.distToShape(tool)[0]<p.MinimumWeb-1e-6 for tool in side_tools):
@@ -606,8 +606,16 @@ def _build(signature):
     import time
     from .dependency_cache import COMPONENTS
     p=Parameters(*signature);require_valid(p);started=time.perf_counter()
+    stage_started=started
+    stages={}
+    def mark_stage(name):
+        nonlocal stage_started
+        now=time.perf_counter()
+        stages[name]=round(now-stage_started,4)
+        stage_started=now
     from . import disk_cache
     restored=disk_cache.restore(signature,COMPONENTS);COMPONENTS.begin()
+    mark_stage('Disk cache lookup')
     result={};arms=arm_layouts(p);levels=plate_levels(p);arm_z=levels['arm_z']
     for role in CARBON_ROLES:
         if role=='ArmKeystone':continue
@@ -617,9 +625,11 @@ def _build(signature):
     result[role]=COMPONENTS.get(role,q,result,lambda t,i:_component_carbon(t,'ArmKeystone',i))
     for role in LEGACY_ARM_ROLES:result[role]=Part.Shape()
     result['Standoffs']=COMPONENTS.get('Standoffs',p,{},lambda t,i:_component_standoffs(t,'Standoffs',i))
+    mark_stage('Carbon and hardware geometry')
     carbon=dict(result)
     for role in FLEX_ROLES:
         result[role]=COMPONENTS.get(role,p,result if role in ('FrontBumper','RearAntennaMount','ELRSAntennaMount') else carbon,lambda t,i,r=role:_component_flex(t,r,i))
+    mark_stage('TPU and protective geometry')
     checked_pairs=set()
     for role in flex_roles(p):
         for other in physical_roles(p):
@@ -638,6 +648,7 @@ def _build(signature):
                        if pad_source is not None else None)
         return make_pad(t,finished_carrier,carrier_without_airflow=uncut_carrier)
     result['LiPoPad']=COMPONENTS.get('LiPoPad',p,result,build_pad)
+    mark_stage('TPU intersections and battery pad')
     if p.FPVEnabled and p.FlexCameraMode=='Captured inserts' and not joined_cage(p):
         # This check belongs to through-openings in flat carbon side plates.
         # A TPU cage retains its insert in a blind pocket and has no such
@@ -664,7 +675,7 @@ def _build(signature):
         for point in stack_holes(p):
             passage=cylinder(*point,p.StackAccessDiameter/2,low-.1,z-low+.1)
             for role in carbon_roles(p):
-                if role!=carrier and result[role].common(passage).Volume>1e-6:
+                if role!=carrier and overlap_volume(result[role],passage)>1e-6:
                     raise ValueError('Stack screw access is blocked by '+role+'; enable arm-root reliefs or change the mounting positions.')
     for role in carbon_roles(p):
         shape = result[role]
@@ -672,17 +683,17 @@ def _build(signature):
             raise ValueError(f"{role} did not produce one valid solid. Adjust the dimensions.")
     if p.LiPoPadEnabled:
         for role in physical_roles(p):
-            if role not in ('LiPoPad',mounting_role(p)) and result['LiPoPad'].common(result[role]).Volume>1e-6:
+            if role not in ('LiPoPad',mounting_role(p)) and overlap_volume(result['LiPoPad'],result[role])>1e-6:
                 raise ValueError('LiPo pad intersects '+role+'; move/resize it or choose the other battery mounting face.')
     if fitted_roots(p) or widened_roots(p) or p.ArmBeamShape!='Straight':
         for a,b in combinations(arms,2):
             first,second=result['Arm'+a['name']],result['Arm'+b['name']]
-            if first.common(second).Volume>1e-6:
+            if overlap_volume(first,second)>1e-6:
                 raise ValueError('Arm roots overlap; select Fitted miters or move the roots apart.')
             if not fitted_roots(p) and first.distToShape(second)[0]<.25-1e-6:
                 raise ValueError('Independent arm roots need at least 0.25 mm separation; select Fitted miters or move the roots apart.')
         for arm in arms:
-            if result['Arm'+arm['name']].common(result['Standoffs']).Volume>1e-6:
+            if overlap_volume(result['Arm'+arm['name']],result['Standoffs'])>1e-6:
                 raise ValueError('An arm intersects a standoff; move the support or use an aligned arm-hole mount.')
     for role in ARM_LOCK_ROLES:
         if result[role].isNull():
@@ -749,7 +760,7 @@ def _build(signature):
                                          'every angle in its range. Reduce the range or change the camera position; no carbon plate is cut automatically.')
     stack=COMPONENTS.get('_stack_probe',p,{},lambda q,i:_stack_probe(q))
     if not three_plate(p) and arms_above_bottom(p) and not arm_braces(p):
-        if any(stack.common(result['Arm'+a['name']]).Volume>1e-6 for a in arms):
+        if any(overlap_volume(stack,result['Arm'+a['name']])>1e-6 for a in arms):
             raise ValueError('The stack on the bottom intersects an arm. Set an explicit stack spacer height, use below-bottom arms, or add the combined clamp.')
     if flex_roles(p):
         probes=[('FC/ESC stack',stack)]
@@ -766,11 +777,14 @@ def _build(signature):
             for name,probe in probes:
                 if overlap_volume(result[role],probe)>1e-6:raise ValueError(role+' intersects '+name+'; adjust the module placement/size, antenna layout or reference dimensions.')
 
+    mark_stage('Assembly and camera clearance checks')
     for role in REFERENCE_ROLES:
         result[role]=COMPONENTS.get(role,p,result,lambda t,i,r=role:_component_reference(t,r,i))
     for role in ALL_ROLES:result.setdefault(role,Part.Shape())
+    mark_stage('Reference geometry')
     disk_cache.save(signature,COMPONENTS)
-    report=dict(seconds=time.perf_counter()-started,disk_restored=restored,rebuilt=[e['role'] for e in COMPONENTS.events if e['action']=='rebuilt' and not e['role'].startswith('_')],reused=[e['role'] for e in COMPONENTS.events if e['action']=='reused' and not e['role'].startswith('_')],events=list(COMPONENTS.events))
+    mark_stage('Disk cache save')
+    report=dict(seconds=time.perf_counter()-started,disk_restored=restored,stages=stages,rebuilt=[e['role'] for e in COMPONENTS.events if e['action']=='rebuilt' and not e['role'].startswith('_')],reused=[e['role'] for e in COMPONENTS.events if e['action']=='reused' and not e['role'].startswith('_')],events=list(COMPONENTS.events))
     _BUILD_PAYLOADS[signature]={role:entry['payload'] for role in ALL_ROLES if (entry:=COMPONENTS.latest.get(role)) is not None}
     while len(_BUILD_PAYLOADS)>5:_BUILD_PAYLOADS.pop(next(iter(_BUILD_PAYLOADS)))
     _BUILD_MANIFESTS[signature]={role:COMPONENTS.manifest(role) for role in ALL_ROLES}
@@ -1160,7 +1174,16 @@ def _canonical_component_parameters(p,role):
 _BUILD_REPORTS={}
 _BUILD_MANIFESTS={}
 _BUILD_PAYLOADS={}
-def _geometry_signature(p):
+@lru_cache(maxsize=32)
+def _canonical_geometry_signature(signature):
+    """Reuse the expensive view-only normalization for a whole recompute.
+
+    Every document part requests the same canonical key, sometimes more than
+    once. Previously a frame with non-default appearance/optics constructed
+    dozens of duplicate 467-field Parameters objects just to get that key.
+    Normalization is independent of the native CAD shapes and stays bounded.
+    """
+    p=Parameters(*signature)
     if (p.PrintedPartColour!='Black' or p.VTXAntennaHeadColour!='Matte black' or p.PropReferenceColour!='Smoke grey'
         or p.CameraViewProfile!='Follow selected camera' or p.CameraViewAspect!='Camera default'
         or p.CameraViewFOV!=0 or p.CameraViewPupilOffset!=0
@@ -1170,7 +1193,12 @@ def _geometry_signature(p):
                   CameraViewProfile='Follow selected camera',CameraViewAspect='Camera default',
                   CameraViewFOV=0.,CameraViewPupilOffset=0.,
                   CarbonTextureEnabled=False,CarbonTextureTile=64.,CarbonTextureOpacity=30.)
-    return p.signature()
+        return p.signature()
+    return signature
+
+
+def _geometry_signature(p):
+    return _canonical_geometry_signature(p.signature())
 
 def build_report(p):return _BUILD_REPORTS.get(_geometry_signature(p),{})
 
@@ -1219,4 +1247,4 @@ def clear_build_caches():
     from .dependency_cache import clear_geometry_caches
     from .detailed_references import _placed_reference
     _placed_reference.cache_clear()
-    _build.cache_clear();_FAILED_BUILDS.clear();_BUILD_REPORTS.clear();_BUILD_MANIFESTS.clear();_BUILD_PAYLOADS.clear();clear_geometry_caches()
+    _build.cache_clear();_canonical_geometry_signature.cache_clear();_FAILED_BUILDS.clear();_BUILD_REPORTS.clear();_BUILD_MANIFESTS.clear();_BUILD_PAYLOADS.clear();clear_geometry_caches()

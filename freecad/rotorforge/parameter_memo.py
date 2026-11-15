@@ -18,6 +18,7 @@ def parameter_cache(maxsize=128):
    # Lazy import avoids a schema/FPV import cycle during workbench startup.
    from .dependency_cache import TrackedParameters
    names=tuple(TrackedParameters.__dataclass_fields__)
+   indices={name:index for index,name in enumerate(names)}
    group=(args,kwargs)
    entries=recent.get(group,[])
    for old_values,value,reads in reversed(entries):
@@ -26,7 +27,7 @@ def parameter_cache(maxsize=128):
    p=TrackedParameters(*signature);object.__setattr__(p,'_reads',set())
    value=fn(p,*args,**dict(kwargs))
    reads=frozenset(p._reads)
-   entries.append((tuple((names.index(n),signature[names.index(n)]) for n in reads),value,reads))
+   entries.append((tuple((indices[n],signature[indices[n]]) for n in sorted(reads)),value,reads))
    recent[group]=entries[-4:];recent.move_to_end(group)
    while len(recent)>maxsize:recent.popitem(last=False)
    return value,reads

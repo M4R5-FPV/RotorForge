@@ -1,3 +1,29 @@
+## v0.92.91 — Bundled user manual
+
+- Include the newly written RotorForge user manual directly in the workbench package.
+- Open the bundled PDF from the existing Help toolbar/menu command, preserving fallback support for older installation layouts.
+- Include the PDF in source and wheel distributions; correct the README link and missing-file instructions.
+- No changes to frame generation, saved settings, or CAD export geometry.
+
+## v0.92.90 — Package cleanup and external Help manual
+
+- Remove the two duplicate bundled Help PDFs and distribute the updated manual separately. The Help command now looks first beside the installed RotorForge folder in FreeCAD's Mod directory, then accepts legacy in-folder placements. When missing, it explains where to place the separate PDF.
+- Remove an unused second installation-guide PDF and two unused icon SVGs. Preserve the root installation guide, icons actively used by the UI, all runtime Python modules, textures, metadata, the older saved-document compatibility bridge, and the existing geometry/export functions.
+- Preserve the parameter schema, frame geometry, CAM/export operations, editor behavior, and cache implementation of v0.92.89. Update the workbench version and correct the existing README manual link without adding new README sections.
+- Publish the refreshed 33-page help manual independently with the existing cover and chapter structure; add in-chapter guidance for LiPo airflow copying, automatic Keep/Randomize, Arc slot, blind pockets, machining, diagnostics and troubleshooting.
+
+## v0.92.89 — Workbench-wide performance and stability audit
+
+- Reduce editor refresh overhead: compute each control's final enable/disable state once, then update Qt widgets only if the state changed. Preserve all existing conditional visibility and parameter behavior.
+- Reuse immutable geometry signatures across dependent FreeCAD parts, even when appearance and optical-preview options differ from defaults. Avoid repeated canonicalization of hundreds of unchanged parameters.
+- Replace additional exact native solid-intersection calls with the existing conservative bounding-box-gated overlap helper. Every potential collision still uses an exact OpenCASCADE Boolean; assembly acceptance criteria remain unchanged.
+- Speed common dependency-cache bookkeeping by indexing parameter names once per memoization miss and recording read dependencies in stable order.
+- Avoid rebuilding optional hardware references twice on frame updates: the parameter proxy already synchronizes them during document recompute. Validate new frame parameters before restoring expensive geometry caches.
+- Cache the 2D top-preview rendering signature across pan/zoom repaint events while continuing to ignore optical-only controls.
+- Make dependent component failures visible and transactional: name the failed component in Report view and mark frame status invalid instead of silently clearing its solid while reporting a successful build. Report editor refresh errors and prevent building from a stale preview.
+- Preserve the last actual geometry-build diagnostics on view-only color changes. Add a read-only **BuildStageTimings** property under frame parameters, separating disk-cache, carbon, TPU, battery, collision validation, references and cache-save time.
+- Preserve the existing 0.92.88 parameters, cutout shapes (including Arc slot), pockets, CNC rules, exported geometry and all manuals/README. Headless tests validate parameter keys, cache dependencies, geometry grouping, generator proposals and source compilation; native FreeCAD timing and geometry behavior remain to be tested.
+
 ## v0.92.88 — CNC-safe curved arc slots in Airflow / outlines
 
 - Add **Arc slot** to the manual airflow shape library: a smooth, round-ended curved channel with configurable width, centre-to-centre chord length, signed bend (-170° to +170°), rotation, grid and positioning.

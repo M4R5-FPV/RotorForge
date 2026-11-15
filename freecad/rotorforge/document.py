@@ -141,10 +141,13 @@ def apply_document_appearance(settings,p):
     """View-only update: never assign a Shape or invoke a CAD builder."""
     if App.GuiUp:
         for role,obj in component_objects(settings).items():apply_material(obj.ViewObject,role,CARBON_ROLES,p)
-    for kind,name,value in (('App::PropertyFloat','LastBuildSeconds',0.),('App::PropertyStringList','RebuiltComponents',[]),('App::PropertyStringList','ReusedComponents',list(component_objects(settings)))):
+    # Appearance-only edits must preserve the timing and reuse diagnostics of
+    # the last actual geometry build. The old implementation zeroed them out.
+    for kind,name,value in (('App::PropertyFloat','LastBuildSeconds',0.),('App::PropertyStringList','RebuiltComponents',[]),('App::PropertyStringList','ReusedComponents',[]),('App::PropertyStringList','BuildStageTimings',[])):
         if name not in settings.PropertiesList:
-            settings.addProperty(kind,name,'09 Results','Incremental geometry build diagnostics',8);settings.setEditorMode(name,1)
-        if getattr(settings,name)!=value:setattr(settings,name,value)
+            settings.addProperty(kind,name,'09 Results','Incremental geometry build diagnostics',8)
+            settings.setEditorMode(name,1)
+            setattr(settings,name,value)
 
 class ParameterProxy:
     def __init__(self, obj, p):
@@ -179,7 +182,6 @@ class ParameterProxy:
             warnings = require_valid(p)
             from .geometry import prime_document_cache,build_report
             prime_document_cache(obj)
-            from .geometry import build_for_update
             pending=getattr(self,'_pending_report',None)
             if pending is None:
                 # A restored/externally edited document has not necessarily
@@ -194,11 +196,12 @@ class ParameterProxy:
             # immutable snapshot rather than re-reading hundreds of App
             # properties for each shape.
             self._document_build_parameters=p
-            for kind,name in (('App::PropertyFloat','LastBuildSeconds'),('App::PropertyStringList','RebuiltComponents'),('App::PropertyStringList','ReusedComponents')):
+            for kind,name in (('App::PropertyFloat','LastBuildSeconds'),('App::PropertyStringList','RebuiltComponents'),('App::PropertyStringList','ReusedComponents'),('App::PropertyStringList','BuildStageTimings')):
                 if name not in obj.PropertiesList:obj.addProperty(kind,name,'09 Results','Incremental geometry build diagnostics',8);obj.setEditorMode(name,1)
             obj.LastBuildSeconds=report.get('seconds',0.)
             obj.RebuiltComponents=report.get('rebuilt',[])
             obj.ReusedComponents=report.get('reused',[])
+            obj.BuildStageTimings=[f'{stage}: {seconds:.3f} s' for stage,seconds in report.get('stages',{}).items()]
             for kind,name,desc in [('App::PropertyFloat','FrameMassGrams','Estimated carbon + standoffs + LiPo pad + flexible parts; excludes screws and electronics'),('App::PropertyVector','FrameCG','Estimated bare frame centre of gravity in frame coordinates'),('App::PropertyFloat','FramePlusBatteryMassGrams','Frame estimate plus reference battery only'),('App::PropertyVector','FramePlusBatteryCG','Frame plus reference battery only; excludes electronics and motors')]:
                 if name not in obj.PropertiesList:
                     obj.addProperty(kind,name,'09 Results',desc,8);obj.setEditorMode(name,1)
@@ -367,8 +370,21 @@ class PartProxy:
                            'FrontArmBrace':'Old front clamp (replaced)','RearArmBrace':'Old rear clamp (replaced)'}[role]
                 if App.GuiUp:
                     obj.ViewObject.Visibility=role in carbon_roles(p)
-        except Exception:
-            # Never display an old cutting profile after a parameter edit fails.
+        except Exception as exc:
+            # Never silently turn a failed part into an empty shape while the
+            # parent still reports "Valid" and the editor commits a frame.
+            # Surface the specific part in Report view and mark the entire
+            # build invalid so create/update aborts its FreeCAD transaction.
+            if isinstance(exc, MemoryError):
+                raise
+            message = f'{getattr(obj, "FrameRole", obj.Name)}: {exc}'
+            App.Console.PrintError('RotorForge component build failed: '+message+'\n')
+            try:
+                parent = obj.Parameters
+                parent.Status = 'Invalid: ' + message.replace('\n', '; ')
+                parent.Warnings = [message]
+            except (AttributeError, RuntimeError):
+                pass
             obj.Shape = Part.Shape()
 
     def dumps(self):
@@ -501,9 +517,9 @@ def update_frame(settings, p):
             settings.Proxy._restored_signature=p.signature();settings.Proxy._last_full_signature=p.signature()
             apply_document_appearance(settings,p);doc.recompute();doc.commitTransaction();return
         except Exception:doc.abortTransaction();raise
+    require_valid(p)
     from .geometry import prime_document_cache
     prime_document_cache(settings)
-    require_valid(p)
     invalidate_failed_build(p)
     from .geometry import prepare_frame_build,build_report
     prepare_frame_build(p)
@@ -536,11 +552,9 @@ def update_frame(settings, p):
         for parent in settings.InList:
             if "Generator" in parent.PropertiesList and parent.Generator == settings:
                 parent.Label = "RotorForge — " + p.Layout + " — " + p.PlateDesign
-        from .hardware_refs import sync_refs,invalidate_refs
-        try:sync_refs(settings)
-        except Exception as reference_error:
-            invalidate_refs(settings)
-            App.Console.PrintWarning('RotorForge hardware references: '+str(reference_error)+'\n')
+        # ParameterProxy.execute() already synchronizes hardware reference
+        # geometry during doc.recompute(). Repeating it here rebuilt the same
+        # reference models and touched unnecessary objects on every update.
         doc.commitTransaction()
     except Exception:
         doc.abortTransaction()

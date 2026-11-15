@@ -20,9 +20,12 @@ path = "freecad/rotorforge/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["freecad", "rotorforge"]
+# Keep the bundled manual available in wheel installations as well.
+[tool.hatch.build.targets.wheel.force-include]
+"RotorForge_Help.pdf" = "freecad/rotorforge/resources/docs/RotorForge_Help.pdf"
 
 [tool.hatch.build.targets.sdist]
-include = ["/freecad", "/rotorforge", "/package.xml", "/Launch_RotorForge.FCMacro", "/RotorForge_Help.pdf", "/RotorForge_Installation.pdf", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproject.toml"]
+include = ["/freecad", "/rotorforge", "/package.xml", "/Launch_RotorForge.FCMacro", "/RotorForge_Installation.pdf", "/RotorForge_Help.pdf", "/README.md", "/CHANGELOG.md", "/LICENSE", "/pyproject.toml"]
 
 [project.urls]
 "Maintainer profile" = "https://www.diyfpv.com/profile/M4R5_FPV"
