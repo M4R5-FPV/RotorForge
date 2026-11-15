@@ -1,4 +1,5 @@
 """Shape controls shared by the editor and the integrated user guide."""
+from .camera_profiles import CAMERAS, CAMERA_CHOICES
 PLATE_SHAPES=('Rounded rectangle','Chamfered rectangle','Tapered front','Tapered rear','Hexagonal','Faceted shield','Octagonal')
 ARM_BEAM_SHAPES=('Straight','Root taper','Motor flare','Hourglass neck','Broad shoulder','Stepped beam')
 MOTOR_PAD_RELIEFS=('None','Neck slot','Twin neck holes','Twin neck slots')
@@ -23,14 +24,14 @@ OPTIONS={
  'MotorPadReliefLength':(6.,'Pad cutout slot length','Overall slot length along the motor-pad axis. Used by Neck slot and Twin neck slots; ignored for twin circular holes. Must be at least the width.'),
 }
 
-OPTIONS.update({name:(0.0,label,'Target plan-view corner radius in mm; zero keeps the finished plate unchanged. Rounds outer edges and outline notches after cutting. Closed cutout corners are included only when Round internal openings is enabled for this plate. Tight corners use smaller local radii to preserve edge lengths, mounting support and minimum web; constrained corners are reported. Circular drills, tangent slots, plate thickness and countersinks retain their geometry.') for name,label in [('BottomEdgeFillet','Bottom plate / cutout fillet'),('MidEdgeFillet','Mid plate / cutout fillet'),('TopEdgeFillet','Top plate / cutout fillet'),('ClampEdgeFillet','Clamp plate / cutout fillet')]})
+OPTIONS.update({name:(0.0,label,'Optional plan-view corner radius in mm; zero leaves convex exterior corners unchanged. Concave inside corners are always R0.5 mm or larger for a 1 mm CNC cutter. Rounds outer edges and outline notches after cutting. Closed cutout corners are included only when Round internal openings is enabled for this plate. Optional radii may be limited by geometry but never rounded below R0.5 mm; impossible internal corners report an error instead of silently violating the 1 mm cutter limit. Circular drills, tangent slots, plate thickness and countersinks retain their geometry.') for name,label in [('BottomEdgeFillet','Bottom plate / cutout fillet'),('MidEdgeFillet','Mid plate / cutout fillet'),('TopEdgeFillet','Top plate / cutout fillet'),('ClampEdgeFillet','Clamp plate / cutout fillet')]})
 
 OPTIONS['CameraForeAftOffset']=(0.0,'Camera forward / backward offset','Additional camera translation in frame Y: positive moves toward the front, negative toward the rear. Added to Automatic centre or Custom position. Moves the camera, fixing holes/slots and flexible interfaces together; captured tabs and tilt settings remain fixed. Automatic travel support can grow the middle side-wall bearing area; disable it to retain a fixed wall outline. Actual component and material clearances still apply.')
 
 OPTIONS['CameraAutoExtend']=(True,'Support camera travel automatically','Extend only the middle bearing area of each camera side plate when fore/aft travel needs more screw, slot or TPU flange support. Captured top/bottom tabs and their plate sockets keep their current positions. Disable to keep a fixed wall outline. Real body, edge and height clearances remain checked.')
-OPTIONS.update({key:(False,label,'Opt in to rounding closed airflow/cutout boundaries using the plate fillet radius. Disabled preserves internal openings; external corners and outline notches still use the plate fillet. Circular drills and tangent slots remain unchanged.') for key,label in [('BottomFilletOpenings','Round bottom internal openings'),('MidFilletOpenings','Round mid internal openings'),('TopFilletOpenings','Round top internal openings'),('ClampFilletOpenings','Round clamp internal openings')]})
+OPTIONS.update({key:(False,label,'Opt in to cosmetic rounding of closed airflow/cutout boundaries using the plate fillet radius. Even if disabled, sharp internal corners get the mandatory R0.5 mm milling fillet; external corners and outline notches still use the plate fillet. Circular drills and tangent slots remain unchanged.') for key,label in [('BottomFilletOpenings','Round bottom internal openings'),('MidFilletOpenings','Round mid internal openings'),('TopFilletOpenings','Round top internal openings'),('ClampFilletOpenings','Round clamp internal openings')]})
 
-OPTIONS.update({'ArmEdgeFillet':(0.0,'Arm corner fillet','Adaptive beam/motor-pad corner radius from the root outward. The root outline and mounting stock remain unchanged; radii reduce locally to preserve material.'),'ArmFilletOpenings':(False,'Fillet arm internal openings','Also round corners in arm cutouts. Disabled by default; circular fixing holes remain circular.')})
+OPTIONS.update({'ArmEdgeFillet':(0.0,'Arm corner fillet','Fillet arm beam and motor-side outline corners independently of the arm root. Bolt stock and joint-cell boundaries are protected; optional radii that cannot fit are skipped; internal R0.5 mm cutter reliefs remain mandatory.'),'ArmRootFillet':(0.0,'Arm root fillet','Separate fillet radius for arm-root junction and miter corners, independent of the arm beam fillet. On independent roots, rounding must preserve bolt support; mandatory inside R0.5 mm corners apply even at zero setting; fitted roots stay inside their own joint cells.'),'KeystoneFillet':(0.0,'Keystone corner fillet','Round the compact keystone corners AND the matching cutout corners in all four fitted arms. Pocket uses the same profile expanded by the keystone clearance, retaining mating fit. The matching pocket always has at least R0.5 mm inside corner clearance for a 1 mm cutter, or reports an error if the key is too small.'),'ArmFilletOpenings':(False,'Fillet arm internal openings','Also round corners in arm cutouts. Disabled by default for cosmetic rounding; all sharp inward corners still require R0.5 mm. Circular fixing holes remain circular.')})
 
 from .bottom_nose import NOSE_SHAPES
 OPTIONS.update({
@@ -39,7 +40,7 @@ OPTIONS.update({
  'BottomNoseTipWidth':(35.,'Front tip width','Width of the flat front tip as a percentage of the nose span. Used by flat-tip, swept, stepped and recessed profiles; other profiles ignore it.')})
 
 from .appearance import PRINTED_COLOURS
-OPTIONS['PrintedPartColour']=('Black','Printed part colour','Shared matte display colour for camera isolation pads/inserts, motor protectors, electronics side guards and the LiPo pad. Changes appearance only; dimensions, mass and cutting/export profiles are unchanged.',tuple(PRINTED_COLOURS))
+OPTIONS['PrintedPartColour']=('Black','TPU / printed part colour','Use the same 13 FPV propeller colour choices for all TPU and soft parts: guards, camera inserts, motor protectors, rear antenna holders, front bumper and LiPo pad. Clear and smoke finishes have approximate viewport transparency. Original Yellow and Grey remain for saved designs. Display only: no changes to geometry, mass or exports.',tuple(PRINTED_COLOURS))
 
 from .nut_seats import FIELDS as NUT_FIELDS
 OPTIONS.update(NUT_FIELDS)
@@ -53,10 +54,10 @@ for prefix,plate in (('BottomRear','Bottom'),('MidRear','Mid'),('TopRear','Top')
  OPTIONS[prefix+'Shape']=('Straight','Rear edge shape','Trim the rear inside its existing reach. Mounting locations and required material remain checked. Bottom rear shaping is available only in two-plate mode; mid rear shaping only in three-plate mode.',REAR_SHAPES)
  OPTIONS[prefix+'Depth']=(6.,'Rear edge depth','Fore/aft depth of the rear shaping zone in mm; never adds stock beyond the rear reach.')
  OPTIONS[prefix+'TipWidth']=(35.,'Rear feature width','Feature half-width as a percentage of the rear half-span. Controls flats, stepped tips and central cable/recess openings where applicable.')
-OPTIONS['CameraTabBottomRearOffset']=(0.,'Bottom rear tab offset','Independent tab shift along frame Y in mm: positive is forward. Matching sockets and cutter reliefs follow. Camera, side-wall position and tilt stay fixed. Keep the tab inside its contact edge.')
-OPTIONS['CameraTabBottomFrontOffset']=(0.,'Bottom front tab offset','Independent tab shift along frame Y in mm: positive is forward. Matching sockets and cutter reliefs follow. Camera, side-wall position and tilt stay fixed. Keep the tab inside its contact edge.')
-OPTIONS['CameraTabTopRearOffset']=(0.,'Top rear tab offset','Independent tab shift along frame Y in mm: positive is forward. Matching sockets and cutter reliefs follow. Camera, side-wall position and tilt stay fixed. Keep the tab inside its contact edge.')
-OPTIONS['CameraTabTopFrontOffset']=(0.,'Top front tab offset','Independent tab shift along frame Y in mm: positive is forward. Matching sockets and cutter reliefs follow. Camera, side-wall position and tilt stay fixed. Keep the tab inside its contact edge.')
+OPTIONS['CameraTabBottomRearOffset']=(0.,'Bottom rear mounting offset','Offset from the automatically supported screw position on the finished carbon plate. Positive moves the hole forward, negative rearward. The TPU cage rear reach does not move the mounting holes.')
+OPTIONS['CameraTabBottomFrontOffset']=(0.,'Bottom front mounting offset','Offset from the automatically supported front mounting hole on the finished plate. Positive moves forward, negative rearward. Keep at least 2 mm of carbon outside the M3 hole.')
+OPTIONS['CameraTabTopRearOffset']=(0.,'Top rear mounting offset','Offset from the automatically supported screw position on the finished carbon plate. Positive moves the hole forward, negative rearward. The TPU cage rear reach does not move the mounting holes.')
+OPTIONS['CameraTabTopFrontOffset']=(0.,'Top front mounting offset','Offset from the automatically supported front mounting hole on the finished plate. Positive moves forward, negative rearward. Keep at least 2 mm of carbon outside the M3 hole.')
 
 from .bottom_nose import TOP_FRONT_SHAPES
 OPTIONS.update({
@@ -68,11 +69,28 @@ OPTIONS.update({
 
 OPTIONS['TopFrontClearance']=(.5,'Camera recess clearance','Extra clearance on each side of the camera body when Camera recess width is automatic. Used only by top-front camera recesses; custom width is used directly.')
 
+from .prop_palette import PROP_FINISH_CHOICES
+
+OPTIONS.update({
+ 'CameraPhysicalProfile': ('Custom measurements','Physical camera profile',
+    'Choose from analog and digital cameras, including DJI O4 Pro. DJI O4 Pro uses its dedicated camera/air-unit model with 16 mm vertical screw pitch and 16 mm rear thread inset. Body depth excludes the lens; unknown side offsets remain editable estimates. Custom measurements do not overwrite your settings.',
+    CAMERA_CHOICES),
+ 'CameraSideScrewRearInset': (0.,'Screw-line distance from housing rear',
+    'Millimetres from the REAR FACE of the camera body to the M2 side screw centre. For a custom camera, measure this with calipers. 0 retains legacy centred screws for old presets. A positive value controls the actual mounting holes, TPU inserts and reference. Manufacturer offsets not explicitly dimensioned are estimates.'),
+ 'CameraLensProjection': (0.,'Lens projection in front of housing',
+    'Lens assembly protrusion in front of the housing in mm, NOT total camera depth. Zero uses a size-specific estimate. Manufacturer overall lengths include the casing and are often not independently dimensioned.'),
+})
+
 OPTIONS.update({
  'DetailedMotorReferences':(False,'Detailed motor references','Replace the cylinders with radial mounting feet, a tall stator and copper windings, bell, M5 shaft and self-locking nut. Diameter/height describe the bell body; the shaft and nut extend above it. Display only.'),
  'DetailedPropReferences':(False,'Three-blade prop references','Curved three-blade references with 3.7-inch geometric pitch, 6 mm hubs and 5.1 mm bores, seated directly on the motor bells. Adjacent motors have mirrored props. The simple-disc height is ignored; clearance uses the full swept blade-height range.'),
+ 'PropReferenceColour':('Smoke grey','Detailed propeller colour','Commercial FPV prop-inspired polycarbonate finishes. Clear and smoke variants use extra viewport transparency. Applies to all four detailed props, including hubs; reference-only and does not affect geometry or export.',PROP_FINISH_CHOICES),
  'DetailedStackReference':(False,'Detailed FC / ESC stack','Display two component-populated PCBs and silicone grommets at the existing stack mounting pattern and height. A generic visual model, not an exact electronics footprint.'),
- 'DetailedCameraReference':(False,'Detailed FPV camera','Display a shaped camera housing, side fixing recesses and stepped lens with glass. Keeps the current body size, camera position and tilt. The original envelope remains the clearance check.')})
+ 'DetailedCameraReference':(False,'Detailed FPV camera','Show a detailed, manufacturer-inspired analog or digital FPV camera: rounded housing, fixing inserts, lens barrel, front ring and rear connector. The camera reference is visual only; camera collision uses separate dimension-driven shaped housing and lens.'),
+ 'CameraReferenceStyle':('Automatic','Detailed camera appearance',
+    'Visual styling only; Automatic follows the selected physical camera. Actual screw positions, camera fit and camera view optics use the physical profile. DJI models remain unchanged.',
+    ('Automatic',)+tuple(CAMERAS)),
+})
 
 OPTIONS.update({
  'DetailedVTXReference':(False,'Detailed VTX reference','Commercial-style enclosed analog or digital VTX reference, with an optional populated exposed analog PCB. Seated parts, clear mounting bores and independent analog/digital geometry. Visualization only.'),
@@ -94,3 +112,18 @@ OPTIONS.update({
  'ELRSTReferenceFeedPreset':('70 mm','ELRS coax nominal feed length (legacy)','Saved for older JSON files; the reference lead now stops automatically 3 mm before the VTX board. Not editable.',('40 mm','70 mm','85 mm','95 mm','Custom')),
  'ELRSTReferenceStemLength':(70.,'Custom ELRS coax feed length (legacy)','Retained for loading older frame settings but no longer controls the visible coax. The reference automatically stops before the VTX.'),
 })
+
+OPTIONS.update({
+ 'ArmTipBumperStyle':('Disabled','Arm tip bumper','A protective cap with a continuous outward motor-pad shoulder. Round is broad and circular; Oval is narrower and elongated. Tapered cap has a narrower flat nose; Shallow arch has a broad gently bowed front.',('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch')),
+ 'ArmTipBumperReach':(5.,'Bumper extension','Outward cap reach. Front/rear and sideways modes add this amount in the selected direction while keeping the root pad-aligned. Range 1–20 mm.'),
+ 'ArmTipBumperWidth':(16.,'Bumper width','Maximum cap width, capped at 85% of motor pad diameter. Oval cap uses 72% of this width for a narrower outline. Range 4–40 mm.'),
+ 'FlexProtectorBumperSleeve':(True,'Cover arm tip bumper','Always protect the sides of the entire carbon motor pad and arm-tip bumper. Enable to also extend TPU over the top of the tip as a sleeve; disable for side-and-bottom protection only.'),
+})
+
+from .cage_options import OPTIONS as CAGE_OPTIONS
+OPTIONS.update(CAGE_OPTIONS)
+
+OPTIONS.update({
+ 'ArmTipBumperDirection':('Pad direction','Bumper extension direction','The root stays aligned with the pad. Front/rear or sideways adds reach in that frame direction to the outward-growing cap; it does not rotate or relocate the bumper.',('Pad direction','Front / rear','Sideways outwards')),
+ 'ArmTipBumperCutout':(False,'Bumper outline cutout','Opening follows the inset tip outline and expanded motor-pad envelope. Requires a continuous 2 mm radial opening width and at least 4 mm2 area; motor holes stay unchanged.'),
+ 'ArmTipBumperCutoutWall':(1.5,'Bumper cutout wall','Wall around the tip and motor-pad envelope, in mm; at least the global minimum web. Increase reach/width if the 2 mm opening and 4 mm2 area cannot fit.')})

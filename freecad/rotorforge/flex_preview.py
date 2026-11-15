@@ -5,6 +5,16 @@ from .flex import insert_rect,camera_interface_polygon
 from .fpv import camera_mounts,camera_pivot_height
 
 def camera_interface_path(p,w,h,lip=0.):
+ if p.FPVSystemProfile=='DJI O4 Air Unit Pro' and p.FlexCameraMode!='Hard mount':
+  path=QtGui.QPainterPath();cy=insert_rect(p)[0]
+  from .cage_extensions import o4_tracks,track_points
+  radius=(p.O4InsertDiameter if p.FlexCameraMode=='Captured inserts' else p.O4PadDiameter)/2+lip
+  for track in o4_tracks(camera_mounts(p)[0]):
+   points=[(y-cy,z-p.BottomThickness) for y,z in track_points(track)]
+   if len(points)==1:path.addEllipse(QtCore.QPointF(*points[0]),radius,radius)
+   else:
+    for a,b in zip(points,points[1:]):path=path.united(capsule_path(a,b,radius))
+  return path
  from .camera_interface import profile_corners
  path=QtGui.QPainterPath();cy,cz,_,_=insert_rect(p);corners=profile_corners(p,w,h)
  def local(v):return (v[0]-cy,v[1]-p.BottomThickness)
@@ -34,7 +44,18 @@ def flex_path(p,role):
   _,cz,w,h=insert_rect(p)
   if p.FlexCameraMode=='Captured inserts':path=camera_interface_path(p,w,h,p.FlexInsertLip)
   else:path=camera_interface_path(p,p.FlexPadWidth,p.FlexPadHeight)
-  mount=camera_mounts(p)[0];cy=insert_rect(p)[0]
+  mount=next(m for m in camera_mounts(p) if m['role'].endswith('Left' if role.endswith('Left') else 'Right'));cy=insert_rect(p)[0]
+  if p.CameraCageStyle=='TPU cage' and p.FPVSystemProfile!='DJI O4 Air Unit Pro':
+   from .tpu_isolation_layout import tpu_isolator_datum
+   from dataclasses import replace
+   from .camera_interface import profile_corners
+   # Use the user's selected TPU interface outline (distinct from carbon).
+   q=p
+   width,height=(p.FlexInsertWidth,p.FlexInsertHeight) if p.FlexCameraMode=='Captured inserts' else (p.FlexPadWidth,p.FlexPadHeight)
+   path=camera_interface_path(q,width,height,p.FlexInsertLip if p.FlexCameraMode=='Captured inserts' else 0.)
+   new_y,new_z=tpu_isolator_datum(p,mount)
+   shift=QtGui.QTransform();shift.translate(new_y-cy,new_z-insert_rect(p)[1])
+   path=shift.map(path)
   for y,z in mount['side_holes']:
    hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(y-cy,z-p.BottomThickness),p.CameraSideHoleDiameter/2,p.CameraSideHoleDiameter/2);path=path.subtracted(hole)
   for arc in mount['side_arcs']:
@@ -47,7 +68,7 @@ def flex_path(p,role):
   from .motor_pads import motor_pad_unit
   arm=next(a for a in arm_layouts(p) if role=='MotorProtector'+a['name']);ux,uy=motor_pad_unit(p,arm)
   t=QtGui.QTransform();t.translate(*arm['motor']);t.rotate(math.degrees(math.atan2(uy,ux)))
-  pad=t.map(motor_pad_path(p));stroke=QtGui.QPainterPathStroker();stroke.setWidth(2*(p.FlexProtectorFit+p.FlexProtectorWall));path=pad.united(stroke.createStroke(pad))
+  pad=t.map(motor_pad_path(p,arm));stroke=QtGui.QPainterPathStroker();stroke.setWidth(2*(p.FlexProtectorFit+p.FlexProtectorWall));path=pad.united(stroke.createStroke(pad))
   from .protection_layout import motor_service_slots
   for a,b,r in motor_service_slots(p,arm):path=path.subtracted(capsule_path(a,b,r))
   for x,y in arm['motor_holes']:

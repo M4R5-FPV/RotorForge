@@ -4,9 +4,32 @@ from .flex_options import FLEX_ROLES
 
 def soft_camera(p):return p.FPVEnabled and p.FlexCameraMode!='Hard mount'
 def camera_inner(p):
+ # All TPU mounting modes retain the exact same camera-facing wall plane.
+ # Soft pads are locally recessed INTO that wall; captured cassettes only
+ # replace stock in their through-openings. Do not move the whole inner wall.
+ if getattr(p, 'CameraCageStyle', '') == 'TPU cage':
+  return float(p.CameraWidth)/2 + float(p.CameraTPUHardClearance)
  return p.CameraWidth/2+(p.FlexPadThickness-p.FlexPadPreload if soft_camera(p) else p.CameraSideClearance/2)
+def tpu_structural_inner(p):
+    """Stable TPU structural wall datum, independent of attachment mode.
+
+    The removable soft interface occupies the space inside this wall. For a
+    direct screw mount, a local integrated camera bearing land bridges the
+    difference to the real camera side, avoiding a full-height wall move.
+    """
+    if getattr(p, 'CameraCageStyle', '') != 'TPU cage':
+        return camera_inner(p)
+    return float(p.CameraWidth)/2 + float(p.CameraTPUHardClearance)
+
+
+def tpu_hard_bearing(p):
+    """Camera-side X and supporting shell X (unsigned, millimetres)."""
+    camera_face=float(p.CameraWidth)/2+float(p.CameraTPUHardClearance)
+    return camera_face,tpu_structural_inner(p)
+
+
 def flex_roles(p):
- return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper else ())+(('RearAntennaMount',) if p.FlexRearAntenna else ())+(('ELRSAntennaMount',) if p.FlexELRSEnabled else ())
+ return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper and p.CameraCageStyle!='TPU cage' else ())+(('RearAntennaMount',) if p.FlexRearAntenna else ())+(('ELRSAntennaMount',) if p.FlexELRSEnabled else ())
 
 def insert_rect(p):
  from .fpv import camera_position_y,camera_pivot_height
@@ -23,6 +46,12 @@ def validate_flex(p):
  numeric=[k for k in p.__dataclass_fields__ if k.startswith('Flex') and k not in ('FlexAntennaHolderOffset','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset') and isinstance(getattr(p,k),(float,int)) and not isinstance(getattr(p,k),bool)]
  if any(not math.isfinite(getattr(p,k)) or getattr(p,k)<0 for k in numeric):return ['Flexible-part dimensions must be finite and non-negative.'],[]
  if any(not math.isfinite(getattr(p,k)) for k in ('FlexAntennaHolderOffset','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardUSBY','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset')):errors.append('Opening offsets must be finite.')
+ if p.FlexBumperVariant=='Integrated camera cage bumper' and p.FlexFrontBumper:
+  if not p.FPVEnabled:errors.append('Integrated camera cage bumper requires FPV camera enabled.')
+  if p.CameraCageStyle=='TPU cage':errors.append('Integrated bumper requires flat camera side plates; disable the separate TPU camera cage.')
+ if p.FlexBumperCameraFrontProjection > 8.:errors.append('Camera cage front projection must be between 0 and 8 mm.')
+ if p.FlexBumperCameraBlendReach > 20:errors.append('Camera shoulder inward reach must be 0 (full) or between 1 and 20 mm.')
+ if 0<p.FlexBumperCameraBlendReach<1:errors.append('Camera shoulder inward reach must be 0 (full) or at least 1 mm.')
  if p.FlexFrontBumper:
   from .parameters import bottom_bounds
   rear,front=bottom_bounds(p)
@@ -35,31 +64,73 @@ def validate_flex(p):
   if 0<p.FlexBumperWidth<8:errors.append('Bumper toe width must be zero for automatic sizing or at least 8 mm.')
   if p.FlexBumperShape!='Follow bottom plate' and p.FlexBumperProjection<.5:errors.append('Toe projection must be at least 0.5 mm for a shaped bumper.')
  if p.FlexDensity<=0:errors.append('Flexible material density must be positive.')
- if soft_camera(p):
+ if soft_camera(p) and p.FPVSystemProfile!='DJI O4 Air Unit Pro':
   from .fpv import camera_mounts,camera_wall_interior,camera_angles,camera_centre_offset,camera_screw_offsets
   if p.FlexPadThickness<=p.FlexPadPreload or p.FlexPadThickness<.5:errors.append('Camera pad thickness must exceed compression and be at least 0.5 mm.')
   if p.FlexPadPreload>p.FlexPadThickness*.4:errors.append('Camera pad compression must not exceed 40% of its free thickness.')
   width,height=(p.FlexInsertWidth,p.FlexInsertHeight) if p.FlexCameraMode=='Captured inserts' else (p.FlexPadWidth,p.FlexPadHeight)
   if min(width,height)<p.CameraSideHoleDiameter+2*p.MinimumWeb:errors.append('Camera pad/insert needs more material around its screw pattern.')
-  for angle in camera_angles(p):
-   dy,dz=camera_centre_offset(p,angle)
-   for y,z in camera_screw_offsets(p,angle):
-    if abs(y+dy)+p.CameraSideHoleDiameter/2+p.MinimumWeb>width/2 or abs(z+dz)+p.CameraSideHoleDiameter/2+p.MinimumWeb>height/2:
-     errors.append('The camera pad/insert must contain the complete existing tilt screw paths; increase its length or height.')
-  if p.FlexInterfaceShape=='Side plate outline':
+  points=[(y+dy,z+dz) for angle in camera_angles(p)
+          for dy,dz in (camera_centre_offset(p,angle),)
+          for y,z in camera_screw_offsets(p,angle)]
+  web=p.CameraSideHoleDiameter/2+p.MinimumWeb
+  needed_w=2*(max(abs(y) for y,z in points)+web)
+  needed_h=2*(max(abs(z) for y,z in points)+web)
+  if width+1e-7<needed_w or height+1e-7<needed_h:
+   mode='Captured insert' if p.FlexCameraMode=='Captured inserts' else 'Compression pad'
+   errors.append(f'{mode} dimensions {width:g} x {height:g} mm cannot surround the measured camera '
+                 f'screw pattern across the configured tilt(s). Needs at least '
+                 f'{needed_w:.1f} x {needed_h:.1f} mm including screw bore and web. '
+                 'Use Fit camera to enlarge the pad/insert or enter the measured screw spacing. '
+                 'Changing preview tilt alone does not alter an adjustable mount range.')
+  if p.FlexInterfaceShape=='Side plate outline' and p.CameraCageStyle!='TPU cage':
    from .plate_profiles import polygon_interior_distance
    outline=camera_interface_polygon(p,width,height)
    for angle in camera_angles(p):
     dy,dz=camera_centre_offset(p,angle)
     cy,cz,_,_=insert_rect(p)
     for y,z in camera_screw_offsets(p,angle):
-     if polygon_interior_distance((cy+y+dy,cz+z+dz),outline)<p.CameraSideHoleDiameter/2+p.MinimumWeb:errors.append('The scaled side-plate interface needs more material around the tilt paths; enlarge its length or height.')
+     if polygon_interior_distance((cy+y+dy,cz+z+dz),outline)<p.CameraSideHoleDiameter/2+p.MinimumWeb:
+      if not any('scaled side-plate interface' in msg for msg in errors):
+       errors.append('The scaled side-plate interface needs more material around the tilt paths; enlarge its length or height.')
   if p.FlexCameraMode=='Captured inserts' and not .25<=p.FlexInsertCornerRadius<=min(width,height)/2:errors.append('Insert opening corner radius must be at least 0.25 mm and no more than half the smaller opening dimension.')
-  cy,cz,_,_=insert_rect(p);margin=p.FlexInsertLip if p.FlexCameraMode=='Captured inserts' else 0.
+  # The TPU cage is lofted from the *finished* top/bottom plate contours,
+  # not camera_mounts().wall_profile. That legacy polygon must never be
+  # used to reject its isolation pocket before the actual solid is built.
+  # The resulting cage solid is still validated after the pocket Boolean.
+  if p.CameraCageStyle!='TPU cage':
+   cy,cz,_,_=insert_rect(p);margin=0.
+   for mount in camera_mounts(p):
+    if any(camera_wall_interior((cy+y,cz+z),mount)<p.CameraCageEdgeWeb-1e-7 for y in (-width/2-margin,width/2+margin) for z in (-height/2-margin,height/2+margin)):
+     errors.append('Camera pad/insert needs more supporting side-plate area; enlarge the cage or move the camera within it.')
+  if p.FlexCameraMode=='Captured inserts' and (p.FlexInsertLip<.5 or not 0<=p.FlexInsertFit<=.25):errors.append('Captured inserts require a retaining lip of at least 0.5 mm and a fit clearance from 0 to 0.25 mm.')
+  if p.CameraCageStyle=='Carbon side plates' and p.FlexCameraMode=='Captured inserts':
+   from .carbon_insert_recess import recess_span
+   for mount,sign in zip(camera_mounts(p),(-1,1)):
+    try:recess_span(p,mount,sign)
+    except ValueError as exc:errors.append(str(exc))
+  if p.CameraCageStyle=='TPU cage' and p.FlexCameraMode=='Captured inserts':
+   # The TPU cage uses full-wall removable cassettes. The optional outer
+   # flange recess requires a real axial land, not the removed blind pocket.
+   from .tpu_captured_layout import insert_x_spans
+   for mount,sign in zip(camera_mounts(p),(-1,1)):
+    try:insert_x_spans(p,mount,sign)
+    except ValueError as exc:errors.append(str(exc))
+
+ if soft_camera(p) and p.FPVSystemProfile=='DJI O4 Air Unit Pro':
+  from .fpv import camera_mounts,camera_wall_interior
+  if p.FlexPadThickness<=p.FlexPadPreload or p.FlexPadThickness<.5:errors.append('O4 insert contact thickness must exceed preload and be at least 0.5 mm.')
+  if (p.O4InsertDiameter/2-p.FlexInsertFit if p.FlexCameraMode=='Captured inserts' else p.O4PadDiameter/2)-p.CameraSideHoleDiameter/2<.8:errors.append('O4 inserts need at least 0.8 mm around each screw bore.')
+  if p.FlexCameraMode=='Captured inserts' and (p.FlexInsertLip<.5 or p.O4InsertDiameter+2*p.FlexInsertLip>=16.):errors.append('O4 insert lips must be at least 0.5 mm and leave the two inserts separate.')
   for mount in camera_mounts(p):
-   if any(camera_wall_interior((cy+y,cz+z),mount)<p.MinimumWeb for y in (-width/2-margin,width/2+margin) for z in (-height/2-margin,height/2+margin)):
-    errors.append('Camera pad/insert needs more supporting side-plate area; enlarge the cage or move the camera within it.')
-  if p.FlexCameraMode=='Captured inserts' and (p.FlexInsertLip<.5 or p.FlexInsertFit>=min(width,height)/4):errors.append('Insert retaining lip must be at least 0.5 mm and fit clearance smaller than a quarter of the opening.')
+   from .cage_extensions import o4_tracks,track_points
+   required=(p.O4InsertDiameter/2+p.FlexInsertLip if p.FlexCameraMode=='Captured inserts' else p.O4PadDiameter/2)+p.CameraCageEdgeWeb
+   centres=tuple(v for track in o4_tracks(mount) for v in track_points(track))
+   actual=min(camera_wall_interior(v,mount) for v in centres)
+   if actual<required-1e-7:
+    errors.append(f'O4 insert opening needs {required:.2f} mm from screw centre to cage edge; '
+                  f'only {actual:.2f} mm is available. Use Fit camera to resize the O4 soft inserts/pads, '
+                  f'or switch to a hard mount; retain at least 2 mm of cage edge web.')
  if p.FlexMotorProtectors:
   if min(p.FlexProtectorWall,p.FlexProtectorFloor)<.8:errors.append('Motor protector walls and floor must be at least 0.8 mm.')
   if p.FlexProtectorFit>2:errors.append('Motor protector fit clearance must be at most 2 mm.')
@@ -151,6 +222,9 @@ def validate_flex(p):
 
 def camera_interface_polygon(p,width,height):
  """Plain side-wall silhouette scaled around the screw pivot; no tab tongues."""
+ if p.CameraCageStyle=='TPU cage' and p.FlexInterfaceShape!='Rounded rectangle':
+  from .tpu_isolation_layout import tpu_interface_polygon
+  return tpu_interface_polygon(p,width,height)
  if p.FlexInterfaceShape!='Side plate outline':return ()
  from .fpv import camera_mounts
  cy,cz,_,_=insert_rect(p);points=camera_mounts(p)[0]['wall_profile']

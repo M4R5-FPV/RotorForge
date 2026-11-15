@@ -21,20 +21,50 @@ def motor_protectors(p,carbon=None,roles=None):
  result={};z=plate_levels(p)['arm_z'];floor=p.FlexProtectorFloor;foot=p.FlexProtectorLanding
  for arm in arm_layouts(p):
   if roles is not None and 'MotorProtector'+arm['name'] not in roles:continue
+  from dataclasses import replace
+  # The carbon arm-tip outline is ALWAYS protected by the TPU side shell.
+  # FlexProtectorBumperSleeve controls only the optional material ABOVE the
+  # carbon tip; it must never replace the pad/tip footprint with a plain pad.
   pad=outer_face(motor_pad(p,arm,0));outer=offset_face(pad,p.FlexProtectorFit+p.FlexProtectorWall)
-  base=outer.extrude(App.Vector(0,0,floor+p.ArmThickness-.2));base.translate(App.Vector(0,0,z-floor))
+  sleeve=p.FlexProtectorBumperSleeve and p.ArmTipBumperStyle!='Disabled'
+  shell_height=floor+p.ArmThickness+(p.FlexProtectorFit+.8 if sleeve else -.2)
+  base=outer.extrude(App.Vector(0,0,shell_height));base.translate(App.Vector(0,0,z-floor))
   source=carbon.get('Arm'+arm['name']) if carbon else union([motor_pad(p,arm,z),arm_stem(p,arm,z,p.ArmThickness)])
-  cavity=offset_face(outer_face(source),p.FlexProtectorFit).extrude(App.Vector(0,0,p.ArmThickness+1));cavity.translate(App.Vector(0,0,z))
+  cavity=offset_face(outer_face(source),p.FlexProtectorFit).extrude(App.Vector(0,0,p.ArmThickness+(p.FlexProtectorFit if sleeve else 1)));cavity.translate(App.Vector(0,0,z))
   base=base.cut(cavity)
+  if sleeve:
+   # Keep the complete protector envelope, including the pad-to-tip fairing.
+   # A mask from the first bumper polygon truncates the sleeve to the cap
+   # width and drops the blended shoulders. Motor clearance below and the
+   # outward-only limit later define where the upper sleeve is permitted.
+   original=outer_face(motor_pad(replace(p,ArmTipBumperStyle='Disabled'),arm,0))
+   clearance=offset_face(original,p.FlexProtectorFit).extrude(App.Vector(0,0,3))
+   clearance.translate(App.Vector(0,0,z+p.ArmThickness-.2));base=base.cut(clearance)
+   motor_clearance=Part.makeCylinder(p.MotorReferenceDiameter/2+p.FlexProtectorFit, shell_height+2, App.Vector(*arm['motor'],z+p.ArmThickness-.2))
+   base=base.cut(motor_clearance)
   if foot:
    inner=offset_face(pad,p.FlexProtectorFit+.4)
    ring=outer.cut(inner).extrude(App.Vector(0,0,foot+.05));ring.translate(App.Vector(0,0,z-floor-foot));base=base.fuse(ring)
+  if sleeve:
+   # Keep the normal protector at the rear; restrict only the upper lip.
+   # Cutting the complete shell with a centre-plane tears through the
+   # offset side wall on rotated pads. The lower wall and sole stay whole.
+   mx,my=arm['motor'];ux,uy=motor_pad_unit(p,arm);vx,vy=-uy,ux
+   pts=[App.Vector(mx+ux*a+vx*b,my+uy*a+vy*b,z+p.ArmThickness-.2) for a,b in ((0,-500),(500,-500),(500,500),(0,500))]
+   outward=Part.Face(Part.makePolygon(pts+[pts[0]])).extrude(App.Vector(0,0,shell_height+3))
+   lower=Part.makeBox(2000,2000,floor+foot+p.ArmThickness-.2,App.Vector(-1000,-1000,z-floor-foot))
+   base=base.common(lower).fuse(base.common(outward))
   low=z-floor-foot-1;height=p.ArmThickness+floor+foot+2
   radius=p.MotorHoleDiameter/2+.15 if p.FlexProtectorRetention=='Motor screws' else max(3.,p.MotorHoleDiameter/2+.2)
   tools=[Part.makeCylinder(radius,height,App.Vector(x,y,low)) for x,y in arm['motor_holes']]
   tools.append(Part.makeCylinder(p.MotorCenterDiameter/2+.4,height,App.Vector(*arm['motor'],low)))
   from .protection_layout import motor_service_slots
-  tools.extend(capsule(a,b,r,low,height) for a,b,r in motor_service_slots(p,arm))
+  # Access slots open the sole, not the sleeve's load-bearing side wall.
+  slots=[capsule(a,b,r,low,height) for a,b,r in motor_service_slots(p,arm)]
+  if sleeve:
+   slot_floor=Part.makeBox(2000,2000,floor+foot+1,App.Vector(-1000,-1000,low))
+   slots=[tool.common(slot_floor) for tool in slots]
+  tools.extend(slots)
   base=base.cut(Part.makeCompound(tools)).removeSplitter()
   if not base.isValid() or len(base.Solids)!=1:raise ValueError('Motor protector '+arm['name']+' is disconnected; enlarge the pad or reduce the floor openings.')
   result['MotorProtector'+arm['name']]=base
@@ -144,6 +174,15 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
     raise ValueError('Camera side plates need at least 2 mm forward of the foremost standoffs for a full side closure.')
    for start,(z,end) in zip(closure['starts'],closure['sections']):
     t=(z-low)/(high-low);inside=[];outside=[]
+    landing_x=closure['x']
+    if p.CameraCageStyle=='TPU cage':
+     from .camera_cages import joined_cage
+     stock=carbon.get('CameraMountLeft' if joined_cage(p) or sign<0 else 'CameraMountRight')
+     if stock is not None and not stock.isNull():
+      probe_z=max(p.BottomThickness+.001,min(z,g['inner_top']-.001))
+      section=stock.common(Part.makeLine(App.Vector(-500,end,probe_z),App.Vector(500,end,probe_z)))
+      xs=[v.Point.x for v in section.Vertexes if sign*v.Point.x>0]
+      if xs:landing_x=max(xs) if sign>0 else min(xs)
     for i in range(13):
      s=i/12;y=start+(end-start)*s
      xb=edge(bottom_face,y,sign);xt=edge(upper_face,y,sign)
@@ -152,7 +191,7 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
      if xb is None or xt is None:raise ValueError('Full side closure needs bottom and top plate support up to the camera side plates.')
      x=guard_wall_inner_x(p,xb*(1-t)+xt*t,sign)
      blend=max(0.,min(1.,(y-(end-14))/14));blend=blend*blend*(3-2*blend)
-     x=x*(1-blend)+closure['x']*blend
+     x=x*(1-blend)+landing_x*blend
      inside.append(App.Vector(x,y,z));outside.append(App.Vector(x+sign*w,y,z))
     layers.append((inside,outside))
    # Explicit planar faces avoid coincident ruled-loft surface failures at

@@ -10,6 +10,7 @@ BLACK=(.11,.125,.14);METAL=(.52,.55,.59);COPPER=(.68,.31,.12)
 PCB=(.08,.32,.23);SILICONE=(.15,.17,.19);CHIP=(.075,.085,.09)
 PROP=(.18,.57,.62);GLASS=(.12,.27,.36)
 from .reference_options import (FLAGS,SIMPLE,enabled,SHAFT_DIAMETER,PROP_BORE,PROP_HUB_HEIGHT,LOCKNUT_AF,LOCKNUT_HEIGHT,blade_pitch_angle,shaft_top)
+from .prop_palette import prop_finish
 def box(x,y,z,a,b,c):return Part.makeBox(a,b,c,App.Vector(x,y,z))
 def cyl(radius,height,x=0,y=0,z=0):return Part.makeCylinder(radius,height,App.Vector(x,y,z))
 def ring(ro,ri,h,z=0,x=0,y=0):return cyl(ro,h,x,y,z).cut(cyl(ri,h+.02,x,y,z-.01))
@@ -294,46 +295,289 @@ def vtx_model(w,l,h,holes,digital,style='Automatic'):
   add(box(x,l*.5-hd*.18,hz+hh*.37,hw*.05,hd*.065,hh*.12),gold)
  return compound(items)
 
-@lru_cache(maxsize=16)
-def lipo_model(w,l,h):
- lead=min(12.,l*.18);length=l;body=chamfer_box(w*.992,length-2*l*.035,h*.98,corner=min(w,l)*.09);items=[(body,(.82,.34,.07))]
- # Shrink-wrap end protection, cell seam lines and a printed top label.
- for y in (-l/2,-l/2+length-l*.035):items.append((box(-w*.49,y,.03*h,w*.98,l*.035,h*.94),BLACK))
- for i in range(1,6):
-  for x in (-w/2,w/2-w*.004):items.append((box(x,-l/2+l*.04,h*i/6,w*.004,length-l*.08,h*.007),(.34,.22,.15)))
- items.append((box(-w*.32,-length*.25,h-.08*h,w*.64,length*.5,.077*h),BLACK))
- items.append((box(-w*.22,-length*.20,h-.005*h,w*.44,length*.09,.005*h),(.75,.77,.78)))
- # Schematic leads exit the nominal pack body; they are not a routing model.
- plug_w=min(w*.36,12.);plug_h=min(h*.28,8.);wire_r=min(1.2,w*.025,h*.04);z=h*.58
- for x,c in ((-plug_w*.22,(.65,.06,.04)),(plug_w*.22,BLACK)):
-  items.append((Part.makeCylinder(wire_r,lead*.68+.1,App.Vector(x,l/2-.1,z),App.Vector(0,1,0)),c))
- plug=chamfer_box(plug_w,lead*.36,plug_h,z-plug_h/2,min(1.,plug_w*.12));plug.translate(App.Vector(0,l/2+lead*.82,0));items.append((plug,(.76,.53,.13)))
- # Frame front is +Y: put the leads at the rear before user rotation.
+@lru_cache(maxsize=32)
+def lipo_model(w,l,h,cells=6):
+ """Visual soft-pouch LiPo: one distinct pouch layer per series cell.
+
+ Power leads and balance header are schematic and deliberately excluded from
+ the clearance envelope. Cells are arranged in the illustrative vertical stack.
+ """
+ cells=int(cells)
+ if not 3<=cells<=8:raise ValueError('LiPo reference supports 3S through 8S.')
+ items=[];dark=(.105,.115,.13);film=(.19,.205,.23)
+ wrap=(.30,.36,.42);edge=(.56,.58,.60);silver=(.77,.79,.80)
+ # Individual rounded-ish foil pouches; tiny dark parting lines between cells.
+ pitch=h/cells
+ gap=min(.38,pitch*.11)
+ for i in range(cells):
+  z=i*pitch+gap*.5
+  pouch=chamfer_box(w*.973,l*.94,pitch-gap,z,corner=min(w,l)*.075)
+  items.append((pouch,(.32,.34,.37) if i%2 else (.38,.40,.42)))
+  # Visible foil tabs at both ends of each pouch, kept within the pack envelope.
+  for y in (-l*.485,l*.445):
+   items.append((box(-w*.36,y,z+pitch*.40,w*.72,l*.04,max(.12,pitch*.10)),edge))
+  # Narrow wrap edges and separators reveal the exact series cell count.
+  if i:items.append((box(-w*.49,-l*.47,i*pitch-gap*.38,w*.98,l*.94,min(gap*.70,.26)),dark))
+ # Recessed cell seams in the two graphite-slate side panels. A previous continuous
+ # outer wrapper face hid the cell-parting edges behind it at some zoom levels.
+ # Here the wrapper surface consists of real, non-overlapping 3D strips. The
+ # charcoal backing is 0.22 mm inward, giving every seam a visible step in
+ # the solid geometry (not coincident overlay lines / tessellation tricks).
+ # The battery's specified outer width, height and length remain unchanged.
+ sleeve_lo=h*.035;sleeve_hi=h*.965
+ seam_w=min(.32,max(.16,pitch*.055))
+ wrap_depth=min(.20,w*.0055)
+ recess_depth=min(.22,w*.006)
+ for side in (-1,1):
+  outer_x=-w*.5 if side<0 else w*.5-wrap_depth
+  backing_x=(-w*.5+wrap_depth+recess_depth if side<0
+             else w*.5-wrap_depth-recess_depth-.045)
+  items.append((box(backing_x,-l*.44,sleeve_lo,.045,l*.88,sleeve_hi-sleeve_lo),dark))
+  last=sleeve_lo
+  for i in range(1,cells):
+   split=i*pitch
+   low=max(last,split-seam_w*.5)
+   if low>last+1e-6:
+    items.append((box(outer_x,-l*.44,last,wrap_depth,l*.88,low-last),wrap))
+   last=min(sleeve_hi,split+seam_w*.5)
+  if sleeve_hi>last+1e-6:
+   items.append((box(outer_x,-l*.44,last,wrap_depth,l*.88,sleeve_hi-last),wrap))
+ for y in (-l*.48,l*.45):
+  items.append((box(-w*.49,y,h*.03,w*.98,l*.03,h*.94),dark))
+ items.append((box(-w*.31,-l*.26,h*.984,w*.62,l*.53,h*.012),dark))
+ items.append((box(-w*.23,-l*.18,h*.996,w*.46,l*.12,h*.004),silver))
+ # Power leads at the rear. Modelled short and close to the pack for preview.
+ lead=min(12.,l*.18);wire_r=min(.95,w*.025,max(.5,h*.035));z=h*.57
+ for x,col in ((-w*.13,(.70,.07,.045)),(w*.13,dark)):
+  items.append((Part.makeCylinder(wire_r,lead*.65,App.Vector(x,l*.48,z),App.Vector(0,1,0)),col))
+ plug_w=min(w*.36,12.);plug_h=min(h*.27,8.)
+ plug=chamfer_box(plug_w,lead*.32,plug_h,z-plug_h/2,min(1.,plug_w*.12))
+ plug.translate(App.Vector(0,l*.5+lead*.79,0));items.append((plug,(.69,.45,.13)))
+ # One balance contact for each cell boundary: 3S => 4 pins, 8S => 9.
+ # Connector is representational, not an electrical wiring diagram.
+ ncontacts=cells+1;pinpitch=min(1.65,(w*.56)/(ncontacts+1))
+ header_w=(ncontacts+1)*pinpitch
+ header_z=h*.28;header_h=min(3.1,h*.13)
+ header=chamfer_box(header_w,2.5,header_h,header_z,corner=.4)
+ header.translate(App.Vector(w*.13,l*.5+1.2,0));items.append((header,(.88,.88,.82)))
+ for j in range(ncontacts):
+  x=w*.13-header_w/2+(j+1)*pinpitch
+  items.append((box(x-.19,l*.5+3.66,header_z+header_h*.3,.38,.08,header_h*.38),dark))
  shape,colours=compound(items)
  shape.rotate(App.Vector(),App.Vector(0,0,1),180)
  return shape,colours
 
-@lru_cache(maxsize=16)
-def camera_model(w,d,h,spacing,hole):
- body=chamfer_box(w,h,d,0,min(w,h)*.12)
- # Canonical housing is extruded along Z, then turned to face frame +Y.
- body.rotate(App.Vector(),App.Vector(1,0,0),-90);body.translate(App.Vector(0,-d/2,0))
- radius=min(6.,w*.35,h*.35);items=[]
- # Side screw recesses model the existing vertical camera fixing convention.
+@lru_cache(maxsize=32)
+def camera_model(w,d,h,spacing,hole,video_system='Analog',style='Automatic',rear_inset=0.,lens_projection=0.,physical_profile=None):
+ """Illustrative analog/HDZero/Walksnail-style micro camera geometry.
+
+ Housing outline and lens clearances are shared with the independent BRep
+ collision model; purely decorative rings, bezel, connector, screw fittings,
+ PCB and markings are not clearance obstructions. Values stay user-editable.
+ This is not a manufacturer-accurate CAD drawing.
+ """
+ from .camera_housing import housing_shape,lens_dimensions,screw_line_y
+ digital=video_system=='Digital'
+ if style=='Automatic':
+  from .camera_profiles import get_camera_spec
+  spec=get_camera_spec(physical_profile)
+  if spec is not None and physical_profile not in ('Generic Analog 28 mm','Generic Digital 20 mm'):
+   style=physical_profile
+  else:
+   style=('Walksnail Avatar HD Pro' if digital and w>=17 else
+          'Walksnail Avatar HD Nano V3' if digital else
+          'Foxeer T-Rex Mini' if w>=21 else
+          'RunCam Phoenix 2' if w>=18 else 'Foxeer Predator 5 Nano')
+ # The manufacturer-inspired finish is visual only. Never force a camera width
+ # or reference-dependent clearance value upon the installed frame.
+ metalgrey=(.28,.31,.35);charcoal=(.13,.15,.18)
+ casing={'Foxeer T-Rex Mini':(.12,.135,.16),
+         'RunCam Phoenix 2':(.14,.19,.24),
+         'Caddx Ratel 2':(.48,.085,.095),
+         'Caddx Ratel Pro':(.115,.12,.135),
+         'Walksnail Avatar HD Pro':(.22,.24,.27),
+         'HDZero Micro V3':(.115,.13,.15),
+         'HDZero Nano V3':(.10,.12,.16),
+         'Walksnail Avatar HD Nano V3':(.22,.25,.28),
+         'Foxeer Predator 5 Nano':(.14,.15,.17),
+         'Foxeer Razer Nano':(.10,.12,.15)}.get(style,BLACK)
+ facecol={'Foxeer T-Rex Mini':(.19,.20,.21),
+          'RunCam Phoenix 2':(.18,.31,.40),
+          'Caddx Ratel 2':(.56,.13,.13),
+          'Caddx Ratel Pro':(.17,.18,.19),
+          'Walksnail Avatar HD Pro':(.29,.31,.33),
+          'HDZero Micro V3':(.16,.20,.23),
+          'HDZero Nano V3':(.16,.19,.23),
+          'Walksnail Avatar HD Nano V3':(.25,.28,.32),
+          'Foxeer Predator 5 Nano':(.28,.29,.30),
+          'Foxeer Razer Nano':(.19,.22,.25)}.get(style,metalgrey)
+ radius,projection=lens_dimensions(w,h,digital,lens_projection,physical_profile)
+ items=[]
+ body=housing_shape(w,d,h,digital,physical_profile,rear_inset)
+ # Recessed brass M2 thread inserts on both sides at the user's specified
+ # side-screw spacing; the model's appearance never moves the actual holes.
+ screw_z=(-spacing/2,spacing/2) if spacing else (0.,)
+ screw_y=screw_line_y(d,rear_inset)
+ side_limit=h/2-min(w*.16,h*.16,3.2 if digital else 3.0)*.70
+ side_bore=min(max(.65,hole*.48),1.2)
  for side in (-1,1):
-  for z in ((-spacing/2,spacing/2) if spacing else (0.,)):
-   tool=Part.makeCylinder(min(hole/2,h*.08),w*.09,App.Vector(side*(w/2+.01),0,z),App.Vector(-side,0,0));body=body.cut(tool)
- items.append((body,BLACK))
- bezel=chamfer_box(w*.9,h*.9,min(.35,d*.04),0,min(w,h)*.1)
- bezel.rotate(App.Vector(),App.Vector(1,0,0),-90);bezel.translate(App.Vector(0,d/2-min(.35,d*.04),0))
- # Remove the insert stock from the housing: no coplanar double faces.
- items[0]=(body.cut(bezel),BLACK)
- items.append((bezel,(.22,.24,.26)))
- for rad,start,length,colour in ((radius,d/2-.05,1.2,METAL),(radius*.86,d/2+1.15,3.0,BLACK),(radius*.95,d/2+4.15,1.6,BLACK),(radius*.76,d/2+5.75,.25,GLASS)):
-  items.append((Part.makeCylinder(rad,length,App.Vector(0,start,0),App.Vector(0,1,0)),colour))
+  for z in screw_z:
+   if abs(z)>side_limit:continue
+   axis=App.Vector(-side,0,0)
+   body=body.cut(Part.makeCylinder(side_bore,1.5,
+                  App.Vector(side*(w/2+.01),screw_y,z),axis))
+   insert=Part.makeCylinder(side_bore+0.4,.14,
+                  App.Vector(side*(w/2+.035),screw_y,z),axis)
+   insert=insert.cut(Part.makeCylinder(side_bore*.78,.19,
+                  App.Vector(side*(w/2+.05),screw_y,z),axis))
+   items.append((insert,(.66,.48,.22)))
+ items.insert(0,(body,casing))
+ # Recessed front square/rounded housing bezel, rather than an undifferentiated
+ # block. The rear PCB housing stays contained in the chosen camera dimensions.
+ def face_panel(width,height,depth,fronty,corner):
+  plate=chamfer_box(width,height,depth,0,corner)
+  plate.rotate(App.Vector(),App.Vector(1,0,0),-90)
+  plate.translate(App.Vector(0,fronty,0))
+  return plate
+ fw=w*.82;fh=h*.74
+ bezel=face_panel(fw,fh,.55,d/2-.30,min(1.7,h*.1))
+ front_r=min(radius*1.18,fw*.46,fh*.46)
+ bezel=bezel.cut(Part.makeCylinder(front_r,.85,
+              App.Vector(0,d/2-.35,0),App.Vector(0,1,0)))
+ items.append((bezel,facecol))
+ # Four tiny recessed fasteners on the front plate, but only when sufficiently
+ # separated from the lens and the housing chamfer. Caddx red cams typically
+ # have a more pronounced anodized alloy frame than tiny analog nano cams.
+ if min(w,h)>=18 and style not in ('Foxeer T-Rex Mini','Caddx Ratel Pro'):
+  screw_r=min(.68,w*.032)
+  for sx in (-fw*.40,fw*.40):
+   for sz in (-fh*.40,fh*.40):
+    if sx*sx+sz*sz<(front_r+screw_r+.3)**2:continue
+    items.append((Part.makeCylinder(screw_r,.16,
+                    App.Vector(sx,d/2+.20,sz),App.Vector(0,1,0)),
+                  (.36,.37,.40)))
+ # Real FPV optical assembly: threaded base collar, knurled focus ring, outer
+ # lens barrel, recessed lens glass and a retaining ring. All remain within
+ # the same overall lens-envelope used by collision detection.
+ y=d/2-.10
+ items.append((Part.makeCylinder(radius*.96,1.15,App.Vector(0,y,0),App.Vector(0,1,0)),metalgrey))
+ y=d/2+1.0
+ items.append((Part.makeCylinder(radius,.95,App.Vector(0,y,0),App.Vector(0,1,0)),charcoal))
+ # Knurling is raised visually, but stays inside the radial lens envelope.
+ for i in range(12):
+  a=i*math.pi/6
+  rr=radius*.94
+  tooth=Part.makeBox(max(.20,radius*.065),1.15,max(.20,radius*.065),
+          App.Vector(rr*math.cos(a)-radius*.0325,y,rr*math.sin(a)-radius*.0325))
+  items.append((tooth,(.23,.24,.26)))
+ barrel_start=d/2+1.9
+ barrel_end=d/2+projection
+ barrel_length=max(.8,barrel_end-barrel_start)
+ # Hollow the forward half millimetre of the lens barrel so the glass is
+ # visible; a solid tube in front of the optic would obscure the actual lens.
+ barrel=Part.makeCylinder(radius*.92,barrel_length,
+                          App.Vector(0,barrel_start,0),App.Vector(0,1,0))
+ recess=min(.65,barrel_length*.60)
+ barrel=barrel.cut(Part.makeCylinder(radius*.745,recess+.06,
+                          App.Vector(0,barrel_end-recess,0),App.Vector(0,1,0)))
+ items.append((barrel,BLACK))
+ # Inset glass and a separate annular retaining ring (not solid discs).
+ glass_y=barrel_end-recess+.11
+ items.append((Part.makeCylinder(radius*.715,.10,
+                         App.Vector(0,glass_y,0),App.Vector(0,1,0)),GLASS))
+ items.append((Part.makeCylinder(radius*.24,.012,
+                         App.Vector(0,glass_y+.10,0),App.Vector(0,1,0)),(.08,.15,.21)))
+ ring_outer=Part.makeCylinder(radius*.94,.16,
+                         App.Vector(0,barrel_end-.15,0),App.Vector(0,1,0))
+ ring_inner=Part.makeCylinder(radius*.755,.20,
+                         App.Vector(0,barrel_end-.17,0),App.Vector(0,1,0))
+ items.append((ring_outer.cut(ring_inner),metalgrey))
+ # Flat rear connector with a keyed socket and visible gold contact pins.
+ # Nothing extends rearward more than the nominal body depth.
+ plug_width=min(w*.48,8.5);plug_height=min(h*.19,3.2)
+ plug=box(-plug_width/2,-d/2-.04,-h*.17,plug_width,.24,plug_height)
+ items.append((plug,(.07,.09,.10)))
+ for i in range(4):
+  x=plug_width*(-.31+i*.205)
+  items.append((box(x,-d/2-.065,-h*.17+plug_height*.28,
+                    plug_width*.082,.10,plug_height*.44),(.72,.53,.22)))
+ # Digital camera boards show a side heat-spreader and discreet rear inset,
+ # while analog housings show a shallow manufacturer-like seam.
+ if digital and w>=18:
+  for x in (-w*.40,w*.40):
+   items.append((box(x-.17,-d*.28,-h*.28,.34,d*.42,h*.52),(.29,.32,.35)))
  return compound(items)
 
-def detailed_reference(p,role):
+@lru_cache(maxsize=1)
+def o4_pro_camera_model():
+ """DJI O4 Pro camera reference; photo-inspired, within DJI dimensions.
+
+ The housing uses the exact same shape as the collision probe. The M2
+ mounting points stay in the same local coordinates as the frame's holes.
+ The front rim, recessed optics and housing seams are visual only, keeping
+ the stated nominal 25.55 x 20 x 23.3 mm module envelope intact.
+ """
+ from .o4_camera import (casing_solid,side_screw_points,CASE_DEPTH,
+                         LENS_PROTRUSION,WIDTH,HEIGHT)
+ black=(.075,.080,.088);shell=(.115,.12,.135)
+ darkmetal=(.16,.175,.195);rim=(.21,.225,.245)
+ deepglass=(.025,.07,.078);reflection=(.10,.27,.25)
+ front=CASE_DEPTH/2
+ body=casing_solid()
+ # The M2 side bores terminate inside the nominal 2.0 mm thread depth.
+ for sign in (-1,1):
+  for y,z in side_screw_points():
+   bore=Part.makeCylinder(1.,2.0,App.Vector(sign*(WIDTH/2+.005),y,z),
+                          App.Vector(-sign,0,0))
+   body=body.cut(bore)
+ items=[(body,shell)]
+ # Flush side mounting land rings, kept INSIDE the 20 mm body width.
+ # The real screws would be added by frame assembly/hardware references.
+ for sign in (-1,1):
+  for y,z in side_screw_points():
+   outer=Part.makeCylinder(1.48,.08,App.Vector(sign*(WIDTH/2-.085),y,z),
+                           App.Vector(sign,0,0))
+   inner=Part.makeCylinder(1.01,.11,App.Vector(sign*(WIDTH/2-.095),y,z),
+                           App.Vector(sign,0,0))
+   items.append((outer.cut(inner),rim))
+ # Front collar has a subtle stepped, rounded DJI-like surround. Every part
+ # fits between the housing nose and the published overall length.
+ def axial(radius,y,length):
+  return Part.makeCylinder(radius,length,App.Vector(0,y,0),App.Vector(0,1,0))
+ def annulus(ro,ri,y,length):
+  outer=axial(ro,y,length)
+  inner=axial(ri,y-.01,length+.02)
+  return outer.cut(inner)
+ items.extend([
+  (axial(9.75,front-.30,1.0),black),
+  (annulus(9.85,8.9,front+.48,1.40),darkmetal),
+  (axial(8.95,front+1.05,4.35).cut(axial(7.45,front+4.10,1.32)),black),
+  (annulus(9.20,7.75,front+4.67,1.43),rim),
+  (annulus(7.8,7.4,front+4.53,.60),darkmetal),
+ ])
+ # Glass sits recessed below the raised retaining rim. Concentric reflections
+ # make it look like optical glass rather than a solid turquoise cylinder.
+ glass_y=front+LENS_PROTRUSION-.88
+ items.append((axial(7.38,glass_y,.13),deepglass))
+ items.append((annulus(6.75,6.05,glass_y+.13,.015),(.095,.16,.16)))
+ items.append((axial(1.08,glass_y+.145,.019),reflection))
+ items.append((axial(.38,glass_y+.16,.012),(.13,.19,.24)))
+ # Discreet front ring indexing marks, protected within the lens envelope.
+ for x in (-8.4,8.4):
+  items.append((box(x-.30,front+5.94,-.24,.60,.12,.48),black))
+ # Top shell's recessed seam and locking screw; neither sticks above z=11.65.
+ items.append((Part.makeCylinder(1.25,.045,App.Vector(0,-5.2,HEIGHT/2-.07),
+                      App.Vector(0,0,1)),darkmetal))
+ items.append((box(-.67,-5.31,HEIGHT/2-.045,1.34,.21,.015),black))
+ # Small rear flex-cable receptacle: only a socket indication, not a fictitious
+ # cable that would extend the camera's nominal installation envelope.
+ items.append((box(-2.5,-CASE_DEPTH/2+.005,-1.0,5.0,.08,2.0),black))
+ return compound(items)
+
+from .parameter_memo import parameter_cache
+
+@parameter_cache(maxsize=24)
+def _placed_reference(p,role):
  from .parameters import arms_above_bottom,motor_centres,stack_reference_z,arm_layouts
  from .motor_pads import motor_pad_unit
  items=[];colours=[]
@@ -355,13 +599,17 @@ def detailed_reference(p,role):
   shape,c=vtx_model(p.VTXWidth,p.VTXLength,p.VTXHeight,holes,p.VideoSystem=='Digital',p.VTXReferenceStyle);shape=shape.copy();shape.translate(App.Vector(0,p.VTXOffsetY,vtx_deck_z(p)));items.append(shape);colours.extend(c)
  elif role=='BatteryEnvelope':
   from .battery import battery_levels
-  shape,c=lipo_model(p.BatteryWidth,p.BatteryLength,p.BatteryHeight);shape=shape.copy()
+  shape,c=lipo_model(p.BatteryWidth,p.BatteryLength,p.BatteryHeight,p.BatteryCells);shape=shape.copy()
   if p.BatteryMount=='Bottom plate':shape.rotate(App.Vector(0,0,p.BatteryHeight/2),App.Vector(0,1,0),180)
   shape.rotate(App.Vector(),App.Vector(0,0,1),p.BatteryRotation);shape.translate(App.Vector(p.BatteryX,p.BatteryY,battery_levels(p)['battery_z']));items.append(shape);colours.extend(c)
  elif role=='CameraEnvelope':
   from .fpv import camera_body_centre
-  shape,c=camera_model(p.CameraWidth,p.CameraBodyDepth,p.CameraHeight,p.CameraSideBoltSpacing,p.CameraSideHoleDiameter);shape=shape.copy();shape.rotate(App.Vector(),App.Vector(1,0,0),p.CameraTilt);shape.translate(App.Vector(0,*camera_body_centre(p)));items.append(shape);colours.extend(c)
+  shape,c=o4_pro_camera_model() if p.FPVSystemProfile=='DJI O4 Air Unit Pro' else camera_model(p.CameraWidth,p.CameraBodyDepth,p.CameraHeight,p.CameraSideBoltSpacing,p.CameraSideHoleDiameter,p.VideoSystem,p.CameraReferenceStyle,p.CameraSideScrewRearInset,p.CameraLensProjection,p.CameraPhysicalProfile);shape=shape.copy();shape.rotate(App.Vector(),App.Vector(1,0,0),p.CameraTilt);shape.translate(App.Vector(0,*camera_body_centre(p)));items.append(shape);colours.extend(c)
  return Part.makeCompound(items),tuple(colours)
+
+def detailed_reference(p,role):
+ shape,colours=_placed_reference(p,role)
+ return shape.copy(),colours
 
 def apply_reference_material(view,role,p):
  """Reset simple colours on disable, and apply cached per-face model colours."""
@@ -369,13 +617,20 @@ def apply_reference_material(view,role,p):
  detailed=enabled(p,role)
  base,trans=SIMPLE[role];colours=(base,)
  if detailed:
-  base=PROP if role=='PropellerDiscs' else (BLACK if role=='VTXEnvelope' and vtx_reference_kind(p.VideoSystem=='Digital',p.VTXReferenceStyle)!='analog_exposed' else PCB) if role in ('StackEnvelope','VTXEnvelope') else (.82,.34,.07) if role=='BatteryEnvelope' else BLACK
+  base=PROP if role=='PropellerDiscs' else (BLACK if role=='VTXEnvelope' and vtx_reference_kind(p.VideoSystem=='Digital',p.VTXReferenceStyle)!='analog_exposed' else PCB) if role in ('StackEnvelope','VTXEnvelope') else (.30,.36,.42) if role=='BatteryEnvelope' else BLACK
   trans=8 if role=='PropellerDiscs' else 0
   # Construction only happens during document updates, never live editor paint.
-  if p.ShowReferences and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):_,colours=detailed_reference(p,role)
+  if p.ShowReferences and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):_,colours=_placed_reference(p,role)
+  if role=='PropellerDiscs':
+   # Face colours remain a presentation attribute, not a CAD-model input.
+   # All hubs and blades receive the chosen moulded-polycarbonate finish.
+   base,trans=prop_finish(p.PropReferenceColour)
+   if colours:colours=(base,)*len(colours)
  view.ShapeColor=base;view.LineColor=(.08,.09,.10)
  # Explicitly replace the complete material array; no face colouring from the
  # preceding VTX style may survive a switch between analog and digital.
  view.DiffuseColor=[base]
  view.DiffuseColor=list(colours);view.Transparency=trans
+ from .appearance import reset_face_materials
+ reset_face_materials(view,colours,trans)
 

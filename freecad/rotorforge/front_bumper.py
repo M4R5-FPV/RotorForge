@@ -1,7 +1,10 @@
 """Portable shoe settings and front profiles; no CAD or Qt imports."""
 BUMPER_SHAPES=('Follow bottom plate','Rounded shoe','Flat shoe','Chamfered shoe','Pointed shoe','Twin-lobe shoe','Swept-shoulder shoe','Flat-tip shoe','Centre-crown shoe','Shield shoe','Recessed-centre shoe','Stepped shoe','Capsule shoe','Bullnose shoe','Arrowhead shoe','V-recess shoe','Twin-shoulder shoe','Clipped-corner shoe')
 FIELDS={
- 'FlexFrontBumper':(False,'Create front bumper','One printable TPU shoe around the front of the actual bottom plate. Includes an underside sole, edge wall and upper retaining lip; no carbon geometry is changed.'),
+ 'FlexFrontBumper':(False,'Create front bumper','Enable either a standard slide-on lower shoe or a full integrated TPU camera-cage bumper.'),
+ 'FlexBumperVariant':('Bottom plate bumper','Front bumper version',
+     'Choose one exclusive construction. Bottom plate bumper uses the original shoe; Integrated camera cage bumper creates a rounded nose and complete cage protection together, as one TPU part.',
+     ('Bottom plate bumper','Integrated camera cage bumper')),
  'FlexBumperShape':('Rounded shoe','Bumper front shape','Eighteen styles: follow the plate or choose rounded, swept, flat, crowned, shield, twin-shoulder or recessed protective toes.',BUMPER_SHAPES),
  'FlexBumperWidth':(0.,'Bumper toe width (0 = automatic)','Overall width of the added protective toe. Zero uses the plate grip width. The grip keeps its plate fit and blends continuously into wider or narrower toes. Ignored by Follow bottom plate.'),
  'FlexBumperReach':(20.,'Shoe reach behind nose','Length of bottom plate captured behind its actual foremost edge. The rear remains open for sliding the shoe onto the plate.'),
@@ -76,3 +79,39 @@ def shoulder_hull(points,half,front,back=None):
    while len(chain)>=2 and cross(chain[-2],chain[-1],pt)<=1e-10:chain.pop()
    chain.append(pt)
  return tuple(lower[:-1]+upper[:-1])
+
+FIELDS.update({
+ 'FlexBumperCameraCover':(False,'Cover camera cage front','Wrap both side faces and the front edge of the camera cage with U-shaped TPU grips. Outward supports preserve the original bottom shoe outline. Uses bumper fit clearance.'),
+ 'FlexBumperCameraGripDepth':(4.,'Camera cage grip depth','Depth of the U-shaped grip along both sides of the camera cage front edge. Uses bumper fit clearance and wall thickness.'),
+ 'FlexBumperCameraFrontProjection':(0.,'Camera cage front projection','Additional TPU ahead of the camera cage (0–8 mm). Grows the external front skin smoothly toward the upper camera protection without changing the internal camera opening or plate mounting fit. Use a small positive value to increase material near the upper cage and reduce unwanted openings.'),
+ 'FlexBumperCameraHeight':(0.,'Camera cover height (0 = full)','Height of protective rails above the bottom plate. Zero reaches the top-plate underside and follows its real front outline; positive values limit coverage. Uses the bumper wall thickness and fit clearance.'),
+ 'FlexBumperCameraBlendReach':(0.,'Camera shoulder inward reach (mm; 0 = full)', 'Actual inward reach of each lower TPU shoulder toward the centre opening. 0 keeps the original full rounded sweep. 1 mm makes a short inner transition; larger values progressively restore the full U-shaped sweep. The camera opening width at the top does not change.')})
+
+def camera_cover_profiles(p):
+ """YZ rail profiles, with separate feet joining the shoe above the plate."""
+ if not p.FlexFrontBumper or p.FlexBumperVariant!='Integrated camera cage bumper' or not p.FPVEnabled:return ()
+ from .fpv import camera_mounts
+ profiles=[]
+ for mount in camera_mounts(p):
+  wall=mount['wall_profile'];low=mount['z0']+p.FlexBumperFit
+  high=mount['z1']
+  if p.FlexBumperCameraHeight:high=min(high,mount['z0']+p.FlexBumperCameraHeight)
+  if high<=low:raise ValueError('Camera cover height must exceed bumper fit clearance.')
+  def front(z):
+   hits=[]
+   for a,b in zip(wall,wall[1:]+wall[:1]):
+    if abs(a[1]-b[1])<1e-9:
+     if abs(z-a[1])<1e-7:hits.extend((a[0],b[0]))
+    elif min(a[1],b[1])-1e-8<=z<=max(a[1],b[1])+1e-8:hits.append(a[0]+(b[0]-a[0])*(z-a[1])/(b[1]-a[1]))
+   return max(hits)
+  heights=sorted({low,high}|{z for y,z in wall if low<z<high})
+  inner=[(front(z)+p.FlexBumperFit,z) for z in heights]
+  outer=[(y+p.FlexBumperWall,z) for y,z in inner]
+  a,b=mount['plate_x'];fit=p.FlexBumperFit;thickness=p.FlexBumperWall
+  # A U channel surrounds the front edge and both side faces. The open rear
+  # allows the flexible shoe to slide onto the cage without covering the lens.
+  back=[(y-fit-p.FlexBumperCameraGripDepth,z) for y,z in inner]
+  cheek=tuple(back+list(reversed(outer)))
+  profiles.append(dict(points=tuple(inner+list(reversed(outer))),xmin=a-fit-thickness,width=b-a+2*(fit+thickness),foot_y=inner[0][0],low=low,
+                       cheeks=cheek,cheek_x=(a-fit-thickness,b+fit),cheek_width=thickness))
+ return tuple(profiles)

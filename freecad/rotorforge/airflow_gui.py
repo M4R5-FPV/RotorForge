@@ -1,5 +1,6 @@
 """Per-part pattern editor and local-coordinate cutting preview."""
 import math,json
+from functools import lru_cache
 try:
     from PySide import QtCore, QtGui, QtWidgets
 except ImportError:
@@ -7,14 +8,14 @@ except ImportError:
         from PySide2 import QtCore, QtGui, QtWidgets
     except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets
-from .cutouts import CUTOUT_ROLES, CUTOUT_TYPES, CUTOUT_MODES, MAX_PATTERNS, MAX_ENABLED_CUTOUTS, PATTERN_DEFAULTS, parse_patterns, encode_patterns, pattern_instances, cutout_polygon
+from .cutouts import CUTOUT_ROLES, CUTOUT_TYPES, CUTOUT_MODES, MAX_PATTERNS, MAX_ENABLED_CUTOUTS, PATTERN_DEFAULTS, parse_patterns, encode_patterns, pattern_instances, cutout_polygon, CNC_POLYGON_TYPES, cutout_profile_segments
 from .parameters import bottom_bounds, mid_bounds, top_bounds, plate_holes, arm_brace_layouts, arm_layouts, strap_slots, stack_holes, upper_clamp_active, underside_clamp_active, keystone_active, mid_tabs
 from .parameters import bottom_body_bounds, bottom_tabs
 from .fpv import CAMERA_ROLES, camera_mounts, camera_slots, camera_position_y, camera_pivot_height
 from .motor_pads import motor_pad_primitives, motor_tip_slots, motor_pad_unit
 from .stack_reliefs import stack_escape_segment
 from .plate_profiles import plate_base_polygon, centre_polygon
-from .arm_roots import fitted_roots, root_cell_polygon, compact_key_outline, beam_profile_polygon, widened_roots, stem_stations
+from .arm_roots import fitted_roots, root_cell_polygon, compact_key_outline, beam_profile_polygon, widened_roots, stem_stations, receiving_tab_expansion_discs
 
 ROLE_LABELS={'FrontBumper':'Front bumper','CameraPadLeft':'Camera pad left','CameraPadRight':'Camera pad right','BottomPlate':'Bottom plate','MidPlate':'Mid plate','TopPlate':'Top plate',
              'ArmClampPlate':'Upper arm clamp / FC plate','ArmKeystone':'Arm keystone',
@@ -58,9 +59,9 @@ def _straight_arm_stem_path(p,arm,clearance=0.):
 
 
 def arm_stem_path(p,arm,clearance=0.):
+    """Same true reinforced arm-root mask for the arm and receiving tabs."""
     from .mount_support import arm_supports
     path=_straight_arm_stem_path(p,arm,clearance)
-    for a,b,r in arm_supports(p,arm):path=path.united(capsule_path(a,b,r+clearance))
     outline=beam_profile_polygon(p,arm)
     if outline:
         extra=polygon_path(outline)
@@ -70,8 +71,13 @@ def arm_stem_path(p,arm,clearance=0.):
         path=path.united(extra)
     if p.MotorPadRotationPivot=='Pad beginning':
         path=path.united(capsule_path(arm['beam_end'],arm['motor'],p.ArmWidth/2+clearance))
-    from .mount_blends import blend_path
-    return blend_path(p,path,tuple((a,b,r+clearance) for a,b,r in arm_supports(p,arm)))
+    supports=tuple((a,b,r+clearance) for a,b,r in
+                   arm_supports(p,arm))
+    if p.ArmBoltMaterialAllowance<=1e-9:
+        from .mount_blends import blend_path
+        for a,b,r in supports:path=path.united(capsule_path(a,b,r))
+        return blend_path(p,path,supports)
+    return _path_add_missing_supports(p,path,supports)
 
 
 def arm_blank_path(p,arm,arms=None):
@@ -79,7 +85,7 @@ def arm_blank_path(p,arm,arms=None):
     transform=QtGui.QTransform();transform.translate(*arm['motor'])
     ux,uy=motor_pad_unit(p,arm)
     transform.rotate(math.degrees(math.atan2(uy,ux)))
-    path=arm_stem_path(p,arm).united(transform.map(motor_pad_path(p)))
+    path=arm_stem_path(p,arm).united(transform.map(motor_pad_path(p,arm)))
     path=blend_motor_junction_path(p,arm,path)
     for a,b,r in motor_tip_slots(p,arm):path=path.subtracted(capsule_path(a,b,r))
     if fitted_roots(p):
@@ -111,7 +117,8 @@ def keystone_path(p,arms=None):
     return path
 
 
-def profile_path(p,role,width,rear,front,radius,wide_override=None,trim_ends=True):
+@lru_cache(maxsize=96)
+def _profile_path_cached(p,role,width,rear,front,radius,wide_override,trim_ends):
     path=QtGui.QPainterPath();path.addRoundedRect(QtCore.QRectF(-width/2,rear,width,front-rear),radius,radius)
     outline=plate_base_polygon(p,role,width,rear,front,radius)
     if outline:path=polygon_path(outline)
@@ -133,6 +140,12 @@ def profile_path(p,role,width,rear,front,radius,wide_override=None,trim_ends=Tru
     return supported_path(p,role,path) if role=='TopPlate' else path
 
 
+def profile_path(p,role,width,rear,front,radius,wide_override=None,trim_ends=True):
+    # QPainterPath is mutable; share only the cached backing geometry, never
+    # let a caller modify the cache's canonical shape.
+    return QtGui.QPainterPath(_profile_path_cached(p,role,width,rear,front,radius,wide_override,trim_ends))
+
+
 def mid_tab_paths(p,arms=None):
     arms=arm_layouts(p) if arms is None else arms
     boundary=profile_path(p,'BottomPlate',p.BodyWidth,*bottom_bounds(p),p.CornerRadius)
@@ -142,7 +155,10 @@ def mid_tab_paths(p,arms=None):
         if fitted_roots(p):
             root=root.intersected(polygon_path(root_cell_polygon(p,arm,arms)))
             if keystone_active(p):root=root.subtracted(polygon_path(compact_key_outline(p,arms,True)))
-        paths.append(capsule_path(a,b,r).intersected(root).intersected(boundary))
+        cap=capsule_path(a,b,r)
+        for point,radius in receiving_tab_expansion_discs(p,arm,r):
+            cap=cap.united(capsule_path(point,point,radius))
+        paths.append(cap.intersected(root).intersected(boundary))
     return tuple(paths)
 
 
@@ -162,7 +178,10 @@ def _base_bottom_plate_path(p,arms=None):
         if fitted_roots(p):
             root=root.intersected(polygon_path(root_cell_polygon(p,arm,arms)))
             if keystone_active(p):root=root.subtracted(polygon_path(compact_key_outline(p,arms,True)))
-        path=path.united(capsule_path(a,b,r).intersected(root).intersected(boundary).intersected(upper))
+        cap=capsule_path(a,b,r)
+        for point,radius in receiving_tab_expansion_discs(p,arm,r):
+            cap=cap.united(capsule_path(point,point,radius))
+        path=path.united(cap.intersected(root).intersected(boundary).intersected(upper))
     return path
 
 
@@ -177,34 +196,99 @@ def _base_clamp_plate_path(p,role='ArmClampPlate'):
         if fitted_roots(p):
             root=root.intersected(polygon_path(root_cell_polygon(p,arm,arms)))
             if keystone_active(p):root=root.subtracted(polygon_path(compact_key_outline(p,arms,True)))
-        path=path.united(capsule_path(*arm['bolts'],root_width(p)/2).intersected(root))
+        base_r=root_width(p)/2
+        cap=capsule_path(*arm['bolts'],base_r)
+        for point,radius in receiving_tab_expansion_discs(p,arm,base_r):
+            cap=cap.united(capsule_path(point,point,radius))
+        path=path.united(cap.intersected(root))
     for a,b,r in pads:path=path.united(capsule_path(a,b,r))
     return path.intersected(boundary)
 
 
 def supported_path(p,role,path):
     from .mount_support import plate_supports
-    from .mount_blends import blend_path
     supports=plate_supports(p,role)
-    for a,b,r in supports:path=path.united(capsule_path(a,b,r))
-    return blend_path(p,path,supports)
+    if p.ArmBoltMaterialAllowance<=1e-9 or role=='TopPlate':
+        from .mount_blends import blend_path
+        for a,b,r in supports:path=path.united(capsule_path(a,b,r))
+        path=blend_path(p,path,supports)
+    else:
+        path=_path_add_missing_supports(p,path,supports)
+    path=_path_add_missing_tpu_rims(p,role,path)
+    from .cnc_perimeter import clean_blank_path
+    return clean_blank_path(p,role,path)
 
 
-def bottom_plate_path(p,arms=None):
-    return supported_path(p,'BottomPlate',_base_bottom_plate_path(p,arms))
+def _path_add_missing_tpu_rims(p,role,path):
+    """Same missing-material-only mounting clearance as the CAD builder."""
+    from .tpu_mount_layout import carbon_rim_centres
+    for point,radius in carbon_rim_centres(p,role):
+        disc=capsule_path(point,point,radius)
+        exposed=_path_filled_area(disc.subtracted(path))
+        if exposed<=.001:continue
+        if _path_filled_area(disc.intersected(path))<math.pi*radius*radius*.75:
+            raise ValueError('%s TPU M3 hole needs more plate material or a mounting offset change.' % role)
+        path=path.united(disc)
+    return path
 
 
-def mid_plate_path(p,arms=None):
-    return supported_path(p,'MidPlate',_base_mid_plate_path(p,arms))
+def _path_add_missing_supports(p,path,supports):
+    """Match the exact-bearing-first decision used in the FreeCAD solids."""
+    from .mount_support import attachment_needs_bridge
+    for centre,anchor,radius in supports:
+        bearing=capsule_path(centre,centre,radius)
+        if _path_filled_area(bearing.subtracted(path))<=.01:
+            continue
+        use_bridge=attachment_needs_bridge(
+            _path_filled_area(bearing.intersected(path)),p.MinimumWeb)
+        path=path.united(capsule_path(centre,anchor,radius) if use_bridge else bearing)
+    return path
 
 
-def clamp_plate_path(p,role='ArmClampPlate'):
+def _path_filled_area(path):
+    """Area of Qt's boolean result; unlike isEmpty ignores subpixel slivers."""
+    area=0.
+    for poly in path.toFillPolygons():
+        vertices=[(pt.x(),pt.y()) for pt in poly]
+        area+=abs(sum(a[0]*b[1]-b[0]*a[1]
+                      for a,b in zip(vertices,vertices[1:]+vertices[:1])))*.5
+    return area
+
+
+@lru_cache(maxsize=24)
+def _bottom_plate_default(p):
+    return supported_path(p,'BottomPlate',_base_bottom_plate_path(p,None))
+
+
+@lru_cache(maxsize=24)
+def _mid_plate_default(p):
+    return supported_path(p,'MidPlate',_base_mid_plate_path(p,None))
+
+
+@lru_cache(maxsize=24)
+def _clamp_plate_default(p,role):
     return supported_path(p,role,_base_clamp_plate_path(p,role))
 
 
-def motor_pad_path(p):
-    path=QtGui.QPainterPath();cuts=[]
-    for d in motor_pad_primitives(p):
+def bottom_plate_path(p,arms=None):
+    if arms is not None:
+        return supported_path(p,'BottomPlate',_base_bottom_plate_path(p,arms))
+    return QtGui.QPainterPath(_bottom_plate_default(p))
+
+
+def mid_plate_path(p,arms=None):
+    if arms is not None:
+        return supported_path(p,'MidPlate',_base_mid_plate_path(p,arms))
+    return QtGui.QPainterPath(_mid_plate_default(p))
+
+
+def clamp_plate_path(p,role='ArmClampPlate'):
+    return QtGui.QPainterPath(_clamp_plate_default(p,role))
+
+
+def motor_pad_path(p,arm=None):
+    path=QtGui.QPainterPath();cuts=[];pad=QtGui.QPainterPath();pad_cuts=[];bumper=QtGui.QPainterPath()
+    for d in motor_pad_primitives(p,arm):
         part=QtGui.QPainterPath()
         if d['kind']=='circle':part.addEllipse(QtCore.QPointF(*d['centre']),d['radius'],d['radius'])
         elif d['kind']=='rounded':part.addRoundedRect(QtCore.QRectF(-d['width']/2,-d['width']/2,d['width'],d['width']),d['radius'],d['radius'])
@@ -212,13 +296,23 @@ def motor_pad_path(p):
             part.moveTo(*d['points'][0])
             for point in d['points'][1:]:part.lineTo(*point)
             part.closeSubpath()
-        if d.get('operation')=='cut':cuts.append(part)
-        else:path=path.united(part)
-    if cuts:
+        if d.get('operation')=='cut':(pad_cuts if d.get('scope')=='pad' else cuts).append(part)
+        else:
+            path=path.united(part)
+            if not d.get('bumper'):pad=pad.united(part)
+            else:bumper=bumper.united(part)
+    if cuts or pad_cuts:
         # Qt flattens curves during boolean operations. Work at a larger scale
         # so small concave reliefs keep their dimensions in the preview.
         scale=QtGui.QTransform();scale.scale(100,100)
         path=scale.map(path)
+        if pad_cuts:
+            # These two reference contours are independent of the individual
+            # cut, so do not map them again for every protector/vent slot.
+            scaled_pad=scale.map(pad)
+            scaled_bumper=scale.map(bumper)
+            for part in pad_cuts:
+                path=path.subtracted(scale.map(part).intersected(scaled_pad).subtracted(scaled_bumper))
         for part in cuts:path=path.subtracted(scale.map(part))
         path=scale.inverted()[0].map(path)
     for a,b,radius in motor_tip_slots(p):path=path.subtracted(capsule_path(a,b,radius))
@@ -226,13 +320,54 @@ def motor_pad_path(p):
 
 
 def cutout_path(pattern):
-    w,l=pattern['width'],pattern['length'];path=QtGui.QPainterPath()
+    """Immutable per-shape cache; return a private Qt copy to every caller.
+
+    Repeated Keep/Randomize runs and preview repaints draw the same saved
+    rounded Web cells hundreds of times. Reuse their exact analytic contours
+    without letting any subsequent Qt boolean modify a cached path.
+    """
+    vertices=(tuple(tuple(v) for v in pattern.get('vertices') or ())
+              if pattern['shape']=='Web cell' else ())
+    return QtGui.QPainterPath(_cutout_path_cached(
+        pattern['shape'],pattern['width'],pattern['length'],
+        pattern['x'],pattern['y'],pattern['rotation'],vertices,pattern.get('arc_angle',75.)))
+
+
+@lru_cache(maxsize=384)
+def _cutout_path_cached(shape,w,l,x,y,rotation,vertices,arc_angle):
+    pattern={'shape':shape,'width':w,'length':l,
+             'x':x,'y':y,'rotation':rotation,'vertices':vertices,'arc_angle':arc_angle}
+    path=QtGui.QPainterPath()
     if pattern['shape']=='Circle':path.addEllipse(QtCore.QPointF(),w/2,w/2)
     elif pattern['shape']=='Ellipse':path.addEllipse(QtCore.QPointF(),w/2,l/2)
     elif pattern['shape']=='Slot':
         path=(capsule_path((0,-(l-w)/2),(0,(l-w)/2),w/2) if l>=w else
               capsule_path((-(w-l)/2,0),((w-l)/2,0),l/2))
     elif pattern['shape']=='Rounded rectangle':path.addRoundedRect(QtCore.QRectF(-w/2,-l/2,w,l),min(w,l)/4,min(w,l)/4)
+    elif pattern['shape'] in CNC_POLYGON_TYPES:
+        # Draw the exact same analytic R0.5 fillets used by the BRep cutter.
+        segments=cutout_profile_segments(pattern)
+        path.moveTo(*segments[0][1])
+        for segment in segments:
+            if segment[0]=='line':path.lineTo(*segment[2])
+            else:
+                start,mid,end=segment[1:]
+                # A true circular arc reconstructed from its three points.
+                ax,ay=start; bx,by=mid;cx,cy=end
+                den=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by))
+                if abs(den)<1e-10:raise ValueError('Degenerate rounded cutout arc.')
+                a2=ax*ax+ay*ay;b2=bx*bx+by*by;c2=cx*cx+cy*cy
+                ux=(a2*(by-cy)+b2*(cy-ay)+c2*(ay-by))/den
+                uy=(a2*(cx-bx)+b2*(ax-cx)+c2*(bx-ax))/den
+                rad=math.hypot(ax-ux,ay-uy)
+                start_angle=math.atan2(ay-uy,ax-ux)
+                mid_angle=math.atan2(by-uy,bx-ux)
+                end_angle=math.atan2(cy-uy,cx-ux)
+                sweep=(end_angle-start_angle)%(2*math.pi)
+                if (mid_angle-start_angle)%(2*math.pi)>sweep+1e-5:sweep-=2*math.pi
+                path.arcTo(QtCore.QRectF(ux-rad,uy-rad,2*rad,2*rad),
+                           -math.degrees(start_angle),-math.degrees(sweep))
+        path.closeSubpath()
     else:
         points=cutout_polygon(pattern);path.moveTo(*points[0])
         for point in points[1:]:path.lineTo(*point)
@@ -241,16 +376,63 @@ def cutout_path(pattern):
     return transform.map(path)
 
 
-def combined_cutout_path(patterns,role):
-    scale=QtGui.QTransform();scale.scale(100,100);path=QtGui.QPainterPath()
-    for pattern in patterns:
-        if pattern['enabled'] and pattern['role']==role:
-            for instance in pattern_instances(pattern):path=path.united(scale.map(cutout_path(instance)))
-    return scale.inverted()[0].map(path)
+def _balanced_path_union(paths):
+    """Unite paths in a balanced tree instead of repeatedly expanding one BRep.
+
+    Repeated ``result = result.united(next)`` makes every new opening run a
+    Boolean on all the previous contours. This is especially costly with
+    saved Web cells; pairwise unions bound intermediate complexity and return
+    the same union without relying on unsafe even/odd path concatenation.
+    """
+    level=[path for path in paths if not path.isEmpty()]
+    if not level:
+        return QtGui.QPainterPath()
+    while len(level)>1:
+        next_level=[]
+        for index in range(0,len(level)-1,2):
+            next_level.append(level[index].united(level[index+1]))
+        if len(level)%2:
+            next_level.append(level[-1])
+        level=next_level
+    return level[0]
 
 
+def _spatial_path_union(paths):
+    """Only run expensive Qt Boolean unions on potentially touching openings.
 
-from functools import lru_cache
+    Separate bounding-box components can safely be combined with ``addPath``:
+    they cannot geometrically intersect. Within each component the original
+    exact balanced union is retained. This is a *preview* optimization; the
+    FreeCAD/CNC solid construction and its acceptance rules are unchanged.
+    """
+    paths=[path for path in paths if not path.isEmpty()]
+    if not paths:
+        return QtGui.QPainterPath()
+    if len(paths)==1:
+        return paths[0]
+    from .path_groups import intersecting_rect_groups
+    groups=intersecting_rect_groups(tuple(
+        (r.left(),r.top(),r.right(),r.bottom())
+        for r in (path.boundingRect() for path in paths)))
+    result=QtGui.QPainterPath()
+    for indices in groups:
+        if len(indices)==1:
+            result.addPath(paths[indices[0]])
+        else:
+            result.addPath(_balanced_path_union(paths[i] for i in indices))
+    return result
+
+
+def combined_cutout_path(patterns,role,additions=False):
+    scale=QtGui.QTransform();scale.scale(100,100)
+    profiles=(scale.map(cutout_path(instance))
+              for pattern in patterns
+              if pattern['enabled'] and pattern['role']==role and
+                 (pattern['mode']=='Add material' if additions else pattern['mode'] not in ('Add material','Pocket'))
+              for instance in pattern_instances(pattern))
+    return scale.inverted()[0].map(_spatial_path_union(profiles))
+
+
 
 @lru_cache(maxsize=32)
 def _profile_parameters(p):
@@ -260,16 +442,27 @@ def _profile_parameters(p):
     from .parameters import Parameters
     defaults=Parameters()
     return replace(p,**{name:getattr(defaults,name) for name in p.__dataclass_fields__
-                       if name.startswith(('FlexGuard','FlexProtector','FlexAntenna','FlexELRS')) or name in ('FlexRearAntenna','FlexSideGuards','FlexMotorProtectors','PrintedPartColour')})
+                       if name.startswith(('FlexGuard','FlexProtector','FlexAntenna','FlexELRS','LiPoPad')) or name in ('FlexRearAntenna','FlexSideGuards','FlexMotorProtectors','PrintedPartColour')})
 
 @lru_cache(maxsize=96)
 def _finished_part_path_cached(p,role,pattern_json,include_strap_notches=True):
     return _make_finished_part_path(p,role,parse_patterns(pattern_json),include_strap_notches)
 
 def finished_part_path(p,role,patterns=None,include_strap_notches=True):
-    import json
-    encoded=p.CutoutPatterns if patterns is None else json.dumps(patterns,sort_keys=True,separators=(',',':'))
-    return QtGui.QPainterPath(_finished_part_path_cached(_profile_parameters(p),role,encoded,include_strap_notches))
+    # Keep markers and generated group IDs are editor metadata, not geometry.
+    # Strip them from the geometric cache key so checking Keep on dozens of
+    # Web cells does not invalidate the expensive complete plate outline.
+    from dataclasses import replace
+    if patterns is None:
+        patterns=parse_patterns(p.CutoutPatterns)
+    geometric=[{key:value for key,value in pattern.items()
+                if key not in ('auto_keep','auto_group')}
+               for pattern in patterns if pattern['role']==role]
+    encoded=json.dumps(geometric,sort_keys=True,separators=(',',':'))
+    profile=_profile_parameters(p)
+    if profile.CutoutPatterns!='[]':
+        profile=replace(profile,CutoutPatterns='[]')
+    return QtGui.QPainterPath(_finished_part_path_cached(profile,role,encoded,include_strap_notches))
 
 def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
     """Shared complete 2D part profile: joints, holes, slots and applied cuts."""
@@ -278,15 +471,32 @@ def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
         q=QtGui.QPainterPath();q.addRoundedRect(QtCore.QRectF(-width/2,rear,width,front-rear),radius,radius);return q
     if role in CAMERA_ROLES:
         if not p.FPVEnabled:return path
-        mount=camera_mounts(p)[0];height=mount['z1']-mount['z0']
+        if p.CameraCageStyle=='TPU cage':
+            from .cage_preview import unified_side_elevation
+            return unified_side_elevation(p,role)
+        mount=camera_mounts(p)[0]
+        if p.CameraCageStyle=='TPU cage':
+            from .cage_preview import preview_mount
+            mount=preview_mount(p,mount)
+        height=mount['z1']-mount['z0']
         cy=camera_position_y(p);points=[(y-cy,z-p.BottomThickness) for y,z in mount['wall_profile']]
         path.moveTo(*points[0])
         for point in points[1:]:path.lineTo(*point)
         path.closeSubpath()
-        for y in mount['tabs_y']:
+        from .camera_cages import screw_cage
+        for y in (() if screw_cage(p) else mount['tabs_y']):
             path.addRect(QtCore.QRectF(y-cy-p.CameraTabLength/2,-p.BottomThickness,p.CameraTabLength,p.BottomThickness))
-        for y in mount['top_tabs_y']:
+        for y in (() if screw_cage(p) else mount['top_tabs_y']):
             path.addRect(QtCore.QRectF(y-cy-p.CameraTabLength/2,height,p.CameraTabLength,p.TopThickness))
+        if screw_cage(p):
+            radius=p.CameraTPUScrewBore/2+p.CameraTPUBossWall
+            for ys,z,direction in ((mount['tabs_y'],mount['z0'],1),(mount['top_tabs_y'],mount['z1'],-1)):
+                for y in ys:
+                    bottom=z if direction>0 else z-p.CameraTPUInsertDepth-1
+                    path=path.united(polygon_path(((y-cy-radius,bottom-p.BottomThickness),(y-cy+radius,bottom-p.BottomThickness),(y-cy+radius,bottom+p.CameraTPUInsertDepth+1-p.BottomThickness),(y-cy-radius,bottom+p.CameraTPUInsertDepth+1-p.BottomThickness))))
+            if p.CameraTPUBumper:
+                from .cage_extensions import bumper_profile
+                path=path.united(polygon_path(tuple((y-cy,z-p.BottomThickness) for y,z in bumper_profile(p,mount))))
         from .fpv import camera_tab_reliefs
         reliefs=camera_tab_reliefs(p,mount)
         if reliefs:
@@ -336,11 +546,31 @@ def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
         from .strap_openings import notch_polygons
         for poly in notch_polygons(p) if include_strap_notches else ():
             cut=QtGui.QPainterPath();cut.addPolygon(QtGui.QPolygonF([QtCore.QPointF(*pt) for pt in poly]));cut.closeSubpath();path=path.subtracted(cut)
+    source_patterns=parse_patterns(p.CutoutPatterns) if patterns is None else patterns
+    additions=combined_cutout_path(source_patterns,role,True)
+    if not additions.isEmpty():
+        path=path.united(additions)
+    # Remove disjoint fasteners, straps and vents in a single Qt Boolean.
+    # Spatially separate cutters are concatenated without a union. Overlapping
+    # ones are still united exactly. Only the preview benefits; the CAD and
+    # CNC cutters remain unchanged.
+    cutters=[]
     for pt,r in holes:
-        hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(*pt),r,r);path=path.subtracted(hole)
-    for a,b,r in slots:path=path.subtracted(capsule_path(a,b,r))
+        hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(*pt),r,r)
+        cutters.append(hole)
+    cutters.extend(capsule_path(a,b,r) for a,b,r in slots)
+    cutout=combined_cutout_path(source_patterns,role)
+    if not cutout.isEmpty():
+        cutters.append(cutout)
+    if cutters:
+        path=path.subtracted(_spatial_path_union(cutters))
     from .plate_fillets import preview_fillet
-    return preview_fillet(p,role,path.subtracted(combined_cutout_path(parse_patterns(p.CutoutPatterns) if patterns is None else patterns,role)))
+    return preview_fillet(p,role,path)
+
+def replace_parameter_cutouts(p, value):
+    from dataclasses import replace
+    return replace(p,CutoutPatterns=value)
+
 
 class AirflowPreview(QtWidgets.QWidget):
     """Saved-pattern locator; all picking stays in Qt, without CAD work."""
@@ -348,6 +578,15 @@ class AirflowPreview(QtWidgets.QWidget):
         super().__init__();self.editor=editor;self.setMinimumHeight(280)
         self.setMouseTracking(True);self.setCursor(QtCore.Qt.PointingHandCursor)
         self._records_key=None;self._records=();self._focus=False;self._last_pick=None;self.last_error=None
+        self._hit_strokes_key=None;self._hit_strokes={}
+        self._plate_path_key=None;self._plate_path=None;self._plate_bounds=None
+        self._visible_cuts_key=None;self._visible_cuts=()
+        # The parent editor reads hundreds of live form fields to construct
+        # Parameters. Cache the last validated snapshot for hit-testing;
+        # Gui.refresh updates it whenever a frame setting changes.
+        self._frame_parameters=None
+        self._geometry_parameters=None
+        self._addition_signature_key=None;self._addition_signature=()
         self.setToolTip('Click a saved cutout to edit it. Click again in the same place to cycle overlapping patterns. Arrays select the whole saved pattern.')
 
     def records(self):
@@ -355,7 +594,7 @@ class AirflowPreview(QtWidgets.QWidget):
         # Enabled cuts are bounded by MAX_ENABLED_CUTOUTS. Only the selected
         # disabled array is expanded, avoiding 80,000 inactive copies in a view.
         indices=tuple(i for i,p in enumerate(e.patterns) if p['role']==role and not e.pattern_list.item(i).isHidden() and (p['enabled'] or i==selected))
-        key=(role,json.dumps(e.patterns,sort_keys=True),indices)
+        key=(role,e._patterns_revision,indices)
         if key!=self._records_key:
             records=[]
             for i in indices:
@@ -364,11 +603,62 @@ class AirflowPreview(QtWidgets.QWidget):
                 for path in paths:box=box.united(path.boundingRect())
                 records.append((i,paths,box))
             self._records_key=key;self._records=tuple(records)
+            self._hit_strokes_key=None;self._hit_strokes={}
         return self._records
 
+    def set_frame_parameters(self, p):
+        """Receive the parent's validated snapshot without duplicate repaints."""
+        previous=self._frame_parameters
+        if previous==p:return
+        self._frame_parameters=p
+        # Edited cutouts are painted separately from the base blank. The base
+        # cannot change just because CutoutPatterns was updated, so keep its
+        # derived geometry/silhouette instead of recalculating it on repaint.
+        if previous is not None and replace_parameter_cutouts(previous,p.CutoutPatterns)==p:
+            if self.isVisible():self.update()
+            return
+        # Mark stale without recalculating hidden previews. The next actual
+        # paint or hit-test canonicalizes once, not on every pointer motion.
+        self._geometry_parameters=None
+        # Hidden Airflow pages must not trigger expensive preview work until
+        # the user actually opens the section (Qt paints it on exposure).
+        if self.isVisible():self.update()
+
     def view(self):
-        e=self.editor;p=e.get_parameters();role=e.role.currentData()
-        path=finished_part_path(p,role,e.patterns);box=finished_part_path(p,role,[]).boundingRect()
+        e=self.editor;role=e.role.currentData()
+        p=self._frame_parameters
+        if p is None:
+            p=e.get_parameters()
+            self._frame_parameters=p
+        # Hit-testing can run on every pointer movement. Reuse the parent
+        # snapshot and only recompute if the preview is used stand-alone.
+        geometry_p=self._geometry_parameters
+        if geometry_p is None:
+            from dataclasses import replace
+            geometry_p=replace(_profile_parameters(p),CutoutPatterns='[]')
+            self._geometry_parameters=geometry_p
+        # Changing any through-cut, Keep flag, cutout list ordering, or other
+        # part's pattern does NOT change the plate silhouette. Only added
+        # material actually changes the blank. Key by those additions rather
+        # than the revision counter covering every airflow operation.
+        signature_key=(e._patterns_revision,role)
+        if self._addition_signature_key!=signature_key:
+            added=[v for v in e.patterns if v['enabled'] and v['role']==role
+                   and v['mode']=='Add material']
+            self._addition_signature=tuple(json.dumps(
+                {k:v for k,v in item.items() if k not in ('auto_keep','auto_group')},
+                sort_keys=True,separators=(',',':')) for item in added)
+            self._addition_patterns=added
+            self._addition_signature_key=signature_key
+        added_key=self._addition_signature
+        key=(geometry_p,role,added_key)
+        if key!=self._plate_path_key:
+            # Draw through-cuts separately; expensive plate profile Booleans
+            # are only needed when its perimeter or material additions change.
+            self._plate_path=finished_part_path(p,role,self._addition_patterns)
+            self._plate_bounds=self._plate_path.boundingRect()
+            self._plate_path_key=key
+        path=self._plate_path;box=QtCore.QRectF(self._plate_bounds)
         if box.isEmpty():
             for i,paths,extent in self.records():box=box.united(extent)
         if self._focus:
@@ -377,6 +667,20 @@ class AirflowPreview(QtWidgets.QWidget):
         scale=max(.001,min(max(1,self.width()-32)/max(1,box.width()),max(1,self.height()-32)/max(1,box.height())))
         transform=QtGui.QTransform();transform.translate(self.width()/2,self.height()/2);transform.scale(scale,-scale);transform.translate(-box.center().x(),-box.center().y())
         return path,transform,scale
+
+    def visible_through_cuts(self):
+        """All enabled cuts, including those hidden by the list filter."""
+        e=self.editor;role=e.role.currentData()
+        key=(role,e._patterns_revision)
+        if self._visible_cuts_key!=key:
+            self._visible_cuts=tuple(
+                cutout_path(inst)
+                for pattern in e.patterns
+                if pattern['enabled'] and pattern['role']==role
+                and pattern['mode'] not in ('Add material','Pocket')
+                for inst in pattern_instances(pattern))
+            self._visible_cuts_key=key
+        return self._visible_cuts
 
     def fit_plate(self):self._focus=False;self.update()
     def zoom_selected(self):
@@ -390,12 +694,29 @@ class AirflowPreview(QtWidgets.QWidget):
 
     def hit_indices(self,position):
         path,transform,scale=self.view();point=transform.inverted()[0].map(position)
-        stroke=QtGui.QPainterPathStroker();stroke.setWidth(8/scale)
+        stroke_width=8/scale
+        key=(self._records_key,stroke_width)
+        if key!=self._hit_strokes_key:
+            self._hit_strokes_key=key;self._hit_strokes={}
+        stroke=None
         hits=[]
         for i,paths,box in reversed(self.records()):
             if not box.adjusted(-4/scale,-4/scale,4/scale,4/scale).contains(point):continue
             tag_visible=self.editor.show_numbers.isChecked() or i==self.editor._selected_index
-            if (tag_visible and self.number_label(i,box,transform)[0].contains(position)) or any(v.contains(point) or stroke.createStroke(v).contains(point) for v in paths):hits.append(i)
+            if tag_visible and self.number_label(i,box,transform)[0].contains(position):
+                hits.append(i);continue
+            for j,cut in enumerate(paths):
+                if cut.contains(point):
+                    hits.append(i);break
+                cache_key=(i,j)
+                edge=self._hit_strokes.get(cache_key)
+                if edge is None:
+                    if stroke is None:
+                        stroke=QtGui.QPainterPathStroker();stroke.setWidth(stroke_width)
+                    edge=stroke.createStroke(cut)
+                    self._hit_strokes[cache_key]=edge
+                if edge.contains(point):
+                    hits.append(i);break
         return hits
 
     def mousePressEvent(self,event):
@@ -417,7 +738,8 @@ class AirflowPreview(QtWidgets.QWidget):
             pos=event.position() if hasattr(event,'position') else QtCore.QPointF(event.pos())
             hits=self.hit_indices(pos)
             text='\n'.join(self.editor.pattern_text(i) for i in hits)
-            self.setToolTip(text+'\nClick to select; click again to cycle overlaps.' if hits else 'Click a saved cutout to select it. Disabled patterns can be found in the list.')
+            tooltip=text+'\nClick to select; click again to cycle overlaps.' if hits else 'Click a saved cutout to select it. Disabled patterns can be found in the list.'
+            if tooltip!=self.toolTip():self.setToolTip(tooltip)
         except (ValueError,RuntimeError):pass
 
     def paintEvent(self,event):
@@ -426,13 +748,22 @@ class AirflowPreview(QtWidgets.QWidget):
         try:
             path,transform,scale=self.view();painter.setTransform(transform)
             painter.setPen(QtGui.QPen(QtGui.QColor('#111315'),.8/scale));painter.setBrush(QtGui.QColor('#2e3033'));painter.drawPath(path)
+            # Cheap visual holes, independent of Qt boolean complexity.
+            # Their contours come from cutout_path, the same R0.5-rounded
+            # shape used by the exact manufacturing clearance check.
+            painter.setPen(QtCore.Qt.NoPen)
+            painter.setBrush(QtGui.QColor('#f3f6f8'))
+            for cut in self.visible_through_cuts():
+                painter.drawPath(cut)
             for i,paths,box in sorted(self.records(),key=lambda r:r[0]==self.editor._selected_index):
                 selected=i==self.editor._selected_index
-                if not selected and not self.editor.show_numbers.isChecked():continue
-                if selected:
-                    pen=QtGui.QPen(QtGui.QColor('#d87809'),2.5/scale)
+                pocket=self.editor.patterns[i]['mode']=='Pocket'
+                if not selected and not pocket and not self.editor.show_numbers.isChecked():continue
+                if selected or pocket:
+                    pen=QtGui.QPen(QtGui.QColor('#087fa8') if pocket else QtGui.QColor('#d87809'),2.5/scale)
+                    if pocket:pen.setStyle(QtCore.Qt.DashLine)
                     if not self.editor.patterns[i]['enabled']:pen.setStyle(QtCore.Qt.DashLine)
-                    painter.setPen(pen);painter.setBrush(QtGui.QColor(255,178,65,65))
+                    painter.setPen(pen);painter.setBrush(QtGui.QColor(32,170,206,85) if pocket else QtGui.QColor(255,178,65,65))
                     for cut in paths:painter.drawPath(cut)
                 if self.editor.show_numbers.isChecked() or selected:
                     rect,font=self.number_label(i,box,transform);painter.save();painter.resetTransform()
@@ -444,10 +775,14 @@ class AirflowPreview(QtWidgets.QWidget):
 
 class AirflowEditor(QtWidgets.QWidget):
     changed=QtCore.Signal(str)
+    metadataChanged=QtCore.Signal(str)
     def __init__(self,get_parameters):
-        super().__init__();self.get_parameters=get_parameters;self.patterns=[];self.inputs={};self._selected_index=-1
+        super().__init__();self.get_parameters=get_parameters;self.patterns=[];self.inputs={};self._selected_index=-1;self._patterns_revision=0
         layout=QtWidgets.QVBoxLayout(self)
-        note=QtWidgets.QLabel('Add a pattern, then select it to edit and press Apply to pattern. Overlapping cutouts on the same part merge into one opening. Leave material between separate openings, or overlap them rather than merely touching. Inactive parts retain their patterns. Choose Interior for airflow openings or Outline notch to shape a main or clamp plate edge. CAD checks protect fasteners, holes and captured tab sockets.');note.setWordWrap(True);layout.addWidget(note)
+        note=QtWidgets.QLabel('Add a pattern, then select it to edit and press Apply to pattern. Through-cut openings need a minimum carbon web. Blind pockets may overlap holes, slots, cutouts and outer edges to form open-ended cable channels; they retain at least half the plate thickness where the plate is intact. Inactive parts retain their patterns. Use Interior for through vents, Pocket for shallow channels, or Outline notch to remove a full-depth edge section. Crossing mounting holes with pockets can weaken hardware support; inspect the final CAD model.');note.setWordWrap(True);layout.addWidget(note)
+        self.copy_to_pad=QtWidgets.QCheckBox('Copy matching airflow openings into the LiPo pad')
+        self.copy_to_pad.setToolTip('Copies openings from the top or bottom mounting plate into the printed LiPo pad, when the pad follows the carrier. Turning it off bridges airflow openings in the pad; mounting holes and strap openings are still preserved. The final solid is recalculated only on Create / Update.')
+        layout.addWidget(self.copy_to_pad)
         self.capacity=QtWidgets.QLabel();layout.addWidget(self.capacity)
         self.pattern_list=QtWidgets.QListWidget();self.pattern_list.setMinimumHeight(105);self.pattern_list.setMaximumHeight(160)
         filters=QtWidgets.QHBoxLayout();layout.addLayout(filters)
@@ -462,9 +797,9 @@ class AirflowEditor(QtWidgets.QWidget):
         for role in CUTOUT_ROLES:self.role.addItem(ROLE_LABELS[role],role)
         self.role.setCurrentIndex(2);form.addRow('Part',self.role)
         self.shape=QtWidgets.QComboBox();self.shape.addItems(CUTOUT_TYPES);self.shape.setCurrentText('Slot');form.addRow('Cutout type',self.shape)
-        self.shape.setToolTip('Keep the original four types or choose Ellipse, Rectangle, Triangle, Diamond, Trapezoid, Pentagon, Octagon or Chevron. Width and length set the overall local size; Circle uses width only. Overlap patterns on the same part to combine their openings.')
-        self.mode=QtWidgets.QComboBox();self.mode.addItems(CUTOUT_MODES);form.addRow('Cutting mode',self.mode)
-        self.mode.setToolTip('Interior protects the entire boundary. Outline notch must cross an outside edge of a main or clamp plate; existing holes, slots and fasteners remain protected. Patterns can overlap to combine.')
+        self.shape.setToolTip('CNC-safe profiles include classic and curved round-ended slots plus R0.5-rounded polygon motifs. Arc slot uses the separate signed Arc bend control; length is the end-centre chord. Very narrow dimensions are refused.')
+        self.mode=QtWidgets.QComboBox();self.mode.addItems(CUTOUT_MODES);form.addRow('Operation',self.mode)
+        self.mode.setToolTip('Interior removes material through the carbon. Pocket makes a shallow blind relief up to half thickness, including across plate edges, holes and other cutouts; machine it separately and check remaining screw support. Outline notch opens an outside edge. Add material extends main/clamp edges.')
         self.enabled=QtWidgets.QCheckBox('Enabled');self.enabled.setChecked(True);form.addRow(self.enabled)
         for keys,title in ((('width','length'),'Width / length'),(('x','y'),'Centre U / V'),(('columns','rows'),'Columns / rows'),(('pitch_x','pitch_y'),'Pitch U / V'),(('rotation',),'Rotation')):
             row=QtWidgets.QWidget();line=QtWidgets.QHBoxLayout(row);line.setContentsMargins(0,0,0,0)
@@ -476,6 +811,25 @@ class AirflowEditor(QtWidgets.QWidget):
                     control.setSuffix('°' if key=='rotation' else ' mm')
                 control.setValue(PATTERN_DEFAULTS[key]);line.addWidget(control);self.inputs[key]=control
             form.addRow(title,row)
+        self.arc_angle_label=QtWidgets.QLabel('Arc bend')
+        self.arc_angle=QtWidgets.QDoubleSpinBox()
+        self.arc_angle.setDecimals(1)
+        self.arc_angle.setRange(-170.,170.)
+        self.arc_angle.setSingleStep(5.)
+        self.arc_angle.setSuffix('°')
+        self.arc_angle.setValue(PATTERN_DEFAULTS['arc_angle'])
+        self.arc_angle.setToolTip('Arc slot only: signed curvature in degrees. Positive curves to local +U, negative curves to -U, and 0° produces a straight capsule. Length is the chord between end-cap centres; Width is the channel thickness. Rotate the entire slot using Rotation.')
+        form.addRow(self.arc_angle_label,self.arc_angle)
+        self.inputs['arc_angle']=self.arc_angle
+        self.shape.currentIndexChanged.connect(self.update_shape_controls)
+        self.update_shape_controls()
+        self.depth=QtWidgets.QDoubleSpinBox()
+        self.depth.setDecimals(2);self.depth.setRange(.1,50.);self.depth.setSingleStep(.1)
+        self.depth.setSuffix(' mm');self.depth.setValue(PATTERN_DEFAULTS['depth'])
+        self.depth.setToolTip('Blind machining depth, from the upper face (or outer side of camera plates). Maximum: half of the carbon thickness. This is not a through-cut.')
+        self.depth_label=QtWidgets.QLabel('Pocket depth')
+        form.addRow(self.depth_label,self.depth)
+        self.inputs['depth']=self.depth
         self.coordinates=QtWidgets.QLabel();self.coordinates.setWordWrap(True);layout.addWidget(self.coordinates)
         buttons=QtWidgets.QHBoxLayout();layout.addLayout(buttons)
         self.add_button=QtWidgets.QPushButton('Add pattern');self.apply_button=QtWidgets.QPushButton('Apply to pattern');self.remove_button=QtWidgets.QPushButton('Remove')
@@ -496,8 +850,14 @@ class AirflowEditor(QtWidgets.QWidget):
         self.status=QtWidgets.QLabel('Click a saved opening to select it; click again to cycle overlaps. Orange highlights the selected pattern. CAD checks run on Create / Update.');self.status.setWordWrap(True);layout.addWidget(self.status)
         self.check_button=QtWidgets.QPushButton('Check plate cuts in CAD');layout.addWidget(self.check_button)
         self.add_button.clicked.connect(self.add_pattern);self.apply_button.clicked.connect(self.apply_pattern);self.remove_button.clicked.connect(self.remove_pattern);self.copy_button.clicked.connect(self.copy_camera)
-        self.pattern_list.currentRowChanged.connect(self.select_pattern);self.role.currentIndexChanged.connect(self.update_coordinates)
+        self.pattern_list.currentRowChanged.connect(self.select_pattern)
+        self.pattern_list.itemChanged.connect(self._on_keep_check_changed)
+        self.role.currentIndexChanged.connect(self.update_coordinates)
         self.check_button.clicked.connect(self.check_cad);self.update_coordinates()
+        self.role.currentIndexChanged.connect(self.update_pocket_controls)
+        self.mode.currentIndexChanged.connect(self.update_pocket_controls)
+        self.update_pocket_controls()
+
         self._draft_baseline=self.draft()
         for control in (self.role,self.shape,self.mode):control.currentIndexChanged.connect(self.update_pending_status)
         self.enabled.toggled.connect(self.update_pending_status)
@@ -539,6 +899,58 @@ class AirflowEditor(QtWidgets.QWidget):
         edit_layout.addWidget(self.discard_button)
         edit_layout.addWidget(self.copy_button)
         edit_layout.addWidget(self.check_button)
+        # Plate-aware interior design motifs only.  Manual outline editing
+        # remains available; unreliable automatic perimeter sculpting is gone.
+        from .airflow_auto import INTERIOR_STYLES, AUTO_ROLES
+        auto_box=QtWidgets.QGroupBox('Automatic cutout design')
+        auto_form=QtWidgets.QFormLayout(auto_box)
+        self.auto_role=QtWidgets.QComboBox()
+        for part in AUTO_ROLES:self.auto_role.addItem(ROLE_LABELS[part],part)
+        self.auto_role.setCurrentIndex(self.auto_role.findData('TopPlate'))
+        auto_form.addRow('Target plate',self.auto_role)
+        self.auto_style=QtWidgets.QComboBox();auto_form.addRow('Style',self.auto_style)
+        self.auto_layout=QtWidgets.QComboBox()
+        self.auto_layout.addItems(('Mirrored','Organic balance'))
+        self.auto_layout.setToolTip('Mirrored creates exact left/right partner cutouts as one accepted unit. Organic balance uses structured plate motifs with occasional unequal details.')
+        auto_form.addRow('Arrangement',self.auto_layout)
+        self.auto_density=QtWidgets.QComboBox()
+        self.auto_density.addItems(('Sparse','Balanced','Detailed'))
+        self.auto_density.setCurrentText('Balanced')
+        auto_form.addRow('Detail',self.auto_density)
+        self.auto_web=QtWidgets.QComboBox()
+        for mm in range(3,11):self.auto_web.addItem(f'{mm} mm',mm)
+        self.auto_web.setCurrentIndex(self.auto_web.findData(5))
+        self.auto_web.setToolTip('Minimum carbon thickness between neighboring automatically generated openings, the plate edge, and mounting keepouts. Select 3–10 mm; the global structural Minimum web takes precedence if higher.')
+        auto_form.addRow('Carbon between cutouts',self.auto_web)
+        self._last_auto_patterns=[]
+        self._last_auto_role=None
+        self.auto_operation=QtWidgets.QComboBox();self.auto_operation.addItems(('Through cuts','Blind pockets'))
+        auto_form.addRow('Airflow operation',self.auto_operation)
+        self.auto_depth=QtWidgets.QDoubleSpinBox();self.auto_depth.setDecimals(2)
+        self.auto_depth.setRange(.1,50);self.auto_depth.setValue(.5)
+        self.auto_depth.setSuffix(' mm');self.auto_depth.setSingleStep(.1)
+        self.auto_depth_label=QtWidgets.QLabel('Auto pocket depth')
+        auto_form.addRow(self.auto_depth_label,self.auto_depth)
+        self.auto_shape_mix=QtWidgets.QComboBox()
+        self.auto_shape_mix.addItems(('Mixed shapes','Web cells','Manual shapes'))
+        self.auto_shape_mix.setToolTip('Mix irregular web cells with CNC-rounded manual-library cutout shapes, or choose one family. New candidates are always checked against plate edges, mounting hardware and kept openings.')
+        auto_form.addRow('Cutout variety',self.auto_shape_mix)
+        self.auto_role.currentIndexChanged.connect(self.update_auto_limits)
+        self.auto_role.currentIndexChanged.connect(self._update_randomize_button)
+        self.auto_operation.currentIndexChanged.connect(self.update_auto_limits)
+        self.auto_generate=QtWidgets.QPushButton('Generate plate design')
+        self.auto_generate.setToolTip('Quickly arrange small and medium CNC-rounded openings around the existing carbon, mounts and kept shapes. Uses a bounded, local geometric search.')
+        self.auto_generate.clicked.connect(self.generate_automatic)
+        auto_form.addRow(self.auto_generate)
+        self.auto_random=QtWidgets.QPushButton('Randomize design')
+        self.auto_random.setToolTip('Replace unlocked generated openings with a new mix of web cells and manual cutout shapes. Kept shapes and user-created cuts remain unchanged.')
+        self.auto_random.clicked.connect(lambda checked=False:self.generate_automatic(randomize=True))
+        self.auto_random.setEnabled(False)
+        auto_form.addRow(self.auto_random)
+        self.auto_note=QtWidgets.QLabel('Mixed shapes combines irregular Web cells with CNC-rounded shapes from the manual palette. Small and medium openings are preferred over oversized holes. Keep protects an opening (and its mirrored partner); Randomize searches the remaining free regions without moving it. Minimum carbon web, mounting clearances and R0.5 fillets still apply; run the CAD check before manufacturing.')
+        self.auto_note.setWordWrap(True);auto_form.addRow(self.auto_note)
+        edit_layout.addWidget(auto_box)
+        self.update_auto_styles();self.update_auto_limits()
         edit_layout.addStretch()
         inspect = QtWidgets.QWidget(); inspect_layout = QtWidgets.QVBoxLayout(inspect)
         inspect_layout.setContentsMargins(4, 0, 0, 0)
@@ -560,9 +972,402 @@ class AirflowEditor(QtWidgets.QWidget):
         self.coordinates.setText('U = Y offset from nominal camera centre. V = height above bottom plate upper face. Width is along U; length is along V.' if camera else
                                  'U = frame X (right). V = frame Y (front). The grid is centred here; rotation turns both cuts and grid. Circle uses width as diameter.')
         self.copy_button.setEnabled(camera);self.preview.fit_plate()
+        if hasattr(self,'depth_label'):self.update_pocket_controls()
+
+    def _plate_thickness(self,role):
+        p=self.get_parameters()
+        if role=='TopPlate':return p.TopThickness
+        if role=='MidPlate':return p.ClampThickness
+        if role=='BottomPlate':return p.BottomThickness
+        if role=='ArmClampPlate':return p.ArmBraceThickness
+        if role=='ArmLowerClampPlate':return p.UndersideClampThickness
+        if role in CAMERA_ROLES:return p.CameraBracketThickness
+        return p.ArmThickness
+
+    def update_pocket_controls(self,*args):
+        pocket=self.mode.currentText()=='Pocket'
+        camera_side=self.role.currentData() in CAMERA_ROLES
+        if pocket and camera_side and self.get_parameters().CameraCageStyle!='Carbon side plates':
+            self.depth.setToolTip('Blind pockets require Carbon side plates; TPU cage pockets are not supported.')
+        self.depth_label.setVisible(pocket);self.depth.setVisible(pocket)
+        max_depth=max(.1,self._plate_thickness(self.role.currentData())*.5)
+        self.depth.setMaximum(max_depth)
+        self.depth.setToolTip(f'Machine from the upper/outside surface, with at least {max_depth:g} mm carbon remaining. Maximum depth: {max_depth:g} mm.')
+        if hasattr(self,'auto_role'):self.update_auto_limits()
+
+    def update_auto_styles(self,*args):
+        from .airflow_auto import INTERIOR_STYLES
+        self.auto_style.clear();self.auto_style.addItems(INTERIOR_STYLES)
+
+    def update_auto_limits(self,*args):
+        role=self.auto_role.currentData()
+        max_depth=max(.1,self._plate_thickness(role)*.5)
+        self.auto_depth.setMaximum(max_depth)
+        pockets=self.auto_operation.currentIndex()==1
+        self.auto_depth_label.setVisible(pockets);self.auto_depth.setVisible(pockets)
+        self.auto_depth.setToolTip(f'Blind recess depth must be at most half the target carbon thickness: {max_depth:g} mm.')
+
+    @staticmethod
+    def _qt_path_has_area(path):
+        # False is the safe outcome for tiny paths / boolean artefacts.
+        return not path.isEmpty() and path.boundingRect().width()*path.boundingRect().height()>1e-4
+
+    @staticmethod
+    def _same_generated_pattern(a,b):
+        """Changing only the Keep checkbox must not count as a geometry edit."""
+        return ({k:v for k,v in a.items() if k!='auto_keep'} ==
+                {k:v for k,v in b.items() if k!='auto_keep'})
+
+    def _active_auto_batch(self):
+        """Find this editor's unedited generated suffix, ignoring Keep changes."""
+        previous=getattr(self,'_last_auto_patterns',[])
+        if (not previous or self.auto_role.currentData()!=getattr(self,'_last_auto_role',None)
+                or len(self.patterns)<len(previous)):
+            return None
+        latest=self.patterns[-len(previous):]
+        if all(self._same_generated_pattern(a,b) for a,b in zip(latest,previous)):
+            return latest
+        return None
+
+    def _can_randomize(self):
+        latest=self._active_auto_batch()
+        return bool(latest and any(not p.get('auto_keep',False) for p in latest))
+
+    def _update_randomize_button(self):
+        if hasattr(self,'auto_random'):
+            self.auto_random.setEnabled(self._can_randomize())
+
+    def _on_keep_check_changed(self,item):
+        """Persist Keep and lock matching mirror partners as one design unit."""
+        index=self.pattern_list.row(item)
+        if not 0<=index<len(self.patterns):return
+        group=self.patterns[index].get('auto_group','')
+        if not group:return
+        locked=item.checkState()==QtCore.Qt.Checked
+        targets=[i for i,p in enumerate(self.patterns) if p.get('auto_group')==group]
+        old=[self.patterns[i].get('auto_keep',False) for i in targets]
+        for i in targets:self.patterns[i]['auto_keep']=locked
+        try:value=encode_patterns(self.patterns)
+        except ValueError as exc:
+            for i,state in zip(targets,old):self.patterns[i]['auto_keep']=state
+            self.show_error(str(exc))
+            return
+        self.pattern_list.blockSignals(True)
+        try:
+            for i in targets:
+                self.pattern_list.item(i).setCheckState(
+                    QtCore.Qt.Checked if locked else QtCore.Qt.Unchecked)
+                self.pattern_list.item(i).setText(self.pattern_text(i))
+        finally:self.pattern_list.blockSignals(False)
+        # Checkbox edits do not change cutout geometry: do not rebuild the
+        # preview records or run complete frame validation on every click.
+        self.metadataChanged.emit(value)
+        self._update_randomize_button()
+        self.status.setText(
+            ('Kept' if locked else 'Released')+f' {len(targets)} generated opening(s). '+
+            ('Randomize will retain them.' if locked else 'Randomize may replace them.'))
+
+    def generate_automatic(self,*args,randomize=False):
+        """Generate varied local cutouts with a bounded, clearance-safe search.
+
+        The former web-first method constructed huge, deeply tessellated Qt
+        boolean paths at 40x scale and then repeatedly simplified their
+        largest regions.  Once Keep occupied much of the mask, that could
+        spend seconds retrying contours that could never pass a clearance
+        check.  This routine instead proposes many SMALL independent cells
+        in empty bays; exact Qt CNC profiles are validated locally.
+        """
+        if getattr(self,'_auto_generating',False):
+            return
+        if randomize and not self._can_randomize():
+            self._update_randomize_button()
+            self.status.setText('Generate a design before Randomize, or release one of its kept openings.')
+            return
+        if not self.require_applied():
+            return
+        import time
+        started=time.perf_counter()
+        from .airflow_auto import AUTO_ROLES
+        from .airflow_fast import iter_design_candidates, mirror_candidate
+        from .parameters import plate_holes,standoff_layouts,keystone_retainers
+        from .tpu_mount_layout import carbon_rim_centres
+        from .cutouts import MAX_PATTERNS,MAX_ENABLED_CUTOUTS
+        import secrets
+        from dataclasses import replace
+        role=self.auto_role.currentData()
+        if role not in AUTO_ROLES:
+            self.show_error('Choose a main or clamp carbon plate for automatic airflow cutouts.')
+            return
+        self._auto_generating=True
+        self.auto_generate.setEnabled(False)
+        self.auto_random.setEnabled(False)
+        QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
+        try:
+            p=self.get_parameters()
+            previous=self._active_auto_batch()
+            if previous is not None:
+                replace_previous=True
+                retained=[dict(v) for v in previous if v.get('auto_keep',False)]
+                working=self.patterns[:-len(previous)]+retained
+            else:
+                # Reloaded FCStd projects do not have an active editor batch.
+                # Only automatic cutouts for this role are replaceable.
+                prior=[v for v in self.patterns if v['role']==role and v.get('auto_group')]
+                replace_previous=bool(prior)
+                retained=[dict(v) for v in prior if v.get('auto_keep',False)]
+                working=([v for v in self.patterns
+                          if v['role']!=role or not v.get('auto_group')]+retained
+                         if prior else list(self.patterns))
+
+            remaining_slots=min(
+                MAX_PATTERNS-len(working),
+                MAX_ENABLED_CUTOUTS-sum(v['rows']*v['columns'] for v in working
+                                        if v['enabled']))
+            if remaining_slots<1:
+                raise ValueError('Airflow cutout capacity reached. Remove or disable a pattern.')
+
+            required_web=max(float(self.auto_web.currentData()),p.MinimumWeb)
+            mirrored=self.auto_layout.currentText()=='Mirrored'
+            # Use only added material when constructing the plate silhouette.
+            # Existing cutouts, INCLUDING kept cutouts, are spatial obstacles,
+            # not subtractions from this cached baseline.  This distinction
+            # prevents a growing number of kept cells from making the outline
+            # computation and plate erosion progressively more complex.
+            additions=[v for v in working if v['role']==role and v['enabled']
+                       and v['mode']=='Add material']
+            material_key=json.dumps(
+                [{k:v for k,v in item.items() if k not in ('auto_keep','auto_group')}
+                 for item in additions],sort_keys=True,separators=(',',':'))
+            plate_key=(replace(p,CutoutPatterns='[]'),role,material_key,required_web)
+            cached=getattr(self,'_auto_fast_plate_cache',None)
+            if cached is not None and cached[0]==plate_key:
+                base,usable,bounds=cached[1:]
+            else:
+                # Qt's boolean tessellation stays accurate at 12x while its
+                # operations are dramatically smaller than the old 40x
+                # global skeleton/rounding chain.  The *manufacturing*
+                # geometry remains analytic R0.5 FreeCAD geometry.
+                factor=12.
+                transform=QtGui.QTransform();transform.scale(factor,factor)
+                base=transform.map(finished_part_path(p,role,additions))
+                bounds=base.boundingRect()
+                if base.isEmpty() or bounds.isEmpty():
+                    raise ValueError('The chosen plate has no usable carbon profile.')
+                rim=QtGui.QPainterPathStroker()
+                rim.setWidth(2*(required_web+.20)*factor)
+                rim.setJoinStyle(QtCore.Qt.RoundJoin)
+                rim.setCapStyle(QtCore.Qt.RoundCap)
+                usable=base.subtracted(rim.createStroke(base))
+                # The editor has at most one cache entry; an updated frame or
+                # a different Minimum web releases the previous large path.
+                self._auto_fast_plate_cache=(plate_key,base,usable,bounds)
+            if usable.isEmpty():
+                self.status.setText('No room for cutouts at this carbon-web width; the plate is unchanged.')
+                return
+
+            factor=12.
+            scale=QtGui.QTransform();scale.scale(factor,factor)
+            margin=(required_web+.20)*factor
+            cell_size=max(15.,2*required_web+7.)*factor
+            # Uniform-grid broad phase: look only at obstacles that could
+            # physically touch the candidate.  Its cost is independent of the
+            # number of Keep openings on the opposite end of the plate.
+            buckets={}
+            obstacles=[]
+            def grid_cells(rect):
+                x0=int(math.floor(rect.left()/cell_size))
+                x1=int(math.floor(rect.right()/cell_size))
+                y0=int(math.floor(rect.top()/cell_size))
+                y1=int(math.floor(rect.bottom()/cell_size))
+                for ix in range(x0,x1+1):
+                    for iy in range(y0,y1+1):
+                        yield (ix,iy)
+            def add_obstacle(path):
+                if path.isEmpty():return
+                rect=path.boundingRect()
+                index=len(obstacles)
+                obstacles.append((path,rect))
+                for cell in grid_cells(rect):
+                    buckets.setdefault(cell,[]).append(index)
+            def close_obstacles(rect):
+                ids=set()
+                for cell in grid_cells(rect):
+                    ids.update(buckets.get(cell,()))
+                return (obstacles[i][0] for i in ids
+                        if obstacles[i][1].intersects(rect))
+
+            def keep_disc(point,radius):
+                path=QtGui.QPainterPath()
+                path.addEllipse(QtCore.QPointF(point[0]*factor,point[1]*factor),
+                                radius*factor,radius*factor)
+                add_obstacle(path)
+            # Protect real mounting footprints, not only their drill holes.
+            for point,radius,name in plate_holes(p,role):
+                r=max(radius,3.0 if name in ('arm root','stack') else radius)
+                if name in ('arm root','stack'):r+=.5
+                keep_disc(point,r)
+            for stand in standoff_layouts(p):
+                carrier={'Bottom plate':'BottomPlate','Mid plate':'MidPlate',
+                         'Arm clamp plate':'ArmClampPlate','Arm top':None}.get(stand['mount'])
+                if role=='TopPlate' or role==carrier:
+                    keep_disc(stand['point'],p.StandoffDiameter*.5)
+            if role in ('BottomPlate','ArmClampPlate'):
+                for ret in keystone_retainers(p):
+                    keep_disc(ret['point'],max(ret['head_diameter']*.5,ret['bore']))
+            for point,radius in carbon_rim_centres(p,role):
+                keep_disc(point,radius)
+            for item in working:
+                if item['enabled'] and item['role']==role and item['mode']!='Add material':
+                    for instance in pattern_instances(item):
+                        add_obstacle(scale.map(cutout_path(instance)))
+
+            # One pen is reused for the entire batch; no repeated full-plate
+            # union, stroke or topology conversion during individual attempts.
+            inflator=QtGui.QPainterPathStroker()
+            inflator.setWidth(2*margin)
+            inflator.setCapStyle(QtCore.Qt.RoundCap)
+            inflator.setJoinStyle(QtCore.Qt.RoundJoin)
+            usable_box=usable.boundingRect()
+            candidate_new=[]
+            kept_groups=len({v['auto_group'] for v in retained if v.get('auto_group')})
+            plate_height=bounds.height()/factor
+            detail=self.auto_density.currentText()
+            pitch={'Sparse':32.,'Balanced':22.,'Detailed':15.}.get(detail,22.)
+            target_groups=max(1,min(18,round(plate_height/pitch))-kept_groups)
+            accepted_groups=0
+            trials=0
+            # A fixed attempt ceiling avoids hangs when Keep has filled the
+            # available area; later passes use progressively smaller shapes.
+            for item in iter_design_candidates(
+                    (bounds.left()/factor,bounds.top()/factor,
+                     bounds.width()/factor,bounds.height()/factor),
+                    role,self.auto_style.currentText(),detail,
+                    self.auto_layout.currentText(),required_web,
+                    secrets.randbits(64),self.auto_shape_mix.currentText(),
+                    max_attempts=150):
+                trials+=1
+                if accepted_groups>=target_groups or len(candidate_new)>=remaining_slots:
+                    break
+                central=mirrored and abs(item['x'])<1e-3
+                # The centre of the plate may differ slightly from zero in a
+                # translated CAD design; the generator uses the same rule.
+                axis=0. if bounds.left()<=0<=bounds.right() else bounds.center().x()/factor
+                central=mirrored and abs(item['x']-axis)<1e-3
+                if central:
+                    # A solitary centre cell must itself be mirror symmetric.
+                    # Zero rotation and only use Y-symmetric manual contours.
+                    safe_central=('Slot','Rounded rectangle','Ellipse','Diamond',
+                                  'Hexagon','Kite','Shield','Triangle','Trapezoid')
+                    if item['shape'] not in safe_central:
+                        item=dict(item,shape='Diamond',vertices=[])
+                    item['rotation']=0.
+                    members=[item]
+                elif mirrored:
+                    partner=mirror_candidate(item,axis)
+                    if partner is None:continue
+                    members=[item,partner]
+                else:
+                    members=[item]
+                if len(candidate_new)+len(members)>remaining_slots:
+                    continue
+                shaped=[]
+                group_ok=True
+                for part in members:
+                    part['auto_web']=float(self.auto_web.currentData())
+                    if self.auto_operation.currentIndex()==1:
+                        part['mode']='Pocket'
+                        part['depth']=min(self.auto_depth.value(),
+                                          self._plate_thickness(role)*.5)
+                    # The analytic shape fits inside its rotated width/length
+                    # box. Reject candidates outside the eroded plate before
+                    # constructing any rounded arcs or Qt path topology.
+                    radians=math.radians(part['rotation'])
+                    dx=(abs(part['width']*math.cos(radians))+
+                        abs(part['length']*math.sin(radians)))*factor*.5
+                    dy=(abs(part['width']*math.sin(radians))+
+                        abs(part['length']*math.cos(radians)))*factor*.5
+                    centre_x,centre_y=part['x']*factor,part['y']*factor
+                    approx=QtCore.QRectF(centre_x-dx,centre_y-dy,2*dx,2*dy)
+                    if not usable_box.contains(approx):
+                        group_ok=False;break
+                    try:
+                        outline=scale.map(cutout_path(part))
+                    except (ValueError, TypeError, ArithmeticError):
+                        group_ok=False;break
+                    rect=outline.boundingRect()
+                    if (outline.isEmpty() or not usable_box.contains(rect)
+                            or rect.width()<factor or rect.height()<factor):
+                        group_ok=False;break
+                    # Only inflate when something is actually close enough.
+                    padded=rect.adjusted(-margin,-margin,margin,margin)
+                    neighbours=list(close_obstacles(padded))
+                    neighbours.extend(prev for prev,_ in shaped
+                                      if prev.boundingRect().intersects(padded))
+                    if neighbours:
+                        inflated=outline.united(inflator.createStroke(outline))
+                        if any(self._qt_path_has_area(inflated.intersected(previous))
+                               for previous in neighbours):
+                            group_ok=False;break
+                    # The complex full-plate Boolean is last; most proposals
+                    # rejected by kept cutouts/hardware never reach it.
+                    if self._qt_path_has_area(outline.subtracted(usable)):
+                        group_ok=False;break
+                    shaped.append((outline,rect))
+                if not group_ok:
+                    continue
+                group_id=secrets.token_hex(8)
+                for part,(outline,_) in zip(members,shaped):
+                    part['auto_group']=group_id
+                    part['auto_keep']=False
+                    candidate_new.append(part)
+                    add_obstacle(outline)
+                accepted_groups+=1
+
+            if not candidate_new:
+                self.status.setText(
+                    f'No free area for additional R0.5 cutouts after {trials} '
+                    f'attempts ({time.perf_counter()-started:.2f} s). '
+                    'Kept shapes and the existing design '
+                    'were preserved. Try a narrower carbon web, release a '
+                    'Keep opening, or choose a different plate.')
+                return
+            old=list(self.patterns)
+            self.patterns=working+candidate_new
+            if self.publish(len(self.patterns)-1):
+                self._last_auto_patterns=[dict(v) for v in retained+candidate_new]
+                self._last_auto_role=role
+                self._update_randomize_button()
+                detail_text='Replaced unlocked design' if replace_previous else 'Generated new design'
+                self.status.setText(
+                    f'{detail_text}: {len(candidate_new)} cutouts in '
+                    f'{accepted_groups} groups ({trials} local candidates; '
+                    f'{time.perf_counter()-started:.2f} s). '
+                    f'{kept_groups} previous groups kept; R0.5 profiles, '
+                    f'{required_web:g} mm minimum web. Check plate cuts in CAD before export.')
+            else:
+                self.patterns=old
+        except (ValueError,RuntimeError,TypeError,OverflowError) as exc:
+            self.show_error(str(exc))
+        except Exception as exc:
+            import traceback
+            traceback.print_exc()
+            self.show_error('Airflow generation failed: '+str(exc))
+        finally:
+            self._auto_generating=False
+            self.auto_generate.setEnabled(True)
+            self._update_randomize_button()
+            QtWidgets.QApplication.restoreOverrideCursor()
+
+    def update_shape_controls(self, *args):
+        arc = self.shape.currentText() == 'Arc slot'
+        self.arc_angle_label.setVisible(arc)
+        self.arc_angle.setVisible(arc)
 
     def draft(self):
-        return dict(mode=self.mode.currentText(),role=self.role.currentData(),shape=self.shape.currentText(),enabled=self.enabled.isChecked(),**{k:c.value() for k,c in self.inputs.items()})
+        draft=dict(mode=self.mode.currentText(),role=self.role.currentData(),shape=self.shape.currentText(),enabled=self.enabled.isChecked(),**{k:c.value() for k,c in self.inputs.items()})
+        if draft['shape']=='Web cell':
+            draft['vertices']=[list(v) for v in getattr(self,'_web_cell_vertices',[])]
+        return draft
 
     def update_capacity(self):
         enabled=sum(p['columns']*p['rows'] for p in self.patterns if p['enabled'])
@@ -583,6 +1388,7 @@ class AirflowEditor(QtWidgets.QWidget):
 
     def discard_changes(self):
         p=dict(self._draft_baseline)
+        self._web_cell_vertices=[list(v) for v in p.get('vertices',[])]
         self.mode.setCurrentText(p['mode']);self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
         self.shape.setCurrentText(p['shape']);self.enabled.setChecked(p['enabled'])
         for k,c in self.inputs.items():c.setValue(p[k])
@@ -598,29 +1404,45 @@ class AirflowEditor(QtWidgets.QWidget):
     def publish(self,select=-1):
         try:value=encode_patterns(self.patterns)
         except ValueError as exc:self.show_error(str(exc));return False
-        self.patterns=parse_patterns(value);self.pattern_list.blockSignals(True);self.pattern_list.clear()
+        self.patterns=parse_patterns(value)
+        self._patterns_revision+=1
+        self.pattern_list.blockSignals(True);self.pattern_list.clear()
         for i,p in enumerate(self.patterns):
-            item=QtWidgets.QListWidgetItem(self.pattern_text(i));item.setToolTip(self.pattern_text(i)+'\nRotation '+str(p['rotation'])+' degrees; grid '+str(p['columns'])+' x '+str(p['rows'])+'; pitch '+str(p['pitch_x'])+' / '+str(p['pitch_y'])+' mm')
+            item=QtWidgets.QListWidgetItem(self.pattern_text(i))
+            item.setToolTip(self.pattern_text(i)+'\nRotation '+str(p['rotation'])+' degrees; grid '+str(p['columns'])+' x '+str(p['rows'])+'; pitch '+str(p['pitch_x'])+' / '+str(p['pitch_y'])+' mm'+
+                            ('\nCheck Keep to retain this generated opening during Randomize. Mirrored partners share this setting.' if p.get('auto_group') else ''))
+            if p.get('auto_group'):
+                item.setFlags(item.flags()|QtCore.Qt.ItemIsUserCheckable)
+                item.setCheckState(QtCore.Qt.Checked if p['auto_keep'] else QtCore.Qt.Unchecked)
             self.pattern_list.addItem(item)
         self._selected_index=-1
         self.pattern_list.setCurrentRow(select);self.pattern_list.blockSignals(False)
         if select>=0:self.select_pattern(select,force=True)
         self.filter_patterns()
         self._draft_baseline=self.draft();self.update_capacity();self.status.setStyleSheet('')
-        self.changed.emit(value);self.preview.update();self.status.setText('Pattern saved. Full CAD checks run on Create / Update, or use Check plate cuts in CAD.');return True
+        self.changed.emit(value);self.preview.update();self.status.setText('Pattern saved. Full CAD checks run on Create / Update, or use Check plate cuts in CAD.');self._update_randomize_button();return True
 
     def set_json(self,value):
+        # Loaded designs are NOT assumed to have a rerollable session result.
+        self._last_auto_patterns=[]
+        self._last_auto_role=None
         self.patterns=parse_patterns(value);self.publish()
 
     def pattern_text(self,index):
         p=self.patterns[index]
         size=f"Ø{p['width']:g} mm" if p['shape']=='Circle' else f"{p['width']:g} × {p['length']:g} mm"
-        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size} · ({p['x']:g}, {p['y']:g})"+(' [off]' if not p['enabled'] else '')
+        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size}"+(f" · bend {p['arc_angle']:g}°" if p['shape']=='Arc slot' else '')+f" · ({p['x']:g}, {p['y']:g})"+(f" · depth {p['depth']:g} mm" if p['mode']=='Pocket' else '')+(' [off]' if not p['enabled'] else '')+(' · Keep' if p.get('auto_keep') else '')
 
     def filter_patterns(self,*args):
         tokens=self.find_pattern.text().casefold().split();role=self.filter_role.currentData();shown=0
         for i,p in enumerate(self.patterns):
-            match=(not role or p['role']==role) and all((token=='#'+str(i+1)) if token.startswith('#') and token[1:].isdigit() else (token in self.pattern_text(i).casefold() or token.replace('×','x') in self.pattern_text(i).casefold().replace('×','x').replace(' ','')) for token in tokens)
+            if not role or p['role']==role:
+                description=self.pattern_text(i).casefold() if tokens else ''
+                compact=description.replace('×','x').replace(' ','') if tokens else ''
+                match=all((token=='#'+str(i+1)) if token.startswith('#') and token[1:].isdigit()
+                          else (token in description or token.replace('×','x') in compact)
+                          for token in tokens)
+            else:match=False
             self.pattern_list.item(i).setHidden(not match);shown+=int(match)
         selected=self._selected_index
         suffix=(' · Selected #'+str(selected+1)+(' (hidden by filter)' if self.pattern_list.item(selected).isHidden() else '')) if 0<=selected<len(self.patterns) else ''
@@ -644,7 +1466,16 @@ class AirflowEditor(QtWidgets.QWidget):
             self.pattern_list.blockSignals(True);self.pattern_list.setCurrentRow(self._selected_index);self.pattern_list.blockSignals(False)
             self.status.setText('Apply or discard your unapplied changes before selecting another pattern.');return False
         self._selected_index=index
-        p=self.patterns[index];self.mode.setCurrentText(p['mode']);self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']));self.shape.setCurrentText(p['shape']);self.enabled.setChecked(p['enabled'])
+        p=self.patterns[index]
+        self._web_cell_vertices=[list(v) for v in p.get('vertices',[])]
+        self.mode.setCurrentText(p['mode']);self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
+        if self.shape.findText(p['shape'])<0:
+            # Keep obsolete polygon profiles editable in older saved designs,
+            # but never offer these sharp-corner types for new CNC openings.
+            self.shape.addItem(p['shape'])
+            item=self.shape.model().item(self.shape.findText(p['shape']))
+            if item is not None:item.setEnabled(False)
+        self.shape.setCurrentText(p['shape']);self.enabled.setChecked(p['enabled'])
         for k,c in self.inputs.items():c.setValue(p[k])
         self._draft_baseline=self.draft();self.status.setStyleSheet('');self.status.setText('Selected #'+str(index+1)+'. Edit and press Apply to pattern, or Add pattern for a new cut.')
         self.filter_patterns();self.preview.update();return True
@@ -656,7 +1487,10 @@ class AirflowEditor(QtWidgets.QWidget):
     def apply_pattern(self,*args):
         index=self._selected_index
         if index<0:self.status.setText('Select a saved pattern first, or press Add pattern.');return
-        old=list(self.patterns);self.patterns[index]=self.draft()
+        old=list(self.patterns);updated=self.draft()
+        updated['auto_web']=self.patterns[index].get('auto_web',0.)
+        if updated['shape']=='Web cell':updated['vertices']=[list(v) for v in self.patterns[index].get('vertices',[])]
+        self.patterns[index]=updated
         if not self.publish(index):self.patterns=old
 
     def remove_pattern(self,*args):

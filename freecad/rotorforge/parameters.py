@@ -17,6 +17,8 @@ from .arm_roots import (ARM_ROOT_FITS, ROOT_BOLT_LAYOUTS, ROOT_PROFILE_FIELDS, R
                         beam_profile_polygon, stem_interior_distance)
 
 from .battery import BATTERY_FIELDS,validate_battery,GRIP_PATTERNS
+from .lipo_profiles import LIPO_CHOICES
+from .camera_view import CAMERA_VIEW_PROFILES, CAMERA_VIEW_ASPECTS
 
 # Read older settings without reviving removed optional parts.
 RETIRED_PARAMETERS = frozenset(('CameraCutoutWidth','CameraCutoutDepth','CameraCutoutClearance','VTXNutMount','FlexELRSStem','ArmWindowWidth','VTXMountHeight','CameraPadBorder', 'CameraPadsEnabled', 'ELRSAntennaBar1', 'ELRSAntennaBar2', 'ELRSAntennaGripLength', 'ELRSAntennaLayout', 'ELRSAntennaSpacing', 'ELRSAntennaSplay', 'ELRSAntennaStemDiameter', 'ELRSAntennaStemDiameter2', 'ELRSAntennaTilt', 'GPSMountClearance', 'GPSMountDepth', 'GPSMountEnabled', 'GPSMountLength', 'GPSMountRise', 'GPSMountWidth', 'RearMountEnabled', 'RearMountFit', 'RearMountHeight', 'RearMountSetback', 'RearMountTopClearance', 'RearMountWall', 'TPUDensity', 'VTXAntennaBore', 'VTXAntennaConnector', 'VTXAntennaCount', 'VTXAntennaGripLength', 'VTXAntennaSpacing', 'VTXAntennaSplay', 'VTXAntennaStemDiameter', 'VTXAntennaTilt'))
@@ -46,21 +48,22 @@ DESIGN_OPTIONS={**DESIGN_OPTIONS,**FLEX_OPTIONS}
 
 SCHEMA = "rotorforge/1"
 SUPPORTED_SCHEMAS = (SCHEMA, 'rotorforge-frame/1')
-LAYOUTS = ("True X", "Stretched X", "Deadcat")
+LAYOUTS = ("True X", "Squashed X", "Deadcat")
 PLATE_DESIGNS = ("2 plates", "3 plates")
 TWO_PLATE_ARM_POSITIONS = ('Below bottom plate', 'Above bottom plate')
 ARM_LOCK_FIELDS = {'TwoPlateArmPosition', 'ArmBracesEnabled', 'ArmBraceThickness',
                    'KeystoneEnabled', 'KeystoneClearance', 'KeystoneRetainerDiameter',
                    'KeystoneRetainerHeadDiameter', 'KeystoneRetainerSpacing', 'ArmRootsFollowCentre', 'UndersideClampThickness', 'ArmRootReliefsEnabled',
-                   'ArmRootFit', 'ArmJointClearance', 'KeystoneWidth', 'KeystoneLength', 'ArmRootReliefShape'} | ROOT_PROFILE_FIELDS
+                   'ArmRootFit', 'ArmJointClearance', 'KeystoneWidth', 'KeystoneLength', 'KeystoneFillet', 'ArmRootFillet', 'ArmRootReliefShape'} | ROOT_PROFILE_FIELDS
 STANDOFF_COUNTS = ("4 (2 pairs)", "6 (3 pairs)", "8 (4 pairs)")
 OUTER_STANDOFF_MOUNTS = ('Custom position', 'Arm inner hole', 'Arm outer hole')
 EXTRA_STANDOFF_MOUNTS = ('Custom position', 'Front arm inner hole', 'Front arm outer hole',
                          'Rear arm inner hole', 'Rear arm outer hole')
 ENUMERATIONS = {
-                'BatteryMount':('Top plate','Bottom plate'), 'KeystoneShape':('Diamond','Chamfered diamond','Hexagon','Octagon'), 'LiPoPadShape':('Rounded rectangle','Rectangle','Capsule','Ellipse','Chamfered rectangle','Tapered','Hourglass','Mounting plate outline'), 'LiPoPadPattern':GRIP_PATTERNS,
+                'BatteryPreset': LIPO_CHOICES, 'BatteryMount':('Top plate','Bottom plate'), 'KeystoneShape':('Diamond','Chamfered diamond','Hexagon','Octagon'), 'LiPoPadShape':('Rounded rectangle','Rectangle','Capsule','Ellipse','Chamfered rectangle','Tapered','Hourglass','Mounting plate outline'), 'LiPoPadPattern':GRIP_PATTERNS,
                 "MotorPadRotationPivot": ("Motor centre", "Pad beginning"), "MotorHoleLayout": ("4-hole bolt circle", "3-hole bolt circle"),"Layout": LAYOUTS, "PlateDesign": PLATE_DESIGNS, "StandoffCount": STANDOFF_COUNTS,
                 "VideoSystem": VIDEO_SYSTEMS, "VTXPattern": VTX_PATTERNS,
+                "CameraViewProfile": CAMERA_VIEW_PROFILES, "CameraViewAspect": CAMERA_VIEW_ASPECTS,
                 "StandoffFrontMount":OUTER_STANDOFF_MOUNTS,"StandoffRearMount":OUTER_STANDOFF_MOUNTS,
                 "StandoffPair3Mount":EXTRA_STANDOFF_MOUNTS,"StandoffPair4Mount":EXTRA_STANDOFF_MOUNTS,
                 "CameraPivotMode":CAMERA_PIVOT_MODES, 'TwoPlateArmPosition':TWO_PLATE_ARM_POSITIONS,
@@ -73,7 +76,7 @@ ENUMERATIONS = {
                 'ArmRootReliefShape':('Round hole','Slot toward stack centre')}
 ENUMERATIONS.update({k:v[3] for k,v in DESIGN_OPTIONS.items() if len(v)>3})
 STRINGS = {'CutoutPatterns'}
-BOOLEANS = {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadFollowPlate','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled'}
+BOOLEANS = {"CarbonTextureEnabled"} | {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadFollowPlate','LiPoPadCopyAirflow','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled', 'CameraCageSharedDimensions','CameraTPURevisedMounts'}
 ARM_NAMES = ("FrontRight", "FrontLeft", "RearLeft", "RearRight")
 COMMON_STANDOFF_HEIGHTS = (22.0, 25.0, 30.0, 32.0, 35.0, 40.0)
 ALIGNMENT_TOL = 1e-6
@@ -82,6 +85,65 @@ VENT_ROW_COUNTS=frozenset(('FlexGuardSlotCount','FlexGuardFCSlotCount'))
 
 @dataclass(frozen=True)
 class Parameters:
+    FPVSystemProfile: str = 'Custom camera / VTX'
+    CameraReferenceStyle: str = 'Automatic'  # display style only; physical profile below
+    # Preview-only optics: never modify physical camera or manufactured geometry.
+    CameraViewProfile: str = 'Follow selected camera'
+    CameraViewAspect: str = 'Camera default'
+    CameraViewFOV: float = 0.0      # 0 = camera specification; max diagonal FOV
+    CameraViewPupilOffset: float = 0.0  # 0 = camera model estimate, otherwise mm forward of casing
+    O4InsertDiameter: float = 6.0
+    CameraTPUConstruction: str = 'One-piece cage'
+    CameraTPUClampBottom: bool = False
+    CameraTPUInnerReach: float = 4.0
+    CameraTPUClampFit: float = .2
+    CameraTPUClampWall: float = 1.5
+    CameraTPURevisedMounts: bool = True
+    O4PadDiameter: float = 7.0
+    CameraTPUInsertDepth: float = 3.5
+    CameraTPUBossWall: float = 1.5
+    CameraTPUBumper: bool = False
+    CameraTPUBumperReach: float = 3.0
+    CameraTPUBumperWidth: float = 1.5
+    CameraTPUBumperToe: float = 4.0
+    CameraCageStyle: str = 'Carbon side plates'
+    CameraTPULength: float = 28.0
+    CameraAluminiumLength: float = 28.0
+    CameraTPUWall: float = 4.0
+    CameraTPUAttachment: str = 'Screw mounting'
+    CameraTPUScrewBore: float = 4.1
+    CameraTPUScrewClearance: float = 0.2
+    CameraTPUHardClearance: float = 0.15
+    CameraTPUFlushInserts: bool = False
+    CameraCarbonFlushInserts: bool = False
+    CameraTPUBridge: float = 2.0
+    CameraTPUFrontBridgeRearReach: float = 6.0
+    CameraTPUFrontBridgeHeight: float = 2.0
+    CameraTPUFrontBridgeBlend: float = 3.0
+    CameraTPUBottomRearReach: float = 12.0
+    CameraTPUTopRearReach: float = 12.0
+    CameraAluminiumWall: float = 3.0
+    CameraAluminiumDensity: float = 2.7
+    CameraCageFrontShape: str = 'Straight'
+    CameraCageRearShape: str = 'Straight'
+    CameraCageProfileDepth: float = 2.0
+    CameraCageFrontReach: float = 4.0
+    CameraCageRearReach: float = 4.0
+    CameraCageEdgeWeb: float = 2.0
+    CameraCageSharedDimensions: bool = True
+    ArmTipBumperStyle: str = 'Disabled'
+    ArmTipBumperReach: float = 5.0
+    ArmTipBumperWidth: float = 16.0
+    ArmTipBumperDirection: str = "Pad direction"
+    ArmTipBumperCutout: bool = False
+    ArmTipBumperCutoutWall: float = 1.5
+    FlexProtectorBumperSleeve: bool = True
+    FlexBumperCameraCover: bool = False  # Legacy setting; imported as the integrated variant
+    FlexBumperVariant: str = 'Bottom plate bumper'
+    FlexBumperCameraHeight: float = 0.0
+    FlexBumperCameraGripDepth: float = 4.0
+    FlexBumperCameraFrontProjection: float = 0.0
+    FlexBumperCameraBlendReach: float = 0.0
     ArmNutMount: str = "External hex nut"
     StackPressNuts: bool = False
     NutRecessDepth: float = .8
@@ -93,6 +155,9 @@ class Parameters:
     PressNutShankDepth: float = 1.53
     PressNutFlangeRecess: float = 0.
     PressNutMinThickness: float = 1.53
+    CarbonTextureEnabled: bool = False  # viewport-only; no CAD or export changes
+    CarbonTextureTile: float = 64.0  # real-world mm per woven tile
+    CarbonTextureOpacity: float = 30.0  # default weave visibility, 0 = flat carbon, 100 = full texture
     PrintedPartColour: str = "Black"
     FlexMotorProtectors: bool = False
     FlexProtectorWall: float = 2.0
@@ -258,6 +323,8 @@ class Parameters:
     ClampPlateShape: str = 'Rounded rectangle'
     PlateEndWidth: float = 95.0
     ArmEdgeFillet: float = 0.0
+    ArmRootFillet: float = 0.0
+    KeystoneFillet: float = 0.0
     ArmFilletOpenings: bool = False
     ArmBeamShape: str = 'Straight'
     ArmProfileAmount: float = 30.0
@@ -277,6 +344,8 @@ class Parameters:
     ScrewMassScale: float = 1.0
     KeystoneShape: str = 'Diamond'
     BatteryReferenceEnabled: bool = True
+    BatteryPreset: str = '6S · 1300 mAh'
+    BatteryCells: int = 6
     BatteryWidth: float = 38.0
     BatteryLength: float = 75.0
     BatteryHeight: float = 38.0
@@ -296,6 +365,7 @@ class Parameters:
     LiPoPadShape: str = 'Rounded rectangle'
     LiPoPadCornerRadius: float = 3.0
     LiPoPadFollowPlate: bool = True
+    LiPoPadCopyAirflow: bool = True  # Backward compatible: copy through-cuts into the grip pad
     LiPoPadPattern: str = 'Solid'
     LiPoPadGrooveWidth: float = 1.2
     LiPoPadGrooveDepth: float = 0.6
@@ -310,6 +380,7 @@ class Parameters:
     MotorPadRotationPivot: str = 'Motor centre'
     DetailedMotorReferences: bool = False
     DetailedPropReferences: bool = False
+    PropReferenceColour: str = 'Smoke grey'
     DetailedStackReference: bool = False
     DetailedVTXReference: bool = False
     VTXReferenceStyle: str = "Automatic"
@@ -350,6 +421,7 @@ class Parameters:
     RootExtension: float = 8.0
     RootBoltSpacing: float = 10.0
     RootHoleDiameter: float = 3.2
+    ArmBoltMaterialAllowance: float = 0.0
     MotorPadDiameter: float = 30.0
     MotorSpacingX: float = 16.0
     MotorSpacingY: float = 16.0
@@ -387,6 +459,9 @@ class Parameters:
     StandoffPair4Width: float = 16.0
     FPVEnabled: bool = False
     VideoSystem: str = "Analog"
+    CameraPhysicalProfile: str = 'Custom measurements'
+    CameraLensProjection: float = 0.0  # 0 = normal model estimate
+    CameraSideScrewRearInset: float = 0.0  # 0 = legacy centred thread line
     CameraWidth: float = 19.0
     CameraHeight: float = 19.0
     CameraBodyDepth: float = 18.0
@@ -495,6 +570,66 @@ class Parameters:
         if not isinstance(data, dict):
             raise ValueError("Parameters must be a JSON object.")
         data = dict(data)
+        # Before v0.92.44 the arm corner fillet also controlled fitted root
+        # junction corners. Preserve that appearance for older saved frames.
+        data.setdefault('ArmRootFillet', data.get('ArmEdgeFillet', 0.0))
+        # Keep old presets: the previous camera-cover toggle selected the full
+        # bumper. Never enable both types of TPU geometry simultaneously.
+        if 'FlexBumperVariant' not in data:
+            data['FlexBumperVariant'] = ('Integrated camera cage bumper' if
+                data.get('FlexBumperCameraCover', False) else 'Bottom plate bumper')
+        data['FlexBumperCameraCover'] = data['FlexBumperVariant'] == 'Integrated camera cage bumper'
+        # Accept legacy layout labels while emitting only the current name.
+        if data.get('Layout') not in LAYOUTS and str(data.get('Layout','')).lower().endswith(' x'):data['Layout']='Squashed X'
+        if not data.get('CameraTPURevisedMounts',False):
+            if data.get('CameraTPUScrewBore',4.)==4.:data['CameraTPUScrewBore']=4.1
+            if data.get('CameraTPUInsertDepth',4.)==4.:data['CameraTPUInsertDepth']=3.5
+        data['CameraTPURevisedMounts']=True
+        data['CameraTPUScrewClearance']=.2
+        # Presets created before the adjustable lower bridge omit these keys.
+        data.setdefault('CameraTPUFrontBridgeRearReach',6.0)
+        data.setdefault('CameraTPUFrontBridgeHeight',2.0)
+        data.setdefault('CameraTPUFrontBridgeBlend',3.0)
+        data.setdefault('CameraTPUBottomRearReach',12.0)
+        data.setdefault('CameraTPUTopRearReach',12.0)
+        # Deprecated split-cage settings are accepted but never reactivate
+        # the previous bracket-based or two-piece constructions.
+        data['CameraTPUConstruction']='One-piece cage'
+        data['CameraTPUAttachment']='Screw mounting'
+        if float(data.get('CameraTPUScrewBore',4.))<3.:data['CameraTPUScrewBore']=4.1
+        if data.get('CameraCageStyle')=='TPU cage':
+            data['FlexFrontBumper']=False
+            # Retired TPU Side plate outline never built reliably. Map old
+            # saved selections to a supported shape before validation.
+            if data.get('FlexInterfaceShape')=='Side plate outline':
+                data['FlexInterfaceShape']='Chamfered rectangle'
+        elif data.get('FlexInterfaceShape') not in ('Rounded rectangle','Side plate outline'):
+            # TPU-only shapes cannot leak into the carbon camera interface.
+            data['FlexInterfaceShape']='Rounded rectangle'
+        if data.get('FPVSystemProfile')=='DJI O4 Air Unit Pro':
+            data.update(FPVEnabled=True,VideoSystem='Digital',DetailedCameraReference=True,CameraWidth=20.,CameraHeight=23.3,CameraBodyDepth=19.45,
+                        CameraSideBoltSpacing=16.,CameraSideHoleDiameter=2.2,CameraSideScrewRearInset=16.,
+                        CameraPhysicalProfile='DJI O4 Air Unit Pro',
+                        VTXWidth=33.5,VTXLength=33.5,VTXHeight=13.,VTXPattern='25.5 x 25.5 mm',VTX25HoleDiameter=2.2,VTX20HoleDiameter=2.2)
+
+        if "ArmTipBumperStyle" in data:
+            from .motor_pads import arm_tip_style
+            data["ArmTipBumperStyle"]=arm_tip_style(data["ArmTipBumperStyle"])
+        if not data.get('CameraCageSharedDimensions',False):
+            if any(k in data for k in ('CameraTPULength','CameraAluminiumLength')):
+                style=data.get('CameraCageStyle','Carbon side plates')
+                if style!='Carbon side plates':
+                    prefix='CameraTPU' if style=='TPU cage' else 'CameraAluminium'
+                    data['CameraPlateLength']=data.get(prefix+'Length',28.)
+                    data['CameraBracketThickness']=data.get(prefix+'Wall',4. if style=='TPU cage' else 3.)
+                else:
+                    data['CameraCageFrontShape']='Straight';data['CameraCageRearShape']='Straight'
+            data['CameraCageSharedDimensions']=True
+        # Aluminium and carbon use the same flat side-plate geometry. Import
+        # discontinued aluminium cages as carbon-style profiles, preserving
+        # all shared dimensions, camera locations, tilt slots and cutouts.
+        if data.get('CameraCageStyle')=='Aluminium cage':
+            data['CameraCageStyle']='Carbon side plates'
         # v0.90.11 saved free-form antenna sizes. Keep their original geometry
         # when the newer preset selector was absent, instead of overriding it.
         if 'VTXAntennaReferencePreset' not in data and any(k in data for k in ('VTXAntennaReferenceLength','VTXAntennaReferenceDiameter')):
@@ -536,6 +671,14 @@ class Parameters:
         for name in RETIRED_PARAMETERS:data.pop(name,None)
         if 'StackSpacing' in data:data['StackSpacing']=import_stack_spacing(data['StackSpacing'])
         from .motor_pads import REPLACED_PAD_SHAPES
+        # Photo-derived prototypes were withdrawn: the motor TPU protector
+        # cannot reliably offset their tightly lobed/hooked silhouettes.
+        if data.get('MotorPadShape') in ('Scalloped racer','Swept hook'):
+            import warnings
+            old=data['MotorPadShape']
+            data['MotorPadShape']={'Scalloped racer':'Crown shield',
+                                   'Swept hook':'Swept-shoulder shield'}[old]
+            warnings.warn('Retired motor pad %s mapped to %s; review the changed outline and motor protection before machining.' % (old,data['MotorPadShape']),UserWarning)
         if data.get('MotorPadShape') in REPLACED_PAD_SHAPES:
             import warnings
             old=data['MotorPadShape'];data['MotorPadShape']=REPLACED_PAD_SHAPES[old]
@@ -553,6 +696,18 @@ class Parameters:
         unknown = sorted(set(data) - allowed)
         if unknown:
             raise ValueError("Unknown parameter(s): " + ", ".join(unknown))
+        if 'BatteryPreset' not in data and any(key in data for key in ('BatteryWidth','BatteryLength','BatteryHeight','BatteryMass')):
+            data['BatteryPreset'] = 'Custom dimensions'
+        # Qt's battery control is a QDoubleSpinBox, and older serialized
+        # settings may contain a numerically integral float (e.g. 6.0).
+        # Normalize these before validating and before constructing the model.
+        # Fractional, non-finite and out-of-range counts are never rounded.
+        cells = data.get('BatteryCells', cls.__dataclass_fields__['BatteryCells'].default)
+        if (isinstance(cells, bool) or not isinstance(cells, (int, float))
+                or not math.isfinite(cells) or not 3 <= cells <= 8
+                or int(cells) != cells):
+            raise ValueError('LiPo cell count must be a whole number from 3S to 8S.')
+        data['BatteryCells'] = int(cells)
         result = cls(**data)
         # Reject strings, booleans-as-numbers, NaNs, and infinities before geometry.
         for f in fields(cls):
@@ -611,7 +766,7 @@ class Parameters:
         if 'CameraMountMode' not in data:
             result=replace(result,CameraMountMode='Fixed' if result.CameraSideBoltSpacing else 'Variable',
                            CameraTiltMin=0.,CameraTiltMax=max(1.,result.CameraTilt))
-        if result.Layout == "Stretched X" and 0 < result.LengthToWidth < 1:
+        if result.Layout == "Squashed X" and 0 < result.LengthToWidth < 1:
             result = replace(result, LengthToWidth=1 / result.LengthToWidth)
         if 'BottomBodyRearReach' not in data and three_plate(result):
             # Preserve the existing outline when opening older native/JSON
@@ -631,7 +786,7 @@ def motor_hole_offsets(p):
 def nominal_motor_centres(p):
     if p.Layout == "True X":
         ratio = 1.0
-    elif p.Layout == "Stretched X":
+    elif p.Layout == "Squashed X":
         # Stretch laterally: X is left/right and Y is front/rear in this model.
         factor = max(p.LengthToWidth, 1 / p.LengthToWidth)
         ratio = 1 / factor
@@ -1054,8 +1209,20 @@ def _base_mid_interior_distance(point, p):
 
 
 def mid_tab_interior_distance(point,p,arm,arms=None):
-    """Conservative edge clearance inside a pad trimmed to its arm root."""
-    inside=min(root_width(p)/2-point_segment_distance(point,*arm['bolts']),stem_interior_distance(p,arm,point))
+    """Conservative 2D clearance within the *actual* arm-trimmed tab.
+
+    This query is used for standoff selection/validation. The real tabs use
+    arm_stem()/arm_stem_path(), so their analytic check must not silently use
+    the zero-allowance arm when the user increases arm-bolt material. The
+    separate Mid/Bottom press-nut support radius is NOT increased here.
+    """
+    from .arm_roots import stem_interior_distance
+    tab_stem_distance=stem_interior_distance(p,arm,point)
+    from .arm_roots import receiving_tab_expansion_discs
+    root_r=root_width(p)/2
+    cap_distance=max([root_r-point_segment_distance(point,*arm['bolts'])]+
+                     [r-math.dist(point,centre) for centre,r in receiving_tab_expansion_discs(p,arm,root_r)])
+    inside=min(cap_distance,tab_stem_distance)
     if fitted_roots(p):
         arms=arm_layouts(p) if arms is None else arms
         inside=min([inside]+[limit-n[0]*point[0]-n[1]*point[1] for n,limit in root_joint_planes(p,arm,arms)])
@@ -1128,6 +1295,7 @@ def _validation_result(p):
     flex_errors,flex_warnings=validate_flex(p)
     errors, warnings = validate_battery(p)+flex_errors, flex_warnings
     from .nut_seats import validate_seats
+    from .mount_support import standoff_stock_radius
     errors.extend(validate_seats(p))
     if p.StackSpacing not in (20.,30.5):errors.append("FC stack pattern must be 20 x 20 mm or 30.5 x 30.5 mm.")
     if (p.MotorHoleLayout=='4-hole bolt circle' and not math.isclose(p.MotorSpacingX,p.MotorSpacingY)
@@ -1142,9 +1310,12 @@ def _validation_result(p):
         if not math.isfinite(p.BottomNoseDepth) or not 0<p.BottomNoseDepth<=(nf-nr)/2:errors.append('Front edge depth must be positive and no more than half the bottom plate length.')
         if not math.isfinite(p.BottomNoseTipWidth) or not 10<=p.BottomNoseTipWidth<=90:errors.append('Front tip width must be between 10 and 90 percent.')
     if not 40<=p.PlateEndWidth<=100:errors.append('Plate end width must be between 40 and 100 percent.')
+    if not math.isfinite(p.ArmBoltMaterialAllowance) or not 0 <= p.ArmBoltMaterialAllowance <= 6:
+        errors.append('Arm bolt material allowance must be between 0 and 6 mm.')
+    if not math.isfinite(p.CarbonTextureOpacity) or not 0<=p.CarbonTextureOpacity<=100:errors.append('Carbon weave opacity must be between 0 and 100 percent.')
     if not 0<=p.ArmProfileAmount<=100:errors.append('Arm profile widening must be between 0 and 100 percent.')
     if not 0<=p.MotorPadBlendRadius<=p.ArmWidth/2:errors.append('Pad transition radius must be between zero and half the arm width.')
-    for name in ('BottomEdgeFillet','MidEdgeFillet','TopEdgeFillet','ClampEdgeFillet','ArmEdgeFillet'):
+    for name in ('BottomEdgeFillet','MidEdgeFillet','TopEdgeFillet','ClampEdgeFillet','ArmEdgeFillet','ArmRootFillet','KeystoneFillet'):
         if not math.isfinite(getattr(p,name)) or not 0<=getattr(p,name)<=30:errors.append(name+' must be between zero and 30 mm.')
     from .bottom_nose import edge_settings,CAMERA_FRONT_SHAPES,camera_recess_width
     if not math.isfinite(p.TopFrontClearance) or p.TopFrontClearance<0:errors.append('Top front camera clearance must be finite and non-negative.')
@@ -1168,12 +1339,13 @@ def _validation_result(p):
             if not math.isfinite(tip) or not 10<=tip<=90:errors.append(role+' rear feature width must be between 10 and 90 percent.')
     for f in fields(p):
         if f.name in DESIGN_OPTIONS:continue
+        if f.name in ('CameraViewFOV','CameraViewPupilOffset'):continue
         if f.name in ('MotorMass','PropMass','FCMass','ESCMass','VTXMass','CameraMass','OtherMass','ScrewMassScale'):
             if getattr(p,f.name)<0 or not math.isfinite(getattr(p,f.name)):errors.append(f.name+' must be finite and non-negative.')
             continue
         if f.name in BATTERY_FIELDS or f.name in ('StandoffDensity','ShowFrameCG'):continue
         if f.name in ('MotorHoleRotation','MotorPadRotation'):continue
-        if f.name=='RearArmExtension':continue
+        if f.name in ('RearArmExtension','ArmBoltMaterialAllowance'):continue
         if f.name in ROOT_BOLT_COORDINATES or f.name in ('ArmRootWidth','ArmRootLength'):continue
         if f.name=='RootBoltSpacing' and p.RootBoltLayout!='Along arm':continue
         if f.name=='ArmRootTaperLength' and not widened_roots(p):continue
@@ -1216,6 +1388,10 @@ def _validation_result(p):
             continue
         if getattr(p, f.name) <= 0:
             errors.append(f"{f.name} must be greater than zero.")
+    if p.CameraViewFOV and not 0 < p.CameraViewFOV <= 179:
+        errors.append('Virtual camera diagonal FOV override must be 0 (automatic) or a value up to 179 degrees.')
+    if not 0 <= p.CameraViewPupilOffset <= 20:
+        errors.append('Virtual camera optical offset must be 0 (automatic) or 0–20 mm.')
     if not math.isfinite(p.CameraForeAftOffset) or not -100<=p.CameraForeAftOffset<=100:errors.append('Camera fore/aft offset must be between -100 and 100 mm.')
     if p.BottomFrontExtension < 0:
         errors.append("Bottom front extension cannot be negative.")
@@ -1349,9 +1525,11 @@ def _validation_result(p):
         for stand in standoff_layouts(p):
             pt = stand["point"]
             if stand["mount"] == "Bottom plate":
-                if -mid_interior_distance(pt, p) < p.StandoffDiameter / 2 + p.MinimumWeb:
+                # Clearance to a post on ANOTHER layer is a physical clash,
+                # not an additional drilled hole or a carbon bearing rim.
+                if -mid_interior_distance(pt, p) < p.StandoffDiameter / 2 + .25:
                     errors.append(stand["position"] + ": the mid plate or an arm tab intersects a bottom-mounted standoff; adjust its position or mid reach.")
-            elif mid_interior_distance(pt, p) < p.StandoffDiameter / 2 + p.MinimumWeb:
+            elif mid_interior_distance(pt, p) < standoff_stock_radius(p)-1e-6:
                 errors.append(stand["position"] + ": a standoff needs more supporting material on the mid plate.")
     if arm_braces(p):
         for pt in tuple(pt for a in arms for pt in a['bolts'])+stack_holes(p):
@@ -1360,7 +1538,7 @@ def _validation_result(p):
                 errors.append('The combined clamp needs more material around an arm or stack hole; adjust the mounting pattern or body width.')
         for stand in standoff_layouts(p):
             inside=arm_clamp_interior_distance(stand['point'],p)
-            if stand['mount']=='Arm clamp plate' and inside<p.StandoffDiameter/2+p.MinimumWeb-1e-6:
+            if stand['mount']=='Arm clamp plate' and inside<standoff_stock_radius(p)-1e-6:
                 errors.append('A standoff is too close to the combined clamp edge; reposition the pair.')
             elif upper_clamp_active(p) and stand['mount']=='Bottom plate' and -inside<p.StandoffDiameter/2+.25:
                 errors.append('A bottom-mounted standoff intersects the combined clamp edge; reposition the pair.')
@@ -1376,9 +1554,9 @@ def _validation_result(p):
             errors.append("Standoffs are too close together; adjust pair positions or left–right spacing.")
     for stand in standoff_layouts(p):
         pt=stand['point']
-        if stand['mount']=='Bottom plate' and bottom_interior_distance(pt, p) < p.StandoffDiameter / 2 + p.MinimumWeb:
+        if stand['mount']=='Bottom plate' and bottom_interior_distance(pt, p) < standoff_stock_radius(p)-1e-6:
             errors.append("A standoff needs more supporting material on the bottom plate.")
-        if top_interior_distance(pt,p) < p.StandoffDiameter / 2 + p.MinimumWeb:
+        if top_interior_distance(pt,p) < standoff_stock_radius(p)-1e-6:
             errors.append("A standoff is too close to the top plate edge.")
     if any(s['length']<=0 for s in standoff_layouts(p)):
         errors.append('A standoff has no room above its arm mounting surface; increase the rear standoff height.')
@@ -1401,8 +1579,12 @@ def _validation_result(p):
     for role,inside,plate_name in (('BottomPlate',bottom_interior_distance,'bottom'),('TopPlate',top_interior_distance,'top')):
         layer_slots=camera_slots(p,role)
         for a,b,radius in layer_slots:
-            if min(inside(pt,p) for pt in (a,b))<radius+p.MinimumWeb-1e-6:
-                errors.append('A camera tab slot needs more material in the '+plate_name+' plate.')
+            # TPU uses round M3 holes and a documented 2 mm edge web, not
+            # carbon side-plate tab slots. Evaluate the actual plate perimeter.
+            screw_mode=p.CameraCageStyle=='TPU cage'
+            required=2.0 if screw_mode else p.MinimumWeb
+            if min(inside(pt,p) for pt in (a,b))<radius+required-1e-6:
+                errors.append(('A TPU cage M3 mounting hole' if screw_mode else 'A camera tab slot')+' needs more material in the '+plate_name+' plate.')
             for pt in standoff_holes(p):
                 if point_segment_distance(pt,a,b)<radius+p.StandoffDiameter/2+p.MinimumWeb:errors.append('A camera tab slot is too close to a standoff.')
             for pt,hole_radius,name in (body_holes if role=='BottomPlate' else plate_holes(p,'TopPlate')):
@@ -1474,6 +1656,10 @@ def _validation_result(p):
 
 def validate(p):
     antenna_errors=[]
+    if p.ArmTipBumperStyle!='Disabled':
+        if not math.isfinite(p.ArmTipBumperCutoutWall) or not 1<=p.ArmTipBumperCutoutWall<=8:antenna_errors.append('Bumper cutout wall must be 1–8 mm.')
+        if not math.isfinite(p.ArmTipBumperReach) or not 1<=p.ArmTipBumperReach<=20:antenna_errors.append('Arm tip bumper reach must be 1–20 mm.')
+        if not math.isfinite(p.ArmTipBumperWidth) or not 4<=p.ArmTipBumperWidth<=40:antenna_errors.append('Arm tip bumper width must be 4–40 mm.')
     if p.ShowVTXAntennaReference and p.FlexRearAntenna:
         if not math.isfinite(p.VTXAntennaReferenceLength) or not 20<=p.VTXAntennaReferenceLength<=250:
             antenna_errors.append('VTX antenna reference length must be 20–250 mm.')
@@ -1486,6 +1672,8 @@ def validate(p):
             antenna_errors.append('Custom ELRS T-antenna span must be 8–250 mm.')
         if not math.isfinite(spec['span']) or not p.FlexELRSHookSpacing+p.FlexELRSHookWidth<=spec['span']<=250:
             antenna_errors.append('ELRS T-antenna span must cover both hooks and be at most 250 mm.')
+    from .camera_cages import validate_cage
+    antenna_errors.extend(validate_cage(p))
     errors,warnings=_validation_result(p)
     return list(errors)+antenna_errors,list(warnings)
 

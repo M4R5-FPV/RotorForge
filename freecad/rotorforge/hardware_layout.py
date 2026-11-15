@@ -57,9 +57,42 @@ def hardware_layout(p,options=None):
         for m in camera_mounts(p):
             sign=-1 if m['role'].endswith('Left') else 1;x=m['plate_x'][0 if sign<0 else 1]
             from .camera_interface import lip_sides
-            if p.FlexCameraMode=='Captured inserts' and lip_sides(p)[1]:x+=sign*max(.8,p.FlexPadThickness/2)
+            if p.FlexCameraMode=='Captured inserts' and lip_sides(p)[1]:
+                if p.CameraCageStyle=='TPU cage':
+                    from .tpu_captured_layout import insert_x_spans
+                    span=insert_x_spans(p,m,sign)
+                    # Head bears against the actual outer insert surface.
+                    # Flush lips do not extend beyond the cage at all.
+                    x=span['outside'] if span['flush'] else (span['flange'][0] if sign<0 else span['flange'][1])
+                else:
+                    from .carbon_insert_recess import carbon_flush_enabled
+                    if not carbon_flush_enabled(p):
+                        x+=sign*max(.8,p.FlexPadThickness/2)
             for i,(dy,dz) in enumerate(camera_screw_offsets(p,p.CameraTilt)):
-                add('Camera screws',f'{m["role"]} {i+1}',(x,cy+dy,cz+dz),(-sign,0,0),p.CameraSideHoleDiameter,abs(x)-p.CameraWidth/2+eng,m['role'])
+                # DJI's O4 Pro camera-side M2 tapped holes have a MAX 2 mm
+                # insertion depth; the generic hardware engagement is 3 mm.
+                camera_engagement=min(eng,2.0) if p.FPVSystemProfile=='DJI O4 Air Unit Pro' else eng
+                add('Camera screws',f'{m["role"]} {i+1}',(x,cy+dy,cz+dz),(-sign,0,0),p.CameraSideHoleDiameter,abs(x)-p.CameraWidth/2+camera_engagement,m['role'])
+        # The TPU cage uses eight M3 screws through the carbon plates into
+        # blind heat-set inserts (two per side on each plate). Previously the
+        # optional hardware reference only modelled the lateral M2 camera
+        # screws, so the actual cage fasteners never appeared in the assembly.
+        # Their positions are shared with the plate-hole and pocket builders.
+        if p.CameraCageStyle == 'TPU cage':
+            from .camera_cages import boss_x
+            z_top=levels['top_z'] + p.TopThickness
+            for m in camera_mounts(p):
+                sign=-1 if m['role'].endswith('Left') else 1
+                x=boss_x(p,sign)
+                for plate_name,ys,z,axis,thickness in (
+                    ('BottomPlate',m['tabs_y'],0.,1,p.BottomThickness),
+                    ('TopPlate',m['top_tabs_y'],z_top,-1,p.TopThickness)):
+                    for i,y in enumerate(ys):
+                        add('Camera screws',
+                            '%s %s cage M3 %d'%(m['role'],plate_name,i+1),
+                            (x,y,z),(0,0,axis),3.2,
+                            thickness+min(eng,float(p.CameraTPUInsertDepth)-.3),
+                            plate_name)
         deck=vtx_deck_z(p);thick=p.ClampThickness if three_plate(p) else p.BottomThickness
         for i,(pt,r,_) in enumerate(vtx_holes(p)[:4]):
             add('VTX hardware',f'VTX {i+1}',(*pt,deck-thick),(0,0,1),2*r,thick+eng,'MidPlate' if three_plate(p) else 'BottomPlate',False)

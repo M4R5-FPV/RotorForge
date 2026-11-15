@@ -16,6 +16,7 @@ from .parameters import (require_valid, save_parameters, prop_gap, three_plate, 
                          stack_mounting_role, bottom_stack_hole_diameter, plate_levels, stack_holes, strap_slots, stack_reference_z)
 from .geometry import carbon_roles, physical_roles, build_shapes, flat_plate_shape
 from .document import read_parameters
+from .camera_cages import active_camera_roles,joined_cage
 from .fpv import CAMERA_ROLES, camera_mounts, camera_slots, camera_pivot_height, vtx_holes, camera_position_y, camera_base_extensions
 from .parameters import upper_clamp_active, underside_clamp_active, underside_clamp_layout
 from .cutouts import parse_patterns
@@ -178,7 +179,7 @@ def cutting_profiles(shapes, folder, roles, p=None):
     items=[];flats={};faces={}
     arms={'Arm'+a['name']:a for a in arm_layouts(p)} if p is not None else {}
     for role in roles:
-        shape=flat_plate_shape(shapes[role],role,p).copy();angle=0.
+        shape=flat_plate_shape(shapes[role],role,p,through_only=True).copy();angle=0.
         if role in ARM_ROLES:
             if role not in arms:raise ValueError('Frame parameters are required to orient arm cutting profiles.')
             ux,uy=arms[role]['unit'];up=ARM_ROLES.index(role)%2==0
@@ -227,7 +228,74 @@ def export_package(settings, destination):
     try:
         Part.makeCompound([shapes[role] for role in physical_roles(p)]).exportStep(str(folder / "FrameAssembly.step"))
         layout,profile_faces=cutting_profiles(shapes, folder / "CuttingProfiles", active_carbon,p)
-        machining=[]
+        # Pocket geometry is its OWN layer/files, never an accidental extra
+        # through-cut wire on the ordinary carbon plate DXF/SVG.
+        from .carbon_insert_recess import carbon_flush_enabled,recess_span,POCKET_RADIAL_FIT
+        if carbon_flush_enabled(p):
+            from .cage_extensions import o4_tracks,track_solid
+            from .flex_geometry import interface_blank
+            from .flex import insert_rect
+            for mount,sign in zip(camera_mounts(p),(-1,1)):
+                a,b=recess_span(p,mount,sign)
+                blanks=[]
+                if p.FPVSystemProfile=='DJI O4 Air Unit Pro':
+                    blanks=[track_solid(t,p.O4InsertDiameter+2*(p.FlexInsertLip+POCKET_RADIAL_FIT),a,b-a)
+                            for t in o4_tracks(mount)]
+                else:
+                    _,_,w,h=insert_rect(p)
+                    blanks=[interface_blank(p,a,b-a,w,h,p.FlexInsertLip+POCKET_RADIAL_FIT)]
+                plate=flat_plate_shape(shapes[mount['role']],mount['role'],p,through_only=True)
+                local=plate.BoundBox
+                entries=[]
+                for solid in blanks:
+                    copy=solid.copy()
+                    copy.rotate(App.Vector(),App.Vector(1,1,1),-120)
+                    entries.extend(profile_entities(copy,(-local.XMin,-local.YMin)))
+                name=mount['role']+'_BlindOutsideInsertPocket'
+                write_dxf(folder/'CuttingProfiles'/(name+'.dxf'),[(name,entries)])
+                write_svg(folder/'CuttingProfiles'/(name+'.svg'),[(name,entries)],local.XLength,local.YLength,margin=0.)
+        # Blind airflow machining has its own pocket-outline files. Never
+        # include those contours in the through-cut DXF/SVG for the carbon.
+        from .cutouts import cutouts_for
+        from .airflow_geometry import profile_tool
+        airflow_pocket_ops=[]
+        from .cutting_layout import ARM_ROLES
+        arms_by_role={'Arm'+a['name']:a for a in arm_layouts(p)}
+        for role in active_carbon:
+            pockets=[cut for cut in cutouts_for(p,role) if cut['mode']=='Pocket']
+            if not pockets:continue
+            plate=flat_plate_shape(shapes[role],role,p,through_only=True)
+            angle=0.
+            if role in arms_by_role:
+                arm=arms_by_role[role]
+                ix=ARM_ROLES.index(role)
+                ux,uy=arm['unit']
+                angle=(90. if ix%2==0 else -90.)-math.degrees(math.atan2(uy,ux))
+                plate.rotate(App.Vector(),App.Vector(0,0,1),angle)
+            bb=plate.BoundBox
+            all_entries=[]
+            for i,cut in enumerate(pockets,1):
+                outline=profile_tool(cut,0,1)
+                if role in CAMERA_ROLES:
+                    outline.translate(App.Vector(camera_position_y(p),p.BottomThickness,0))
+                elif angle:
+                    outline.rotate(App.Vector(),App.Vector(0,0,1),angle)
+                all_entries.extend(profile_entities(outline,(-bb.XMin,-bb.YMin)))
+                # Local user coordinates and the cutting sheet coordinates are
+                # both recorded for machining setup and inspection.
+                point=App.Vector(cut['x'],cut['y'],0)
+                if role in CAMERA_ROLES:
+                    point=App.Vector(cut['x']+camera_position_y(p),cut['y']+p.BottomThickness,0)
+                elif angle:point=App.Rotation(App.Vector(0,0,1),angle).multVec(point)
+                airflow_pocket_ops.append(dict(part=role,operation='Blind airflow pocket',face='Upper' if role not in CAMERA_ROLES else ('Left outside' if role=='CameraMountLeft' else 'Right outside'),
+                        depth_mm=cut['depth'],x_frame_mm=cut['x'],y_frame_mm=cut['y'],
+                        x_dxf_mm=point.x-bb.XMin,y_dxf_mm=point.y-bb.YMin,
+                        profile=cut['shape'],width_mm=cut['width'],length_mm=cut['length'],
+                        note='Machine as blind pocket only; do NOT through-cut. Exact contour in separate _BlindAirflowPockets.dxf/svg.'))
+            token=role+'_BlindAirflowPockets'
+            write_dxf(folder/'CuttingProfiles'/(token+'.dxf'),[(token,all_entries)])
+            write_svg(folder/'CuttingProfiles'/(token+'.svg'),[(token,all_entries)],bb.XLength,bb.YLength,margin=0.)
+        machining=list(airflow_pocket_ops)
         if keystone_retainers(p):
             box=flat_plate_shape(shapes['ArmClampPlate'],'ArmClampPlate',p).BoundBox
             for item in keystone_retainers(p):
@@ -236,6 +304,29 @@ def export_package(settings, destination):
                                       x_frame_mm=x,y_frame_mm=y,x_dxf_mm=x-box.XMin,y_dxf_mm=y-box.YMin,
                                       through_diameter_mm=item['bore'],outer_diameter_mm=item['head_diameter'],
                                       included_angle_deg=90,depth_mm=item['countersink_depth']))
+        from .carbon_insert_recess import carbon_flush_enabled,recess_span,POCKET_RADIAL_FIT
+        if carbon_flush_enabled(p):
+            from .cage_extensions import o4_tracks
+            for mount,sign in zip(camera_mounts(p),(-1,1)):
+                face='Left outside' if sign<0 else 'Right outside'
+                depth=recess_span(p,mount,sign)[1]-recess_span(p,mount,sign)[0]
+                tracks=(o4_tracks(mount) if p.FPVSystemProfile=='DJI O4 Air Unit Pro' else (dict(point=(camera_position_y(p),p.BottomThickness+camera_pivot_height(p))),))
+                for index,track in enumerate(tracks,1):
+                    cy,cz=(track['point'] if 'point' in track else track['arc']['centre'])
+                    machining.append(dict(part=mount['role'],operation='Outside captured-insert pocket',
+                                          face=face,depth_mm=depth,
+                                          x_frame_mm=cy,y_frame_mm=cz,
+                                          profile='O4 screw track' if 'arc' in track else 'O4 circular flange' if p.FPVSystemProfile=='DJI O4 Air Unit Pro' else p.FlexInterfaceShape,
+                                          nominal_neck_diameter_mm=p.O4InsertDiameter if p.FPVSystemProfile=='DJI O4 Air Unit Pro' else '',
+                                          pocket_margin_mm=p.FlexInsertLip+POCKET_RADIAL_FIT,
+                                          insert_width_mm=p.FlexInsertWidth if p.FPVSystemProfile!='DJI O4 Air Unit Pro' else '',
+                                          insert_height_mm=p.FlexInsertHeight if p.FPVSystemProfile!='DJI O4 Air Unit Pro' else '',
+                                          pocket_x_dxf_mm=cy-camera_position_y(p),
+                                          pocket_y_dxf_mm=cz-p.BottomThickness,
+                                          pocket_track_radius_mm=track['arc']['radius'] if 'arc' in track else '',
+                                          pocket_track_start_deg=track['arc']['start'] if 'arc' in track else '',
+                                          pocket_track_end_deg=track['arc']['end'] if 'arc' in track else '',
+                                          note='Blind counterbore: separate CuttingProfiles/*_BlindOutsideInsertPocket.dxf/svg; verify placement against STEP and DO NOT through-cut the flange seat.'))
         from .nut_geometry import operations
         for op in operations(p):
             box=flat_plate_shape(shapes[op['part']],op['part'],p).BoundBox
@@ -246,15 +337,17 @@ def export_package(settings, destination):
                 writer=csv.DictWriter(stream,fieldnames=columns);writer.writeheader();writer.writerows(machining)
         if p.FPVEnabled:
             import MeshPart
-            brackets=folder/'CameraPlates'
+            brackets=folder/('TPUCameraCage' if p.CameraCageStyle=='TPU cage' else 'CameraPlates')
             brackets.mkdir()
-            for role in CAMERA_ROLES:
+            for role in active_camera_roles(p):
                 shapes[role].exportStep(str(brackets/(role+'.step')))
-                printable=flat_plate_shape(shapes[role],role)
+                printable=shapes[role].copy() if joined_cage(p) else flat_plate_shape(shapes[role],role)
                 box=printable.BoundBox
                 printable.translate(App.Vector(-box.XMin,-box.YMin,-box.ZMin))
                 mesh=MeshPart.meshFromShape(Shape=printable,LinearDeflection=.05,AngularDeflection=.15,Relative=False)
                 mesh.write(str(brackets/(role+'.stl')))
+            if p.CameraCageStyle!='Carbon side plates':
+                (brackets/'Manufacturing.txt').write_text('TPU: print the continuous plate-following cage with an open upper centre and a connected lower floor. Use M3 screws through the plates into the local heat-set insert pockets. Match pocket diameter/depth to your insert supplier and use a suitable flexible-material insert installation process. No captured plate tabs.\n',encoding='utf-8')
         if p.LiPoPadEnabled:
             import MeshPart
             from .battery import printable_pad,make_pad,mounting_role
@@ -314,9 +407,12 @@ def export_package(settings, destination):
                 shape = shapes[role]
                 thickness=p.CameraBracketThickness if role in CAMERA_ROLES else shape.BoundBox.ZLength
                 writer.writerow((role, 1, "Carbon laminate", f"{thickness:.3f}", f"{shape.Volume*p.CarbonDensity/1000:.3f}"))
+            if p.FPVEnabled and p.CameraCageStyle!='Carbon side plates':
+                from .camera_cages import cage_density,camera_thickness
+                for role in active_camera_roles(p):writer.writerow((role,1,p.CameraCageStyle,f'{camera_thickness(p):.3f}',f'{shapes[role].Volume*cage_density(p)/1000:.3f}'))
             if p.LiPoPadEnabled:
                 writer.writerow(('LiPoPad',1,'User pad material',f'{p.LiPoPadThickness:.3f}',f"{metrics['pad_mass_g']:.3f}"))
-            for role in flex_roles(p):writer.writerow((role,1,"Printed flexible material","",f"{shapes[role].Volume*p.FlexDensity/1000:.3f}"))
+            for role in flex_roles(p):writer.writerow((role,2 if role.startswith("CameraPad") and p.FPVSystemProfile=="DJI O4 Air Unit Pro" else 1,"Printed flexible material","",f"{shapes[role].Volume*p.FlexDensity/1000:.3f}"))
             groups = {}
             for stand in standoff_layouts(p):
                 key = (stand["position"], stand["length"])
@@ -409,6 +505,7 @@ def export_package(settings, destination):
                                'full_width_length_mm':p.CentreSectionLength,'shoulder_length_mm':p.CentreShoulderLength,
                                'centre_y_mm':p.CentreSectionY,'arm_roots_follow_bottom':p.ArmRootsFollowCentre},
             'secondary_machining':machining,
+            'carbon_camera_flush_insert_pockets':bool(p.FPVEnabled and p.CameraCageStyle=='Carbon side plates' and p.CameraCarbonFlushInserts and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides')),
             'airflow_patterns':parse_patterns(p.CutoutPatterns),
             'airflow_coordinates':{'horizontal_parts':'U = frame X; V = frame Y',
                                    'camera_parts':'U = Y offset from nominal camera centre; V = Z above bottom plate upper face',
@@ -458,9 +555,15 @@ def export_package(settings, destination):
             "Stock subgroups match the local XY coordinates of their stock files; the root is placed beside the assembly.\n"
             "Re-export refreshes this snapshot. Save the FreeCAD document to retain it. Undo restores the prior snapshot.\n"
             "This is a spaced layout, not optimized nesting or a CAM job. Verify available stock, cutter clearance and fibre direction.\n"
+            "Carbon arm and plate re-entrant corners use a minimum R0.5 mm milling radius (1 mm tool). CAM verification is still required.\n"
             "No kerf, cutter radius compensation, dogbones, or machining tolerance was applied.\n"
             "Use CAM compensation; verify holes, tool access, dimensions, and fastener engagement.\n"
-            f"The STEP contains assembled carbon parts, {2 * standoff_pair_count(p)} standoff tubes and the optional LiPo pad.\n"
+            + ("FLUSH CARBON CAMERA INSERTS: blind OUTSIDE flange pockets are in STEP/native CAD, not the through-cut DXF/SVG.\n"
+               "Machine each counterbore from the correct outside face to the MachiningOps.csv depth.\n"
+               "Use CuttingProfiles/*_BlindOutsideInsertPocket.dxf/svg for aligned pocket boundaries, not through-cut paths.\n"
+               "Do not through-cut the flange land: its remaining structural carbon supports the captured insert.\n"
+               if p.FPVEnabled and p.CameraCageStyle=='Carbon side plates' and p.CameraCarbonFlushInserts and p.FlexCameraMode=='Captured inserts' and p.FlexInsertLipSide in ('Outside only','Both sides') else "")
+            + f"The STEP contains assembled carbon parts, {2 * standoff_pair_count(p)} standoff tubes and the optional LiPo pad.\n"
             "LiPoPad files are separate-material STL/STEP and ungrooved DXF/SVG outlines, not carbon nesting. Scaled-pad spline edges in DXF/SVG use line segments with 0.01 mm chord deflection; STEP retains CAD curves.\n"
             "MassProperties.json includes bare-frame and nominal equipped/loaded estimates with calculation scope. EquipmentMass.csv itemizes all equipment and screw assumptions when enabled.\n"
             "PartsList.csv mass is per item; multiply by Quantity. Blank masses have not been assigned.\n"

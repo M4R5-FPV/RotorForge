@@ -20,8 +20,10 @@ def mass_properties(p,shapes,roles=None):
  pad=contribution('LiPoPad',p.LiPoPadDensity) if p.LiPoPadEnabled else (0.,(0.,0.,0.))
  from .flex import flex_roles
  flexible=[contribution(r,p.FlexDensity) for r in flex_roles(p)]
- frame_mass,frame_cg=combine(carbon+[stands,pad]+flexible)
- result=dict(flexible_mass_g=sum(v[0] for v in flexible),carbon_mass_g=carbon_mass,carbon_cg_mm=carbon_cg,standoff_mass_g=stands[0],pad_mass_g=pad[0],frame_mass_g=frame_mass,frame_cg_mm=frame_cg,
+ from .camera_cages import cage_active,cage_density
+ cages=[contribution(r,cage_density(p)) for r in ('CameraMountLeft','CameraMountRight')] if cage_active(p) else []
+ frame_mass,frame_cg=combine(carbon+[stands,pad]+flexible+cages)
+ result=dict(camera_cage_mass_g=sum(v[0] for v in cages),flexible_mass_g=sum(v[0] for v in flexible),carbon_mass_g=carbon_mass,carbon_cg_mm=carbon_cg,standoff_mass_g=stands[0],pad_mass_g=pad[0],frame_mass_g=frame_mass,frame_cg_mm=frame_cg,
   scope='Carbon parts + modelled standoff tubes + optional LiPo pad and printed protective and camera isolation parts. Screws, straps, adhesive, motors and electronics excluded.',
   densities_g_cm3=dict(carbon=p.CarbonDensity,standoffs=p.StandoffDensity,pad=p.LiPoPadDensity,flexible=p.FlexDensity))
  if p.BatteryReferenceEnabled:

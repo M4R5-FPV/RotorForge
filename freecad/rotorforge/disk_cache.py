@@ -16,7 +16,7 @@ def cache_key(signature,runtime):
  raw=json.dumps(dict(format=FORMAT,generator=__version__,runtime=runtime,parameters=signature),sort_keys=True,separators=(',',':'),allow_nan=False)
  return hashlib.sha256(raw.encode()).hexdigest()
 
-def read_archive(directory,key):
+def read_archive(directory,key,skip=None):
  path=Path(directory)/(key+'.zip')
  try:
   with zipfile.ZipFile(path) as archive:
@@ -26,8 +26,13 @@ def read_archive(directory,key):
    if index['format']!=FORMAT or index['key']!=key:return []
    records=[]
    for row in index['components']:
-    manifest=row['manifest'];data=json.loads(manifest);payload=archive.read(row['file']).decode('utf-8')
-    if hashlib.sha256(payload.encode()).hexdigest()!=row['digest'] or data['key']!=row['role']:return []
+    manifest=row['manifest'];data=json.loads(manifest)
+    if data['key']!=row['role']:return []
+    # The resident cache already verified this exact component. Do not
+    # decompress, decode and hash its potentially huge native BRep again.
+    if skip is not None and skip(row['role'],manifest):continue
+    payload=archive.read(row['file']).decode('utf-8')
+    if hashlib.sha256(payload.encode()).hexdigest()!=row['digest']:return []
     records.append((row['role'],manifest,payload))
   try:os.utime(path,None)
   except OSError:pass
@@ -77,8 +82,7 @@ def restore(signature,cache):
   import Part
   from .version import __version__
   pending=[]
-  for role,manifest,payload in read_archive(directory,identity(signature)):
-   if cache.has_manifest(role,manifest):continue
+  for role,manifest,payload in read_archive(directory,identity(signature),skip=cache.has_manifest):
    data=json.loads(manifest)
    if data['version']!=__version__:return 0
    shape=Part.Shape();shape.importBrepFromString(payload)

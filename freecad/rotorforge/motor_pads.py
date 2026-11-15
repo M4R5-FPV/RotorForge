@@ -23,7 +23,7 @@ def motor_pad_start(p):
     """Root-facing extent of the unrotated additive pad profile."""
     return min(d['centre'][0]-d['radius'] if d['kind']=='circle' else
                -d['width']/2 if d['kind']=='rounded' else min(x for x,y in d['points'])
-               for d in motor_pad_primitives(p) if d.get('operation')!='cut')
+               for d in _base_motor_pad_primitives(p) if d.get('operation')!='cut')
 
 
 def motor_pad_pose(p,arm):
@@ -102,7 +102,7 @@ def convex_hull(points):
     return tuple(halves[0]+halves[1])
 
 
-def motor_pad_primitives(p):
+def _base_motor_pad_primitives(p):
     if p.MotorPadShape not in NEW_MOTOR_PAD_SHAPES:return _legacy_motor_pad_primitives(p)
     h=p.MotorPadDiameter/2;n=p.MotorPadShape;w=p.ArmWidth/2;back=-h-p.MotorPadNeckLength
     polygon=lambda pts:dict(kind='polygon',points=tuple(pts))
@@ -165,7 +165,7 @@ def motor_pad_interior(point, p):
     half = p.MotorPadDiameter/2
     if p.MotorPadShape in REALISTIC_MOTOR_PAD_SHAPES+NEW_MOTOR_PAD_SHAPES:
         positive=[];negative=[]
-        for d in motor_pad_primitives(p):
+        for d in _base_motor_pad_primitives(p):
             inside=(d['radius']-math.dist(point,d['centre']) if d['kind']=='circle' else polygon_interior_distance(point,d['points']))
             (negative if d.get('operation')=='cut' else positive).append(inside)
         return min([max(positive)]+[-v for v in negative])
@@ -179,16 +179,16 @@ def motor_pad_interior(point, p):
         r=min(p.MotorPadCornerRadius,half-.01)
         return min(half-abs(x),half-abs(y),(2*half-r-abs(x)-abs(y))/math.sqrt(2))
     if extended_motor_pad(p):
-        return polygon_interior_distance(point,motor_pad_primitives(p)[0]['points'])
-    return max(d['radius']-math.dist(point,d['centre']) for d in motor_pad_primitives(p))
+        return polygon_interior_distance(point,_base_motor_pad_primitives(p)[0]['points'])
+    return max(d['radius']-math.dist(point,d['centre']) for d in _base_motor_pad_primitives(p))
 
 
 def motor_pad_bound(p):
     if p.MotorPadShape in REALISTIC_MOTOR_PAD_SHAPES+NEW_MOTOR_PAD_SHAPES:
         return max(math.hypot(*d['centre'])+d['radius'] if d['kind']=='circle' else max(math.hypot(x,y) for x,y in d['points'])
-                   for d in motor_pad_primitives(p) if d.get('operation')!='cut')
+                   for d in _base_motor_pad_primitives(p) if d.get('operation')!='cut')
     if extended_motor_pad(p):
-        return max(math.hypot(x,y) for x,y in motor_pad_primitives(p)[0]['points'])
+        return max(math.hypot(x,y) for x,y in _base_motor_pad_primitives(p)[0]['points'])
     return p.MotorPadDiameter/2 if p.MotorPadShape=='Round' else p.MotorPadDiameter/math.sqrt(2)
 
 
@@ -210,3 +210,139 @@ def motor_tip_slots(p,arm=None):
     ux,uy=motor_pad_unit(p,arm);mx,my=arm['motor']
     transform=lambda pt:(mx+ux*pt[0]-uy*pt[1],my+uy*pt[0]+ux*pt[1])
     return tuple((transform(a),transform(b),r) for a,b,r in slots)
+
+
+
+def _clip_front(points,minimum):
+    result=[]
+    for a,b in zip(points[-1:]+points[:-1],points):
+        ia,ib=a[0]>=minimum,b[0]>=minimum
+        if ia!=ib:
+            t=(minimum-a[0])/(b[0]-a[0]);result.append((minimum,a[1]+t*(b[1]-a[1])))
+        if ib:result.append(b)
+    return result
+
+
+def _inset_polygon(points,wall):
+    lines=[];area=sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(points,points[1:]+points[:1]));sign=1 if area>0 else -1
+    for a,b in zip(points,points[1:]+points[:1]):
+        dx,dy=b[0]-a[0],b[1]-a[1];length=math.hypot(dx,dy)
+        if length<1e-8:continue
+        lines.append(((a[0]-sign*dy/length*wall,a[1]+sign*dx/length*wall),(dx/length,dy/length)))
+    out=[]
+    for (a,u),(b,v) in zip(lines[-1:]+lines[:-1],lines):
+        cross=u[0]*v[1]-u[1]*v[0]
+        if abs(cross)<1e-8:out.append(b);continue
+        t=((b[0]-a[0])*v[1]-(b[1]-a[1])*v[0])/cross;out.append((a[0]+t*u[0],a[1]+t*u[1]))
+    return out
+
+
+ARM_TIP_STYLES=('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch')
+LEGACY_ARM_TIPS={'Round nose':'Round cap','Rounded guard':'Round cap','Rounded paddle':'Oval cap','Elliptic nose':'Oval cap','Wide bow':'Oval cap','Soft shoulders':'Round cap','Flat guard':'Soft square','Hammerhead':'Soft square','Stepped paddle':'Soft square'}
+LEGACY_ARM_TIPS.update({name:'Chamfered cap' for name in ('Faceted shield','Forked nose','Spear tip','Swept blade','Beveled nose','Chisel tip','Chevron tip','Twin prong','Flared shield','Chamfered guard')})
+def arm_tip_style(style):
+    return style if style in ARM_TIP_STYLES else LEGACY_ARM_TIPS.get(style,style)
+
+def motor_pad_primitives(p,arm=None):
+    # Apply asymmetry at the source. This common path feeds CAD solids, the
+    # editing preview, CNC outlines, and TPU protector generation. Importantly
+    # the arm-tip guard is generated *after* orientation so a user-selected
+    # front/rear guard direction remains in global coordinates.
+    base=_base_motor_pad_primitives(p)
+    if p.ArmTipBumperStyle=='Disabled':return base
+    # Attachment always remains at the outward end of the pad, local +X.
+    end=max(d['centre'][0]+d['radius'] if d['kind']=='circle' else d['width']/2 if d['kind']=='rounded' else max(x for x,y in d['points']) for d in base if d.get('operation')!='cut')
+    half=min(p.ArmTipBumperWidth,p.MotorPadDiameter*.85)/2
+    start=min(p.MotorPadDiameter*.25,end-p.MinimumWeb)
+    reach=p.ArmTipBumperReach;style=arm_tip_style(p.ArmTipBumperStyle)
+    shoulder=end-max(1.,p.MinimumWeb*.5)
+    if style in ('Round cap','Oval cap'):
+        nose=min(reach+half*.65,end+reach-start-.1) if style=='Oval cap' else min(half,end+reach-start-.1)
+        cap_half=half*.72 if style=='Oval cap' else half
+        pts=[(start,-cap_half),(end+reach-nose,-cap_half)]
+        pts += [(end+reach-nose+nose*math.cos(a),cap_half*math.sin(a)) for a in [-math.pi/2+i*math.pi/24 for i in range(25)]]
+        pts += [(start,cap_half)]
+    elif style=='Tapered cap':
+        pts=[(start,-half),(end,-half),(end+reach,-half*.5),(end+reach,half*.5),(end,half),(start,half)]
+    elif style=='Shallow arch':
+        pts=[(start,-half)]+[(end+reach*(1-.25*(t/half)**2),t) for t in [-half+i*half/16 for i in range(33)]]+[(start,half)]
+    elif style=='Soft square':
+        radius=min(half*.35,reach*.5)
+        pts=[(start,-half),(end+reach-radius,-half)]
+        pts += [(end+reach-radius+radius*math.cos(a),-half+radius+radius*math.sin(a)) for a in [-math.pi/2+i*math.pi/16 for i in range(9)]]
+        pts += [(end+reach,half-radius)]
+        pts += [(end+reach-radius+radius*math.cos(a),half-radius+radius*math.sin(a)) for a in [i*math.pi/16 for i in range(9)]]
+        pts += [(start,half)]
+    else:
+        c=min(half*.4,reach*.4)
+        pts=[(start,-half),(end+reach-c,-half),(end+reach,-half+c),(end+reach,half-c),(end+reach-c,half),(start,half)]
+    pts=[v for i,v in enumerate(pts) if i==0 or math.dist(v,pts[i-1])>1e-8]
+    dx,dy=1.,0.
+    if arm is not None and p.ArmTipBumperDirection!='Pad direction':
+        ux,uy=motor_pad_unit(p,arm)
+        gx,gy=((0.,math.copysign(1.,arm['motor'][1])) if p.ArmTipBumperDirection=='Front / rear' else (math.copysign(1.,arm['motor'][0]),0.))
+        dx,dy=gx*ux+gy*uy,-gx*uy+gy*ux
+    def stretch(poly):
+        out=[]
+        for a,b in zip(poly,poly[1:]+poly[:1]):
+            steps=max(1,math.ceil(abs(b[0]-a[0])/1.))
+            for i in range(steps):
+                t=i/steps;x=a[0]+(b[0]-a[0])*t;y=a[1]+(b[1]-a[1])*t
+                amount=max(0.,min(1.,(x-shoulder)/(end+reach-shoulder)))
+                amount=amount*amount*(3-2*amount)
+                extra=0. if p.ArmTipBumperDirection=='Pad direction' else reach*amount
+                out.append((x+dx*extra,y+dy*extra))
+        return tuple(out)
+    transformed=stretch(pts)
+    base=tuple(dict(d,scope='pad') if d.get('operation')=='cut' else d for d in base)
+    # Reshape the pad's outward shoulder into a tangent outer envelope with
+    # the cap. Fill the junction instead of leaving a narrow neck, re-entrant
+    # steps or a stretched S-shaped seam. Rear pad/arm attachment is retained.
+    samples=[]
+    for primitive in base:
+        if primitive.get('operation')=='cut':continue
+        if primitive['kind']=='circle':
+            cx,cy=primitive['centre'];radius=primitive['radius']
+            pts0=[(cx+radius*math.cos(i*math.pi/48),cy+radius*math.sin(i*math.pi/48)) for i in range(96)]
+        elif primitive['kind']=='rounded':
+            radius=primitive['radius'];h=primitive['width']/2-radius
+            pts0=[(sx*h+radius*math.cos(i*math.pi/48),sy*h+radius*math.sin(i*math.pi/48)) for sx in (-1,1) for sy in (-1,1) for i in range(96)]
+        else:pts0=list(primitive['points'])
+        samples.extend(pts0)
+    pad_front=_clip_front(list(convex_hull(samples)),0.)
+    fairing=convex_hull(pad_front+list(transformed))
+    result=base+(dict(kind='polygon',points=transformed,bumper=True),dict(kind='polygon',points=fairing,bumper=True))
+    if p.ArmTipBumperCutout:
+        wall=max(p.MinimumWeb,p.ArmTipBumperCutoutWall)
+        # Trace the space between an inset tip envelope and an expanded
+        # motor-pad envelope. A radial band follows both contours instead
+        # of closing against a straight X plane across the motor pad.
+        rim=_inset_polygon(list(fairing),wall)
+        protected=_inset_polygon(list(convex_hull(samples)),-wall)
+        def ray_radius(poly,angle):
+            dx,dy=math.cos(angle),math.sin(angle);hits=[]
+            for a,b in zip(poly,poly[1:]+poly[:1]):
+                ex,ey=b[0]-a[0],b[1]-a[1];den=dx*ey-dy*ex
+                if abs(den)<1e-10:continue
+                t=(a[0]*ey-a[1]*ex)/den;u=(a[0]*dy-a[1]*dx)/den
+                if t>=0 and -1e-8<=u<=1+1e-8:hits.append(t)
+            return max(hits) if hits else None
+        runs=[];run=[]
+        for i in range(361):
+            angle=-math.pi/2+i*math.pi/360
+            ro=ray_radius(rim,angle);ri=ray_radius(protected,angle)
+            if ro is not None and ri is not None and ro-ri>=2.:
+                dx,dy=math.cos(angle),math.sin(angle)
+                outer=(ro*dx,ro*dy);inner=(ri*dx,ri*dy)
+                if polygon_interior_distance(outer,fairing)>=wall-1e-5:
+                    run.append((outer,inner));continue
+            if run:runs.append(run);run=[]
+        if run:runs.append(run)
+        # Retain one useful opening, never a collection of narrow slivers.
+        band=max(runs,key=len,default=[])
+        opening=[a for a,b in band]+[b for a,b in reversed(band)]
+        area=abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(opening,opening[1:]+opening[:1])))/2 if opening else 0.
+        if len(band)<3 or area<4.:
+            raise ValueError('Arm-tip cutout needs a continuous 2 mm-wide opening with at least 4 mm2 area after retaining the wall around the tip and motor pad. Increase tip reach/width or disable the cutout.')
+        result+=(dict(kind='polygon',points=tuple(opening),operation='cut'),)
+    return result

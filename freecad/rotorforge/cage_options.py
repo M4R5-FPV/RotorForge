@@ -1,0 +1,47 @@
+"""Shared camera cage choices."""
+OPTIONS={'CameraCageStyle': ('Carbon side plates', 'Camera mount construction', 'Shared dimensions and camera position stay fixed when switching construction. TPU is a unified printable cage; flat camera side plates may be machined from carbon fibre or aluminium.', ('Carbon side plates', 'TPU cage')), 'CameraTPUAttachment': ('Captured tabs', 'TPU cage attachment', 'Captured tabs fit plate sockets. Screw mounting uses vertical pilot holes in the cage and clearance holes through the frame plates.', ('Captured tabs', 'Screw mounting')), 'CameraTPUScrewBore': (2.0, 'Cage screw pilot diameter', 'Vertical pilot bore in TPU for user-selected screws. Measure the screw and test a printed fit coupon.'), 'CameraTPUScrewClearance': (0.3, 'Cage screw clearance', 'Extra diameter in the top and bottom plate mounting holes.'), 'CameraTPUBridge': (2.0, 'TPU crossbar thickness', 'Lower rear crossbars meet at the frame centre to form the two-piece cage; each half is retained by its plate attachments.'), 'CameraAluminiumDensity': (2.7, 'Aluminium density', 'Density in g/cm³ for the aluminium cage mass estimate.'), 'CameraCageFrontShape': ('Straight', 'Cage front profile', 'Choose inward shaping or an outward extension. Attachment endpoints stay fixed. Real assembly collisions remain checked.', ('Straight', 'Swept', 'Rounded waist', 'Faceted waist', 'Rounded extension', 'Faceted extension', 'Swept extension', 'Full extension')), 'CameraCageRearShape': ('Straight', 'Cage rear profile', 'Choose inward shaping or an outward extension. Attachment endpoints stay fixed. Real assembly collisions remain checked.', ('Straight', 'Swept', 'Rounded waist', 'Faceted waist', 'Rounded extension', 'Faceted extension', 'Swept extension', 'Full extension')), 'CameraCageProfileDepth': (2.0, 'Cage profile depth', 'Maximum inward shaping depth in mm. Keep enough stock around camera holes and insert lips.'), 'CameraCageFrontReach': (4.0, 'Front profile extension', 'Extra forward reach of extending profiles, in mm. Does not change the plate attachments.'), 'CameraCageRearReach': (4.0, 'Rear profile extension', 'Extra rearward reach of extending profiles, in mm. Must clear the stack and standoffs.'), 'CameraCageEdgeWeb': (2.0, 'Cage opening edge material', 'Minimum material between the outside of camera screw/insert openings (including lips) and the cage outline. Adjustable from 2 mm; independent of the global web setting. Verify print strength for your material.')}
+
+OPTIONS.update({
+ 'FPVSystemProfile':('Custom camera / VTX','FPV equipment','Select DJI O4 Pro to use its camera, two M2 screws per side and VTX dimensions. Custom retains editable generic equipment.',('Custom camera / VTX','DJI O4 Air Unit Pro')),
+ 'O4InsertDiameter':(6.,'O4 split insert opening','Diameter of each of the two circular captured inserts per side; flange and fit use the TPU isolation settings.'),
+ 'CameraTPUAttachment':('Screw mounting','TPU cage attachment','TPU cages use M3 screws through the plates into local heat-set insert bosses.',('Screw mounting',)),
+ 'CameraTPUScrewBore':(4.,'M3 insert pocket diameter','Pilot pocket for an M3 heat-set insert, not the M3 screw diameter. Match your insert supplier; default is a starting value.'),
+ 'CameraTPUInsertDepth':(4.,'M3 insert pocket depth','Blind pocket depth at each top and bottom mounting position. Match the purchased insert.'),
+ 'CameraTPUBossWall':(1.5,'Insert boss wall','Local radial TPU stock around each insert pocket. Main cage wall thickness stays unchanged.'),
+ 'CameraTPUBumper':(False,'Integrated cage bumper','Create a full front-perimeter TPU cage from the finished bottom-plate outline. The nose and outside left/right contours follow the plate, with a central camera opening and structural top/bottom rails. Optional forward projection is above the plate; existing camera isolation and insert mountings stay unchanged.'),
+ 'CameraTPUBumperReach':(3.,'Cage bumper projection','Maximum forward bulge of the shaped TPU cage front, tapering smoothly to zero at the upper and lower mounting contacts.'),
+ 'CameraTPUBumperWidth':(1.5,'Front shoulder fullness','Adds a gentle forward fullness to the curved front side-wall shoulder without widening its left/right outside edges.'),
+ 'CameraTPUBumperToe':(4.,'Lower nose sweep','Adds a rounded forward sweep to the lower cage cheek, fading out at both plate contacts.')})
+
+OPTIONS.update({
+ 'FPVSystemProfile':('Custom camera / VTX','Camera model','Choose the camera here. O4 Pro sets camera and VTX dimensions while retaining Hard mount, Compression pads or Captured inserts.',('Custom camera / VTX','DJI O4 Air Unit Pro')),
+ 'O4PadDiameter':(7.,'O4 compression pad diameter','Diameter of each independent circular compression pad. Two pads per camera side.'),
+ 'CameraTPUConstruction':('Separate sides','TPU cage construction','Choose two separate side parts or one connected cage with a continuous front bridge.',('Separate sides','One-piece cage')),
+ 'CameraTPUClampBottom':(False,'Clamp around bottom plate','Wrap the integrated bumper around the finished bottom-plate edge with a sole and retaining lip.'),
+ 'CameraTPUInnerReach':(4.,'Split front inward reach','Inward reach along the front outline for the optional split bottom-plate clamp. Disabled without the clamp; separate cage walls end directly on the plate edge.'),
+ 'CameraTPUClampFit':(.2,'Bottom clamp clearance','Clearance around the bottom plate in the integrated clamp.'),
+ 'CameraTPUClampWall':(1.5,'Bottom clamp wall','Wall, sole and retaining lip thickness for the integrated bottom clamp.'),
+ 'CameraTPUScrewBore':(4.1,'M3 insert pocket diameter','4.1 mm pocket for the metal heat-set insert; independent of the 3.2 mm plate screw hole.'),
+ 'CameraTPUInsertDepth':(3.5,'M3 insert pocket depth','3.5 mm blind hole depth for a 3 mm-long insert. Adjust for the actual insert if needed.'),
+ 'CameraTPUScrewClearance':(.2,'M3 plate screw clearance','The mounting plates use 3.2 mm clearance holes, not the insert pocket diameter.')})
+
+OPTIONS['CameraTPUBridge']=(2.,'Cage perimeter wall thickness','Thickness of the TPU plate-outline cage side walls. Independent of the one-piece lower connection dimensions.')
+OPTIONS['CameraTPUFrontBridgeRearReach']=(6.,'Lower connection rear reach','How far the one-piece TPU cage lower connection extends rearward from the front edge of the bottom plate. Its rear boundary curves smoothly into the cage sides. Range 1–15 mm; separate-side cages have no connection.')
+OPTIONS['CameraTPUFrontBridgeHeight']=(2.,'Lower connection height','Height of the one-piece TPU cage lower connection above the top surface of the bottom plate. Range 1–8 mm, subject to the available camera space. Separate-side cages have no connection.')
+
+# v0.91.76 — A single continuous TPU cage. These are independent contact
+# depths on the two plates, not extensions of legacy carbon camera cheeks.
+OPTIONS.update({
+ 'CameraTPUConstruction': ('One-piece cage','TPU cage construction','A single cage with a connected lower perimeter and an open upper centre.',('One-piece cage',)),
+ 'CameraTPUBottomRearReach': (12.0,'Bottom plate rear reach','Distance the TPU cage follows the bottom plate rearward from its front outline. The mounting screw bosses remain covered. Adjustable 4–40 mm.'),
+ 'CameraTPUTopRearReach': (12.0,'Top plate rear reach','Distance the left and right cage walls follow the underside of the top plate rearward from its front outline. The upper centre remains open. Adjustable 4–40 mm.'),
+ 'CameraTPUFrontBridgeRearReach': (6.0,'Lower centre rear reach','Centre floor depth behind the finished bottom-plate front edge. The connection blends smoothly into the left/right sides, which use the bottom rear reach setting.'),
+ 'CameraTPUFrontBridgeHeight': (2.0,'Lower centre height','Thickness of the connected lower cage floor above the bottom plate, in mm.'),
+ 'CameraTPUBumper': (True,'Plate-following cage','The TPU cage always follows both finished carbon plate outlines. This setting is retained for older saved designs.'),
+})
+
+OPTIONS['CameraTPUHardClearance']=(0.15,'Hard-mount camera clearance','Clearance in mm between each camera housing side and the TPU cage inner wall when Hard mount is selected. Does not move the plate-following outer cage or M3 mounting holes.')
+OPTIONS['CameraTPUFlushInserts']=(False,'Flush outside captured inserts','Recess the outside retaining lips into matching TPU cage seats so their outer faces finish flush with the cage walls. Applies to Captured inserts with an Outside or Both sides lip; keeps the camera-facing walls and screw centres unchanged.')
+OPTIONS['CameraCarbonFlushInserts']=(False,'Flush carbon-side captured inserts','Counterbore the OUTSIDE of each carbon camera side plate so the removable TPU retaining flange and camera screw head bearing plane finish at the original outside face. Preserves an uncut carbon ledge behind the flange and the original full-depth neck opening. Requires Outside or Both sides retaining lips and adequate camera-plate thickness. Manufacturing requires a separate pocketing operation; the flat DXF/SVG still describes through cuts only.')
+
+OPTIONS['CameraTPUFrontBridgeBlend']=(3.0,'Lower bridge corner blend','Amount of smooth rearward sweep where the lower centre bridge joins the left and right TPU cage walls. 0 mm makes a straight rear edge; up to 10 mm increases the rounded transition. Does not change the carbon plate outlines or camera mounting positions.')

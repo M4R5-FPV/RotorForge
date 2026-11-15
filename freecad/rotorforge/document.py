@@ -13,17 +13,17 @@ from .arm_roots import ROOT_BOLT_COORDINATES, LEGACY_ROOT_BOLT_COORDINATES
 ICON = icon_path()
 from .parameters import RETIRED_PARAMETERS,STACK_PATTERNS,stack_label
 
-FLOATS = {"BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
+FLOATS = {"CarbonTextureOpacity","BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
 SIGNED_LENGTHS = {'FlexAntennaHolderOffset','StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
 GEOMETRY_FIELDS = {"Layout", "PlateDesign", "Wheelbase", "LengthToWidth", "FrontSpread", "RearArmExtension", "PropDiameter", "RequiredPropGap"}
-ARM_FIELDS = {"ArmBeamShape","ArmProfileAmount","ArmThickness", "ArmWidth", "ArmRootY", "RootInset", "RootExtension", "RootBoltSpacing", "RootHoleDiameter"}|ARM_LOCK_FIELDS
+ARM_FIELDS = {"ArmBeamShape","ArmProfileAmount","ArmEdgeFillet","ArmThickness", "ArmWidth", "ArmRootY", "RootInset", "RootExtension", "RootBoltSpacing", "RootHoleDiameter", "ArmBoltMaterialAllowance"}|ARM_LOCK_FIELDS
 MOTOR_FIELDS = {"MotorPadNeckLength","MotorPadBlendRadius","MotorPadRelief","MotorPadReliefWidth","MotorPadReliefLength","MotorPadDiameter", "MotorSpacingX", "MotorSpacingY", "MotorHoleDiameter", "MotorCenterDiameter", 'MotorPadShape', 'MotorPadCornerRadius', 'MotorTipLength','MotorTipSlotEnabled','MotorTipSlotWidth','MotorTipSlotLength'}
 
 
 def property_group(name):
     from .nut_seats import FIELDS as NUT_FIELDS
     if name in NUT_FIELDS:return "16 Nut retention"
-    if name=="PrintedPartColour":return "15 Appearance"
+    if name in ("PrintedPartColour", "CarbonTextureEnabled", "CarbonTextureTile", "CarbonTextureOpacity"):return "15 Appearance"
     if name.startswith("Flex"):return "14 Flexible parts"
     from .equipment_mass import MASS_FIELDS
     if name in MASS_FIELDS or name=="EstimateComponents":return "13 Equipment estimates"
@@ -83,7 +83,9 @@ def read_parameters(obj):
 
 def set_parameters(obj, p):
     require_valid(p)
-    if isinstance(obj.Proxy,ParameterProxy):obj.Proxy._restored_signature=None
+    if isinstance(obj.Proxy,ParameterProxy):
+        obj.Proxy._restored_signature=None
+        obj.Proxy._document_build_parameters=None
     ensure_parameter_properties(obj, p)
     for f in fields(p):
         value=stack_label(p.StackSpacing) if f.name=='StackSpacing' else int(round(getattr(p,f.name))) if f.name in VENT_ROW_COUNTS else getattr(p,f.name)
@@ -157,13 +159,20 @@ class ParameterProxy:
             obj.setEditorMode(name, 1)
         obj.GeneratorVersion = __version__
 
+    def onChanged(self, obj, property_name):
+        # Invalidate the immutable snapshot whenever a real frame parameter is
+        # edited. Dependent parts may reuse it only after a successful parent
+        # validation/build; restored documents start without a snapshot.
+        if property_name in Parameters.__dataclass_fields__:
+            self._document_build_parameters=None
+
     def execute(self, obj):
         try:
             p = read_parameters(obj)
             previous=getattr(self,'_restored_signature',None) or getattr(self,'_last_full_signature',None)
             if previous and previous!=p.signature():
                 from .appearance import design_signature
-                if design_signature(Parameters(*previous))==design_signature(p):
+                if len(previous)==len(Parameters.__dataclass_fields__) and design_signature(Parameters(*previous))==design_signature(p):
                     apply_document_appearance(obj,p);self._restored_signature=p.signature();self._last_full_signature=p.signature();return
             if getattr(self,'_restored_signature',None)==p.signature():return
             self._restored_signature=None
@@ -172,16 +181,24 @@ class ParameterProxy:
             prime_document_cache(obj)
             from .geometry import build_for_update
             pending=getattr(self,'_pending_report',None)
-            shapes=build_shapes(p) if pending is not None else build_for_update(p)
+            if pending is None:
+                # A restored/externally edited document has not necessarily
+                # passed through the editor's geometry preflight.
+                from .geometry import prepare_frame_build
+                prepare_frame_build(p)
             report=pending if pending is not None else build_report(p)
             self._pending_report=None
+            from .geometry import build_mass_report
+            metrics,carbon_volume=build_mass_report(p)
+            # All dependent parts in this recompute use the same validated
+            # immutable snapshot rather than re-reading hundreds of App
+            # properties for each shape.
+            self._document_build_parameters=p
             for kind,name in (('App::PropertyFloat','LastBuildSeconds'),('App::PropertyStringList','RebuiltComponents'),('App::PropertyStringList','ReusedComponents')):
                 if name not in obj.PropertiesList:obj.addProperty(kind,name,'09 Results','Incremental geometry build diagnostics',8);obj.setEditorMode(name,1)
             obj.LastBuildSeconds=report.get('seconds',0.)
             obj.RebuiltComponents=report.get('rebuilt',[])
             obj.ReusedComponents=report.get('reused',[])
-            from .mass_properties import mass_properties
-            metrics=mass_properties(p,shapes)
             for kind,name,desc in [('App::PropertyFloat','FrameMassGrams','Estimated carbon + standoffs + LiPo pad + flexible parts; excludes screws and electronics'),('App::PropertyVector','FrameCG','Estimated bare frame centre of gravity in frame coordinates'),('App::PropertyFloat','FramePlusBatteryMassGrams','Frame estimate plus reference battery only'),('App::PropertyVector','FramePlusBatteryCG','Frame plus reference battery only; excludes electronics and motors')]:
                 if name not in obj.PropertiesList:
                     obj.addProperty(kind,name,'09 Results',desc,8);obj.setEditorMode(name,1)
@@ -196,7 +213,7 @@ class ParameterProxy:
             obj.FramePlusBatteryCG=App.Vector(*metrics.get('frame_plus_battery_cg_mm',(0.,0.,0.)))
             self._last_full_signature=p.signature()
             obj.GeneratorVersion = __version__
-            obj.CarbonMassGrams = sum(shapes[role].Volume for role in carbon_roles(p)) * p.CarbonDensity / 1000
+            obj.CarbonMassGrams = carbon_volume * p.CarbonDensity / 1000
             obj.MinimumPropGap = prop_gap(p)
             obj.Warnings = warnings
             obj.Status = "Valid" if not warnings else "Valid — review warnings"
@@ -209,6 +226,7 @@ class ParameterProxy:
                 App.Console.PrintWarning('RotorForge hardware references: '+str(reference_error)+'\n')
 
         except Exception as exc:
+            self._document_build_parameters=None
             from .hardware_refs import invalidate_refs
             invalidate_refs(obj)
             obj.Status = "Invalid: " + str(exc).replace("\n", "; ")
@@ -222,11 +240,23 @@ class ParameterProxy:
             App.Console.PrintError("RotorForge: " + str(exc) + "\n")
 
     def onDocumentRestored(self, obj):
+        self._document_build_parameters=None
         # Reading a saved frame must not migrate/touch its properties and queue
         # a full rebuild. Keep its persisted BReps until an actual parameter
         # change or the editor's explicit Update action requests regeneration.
-        try:self._restored_signature=read_parameters(obj).signature()
-        except Exception:self._restored_signature=None
+        try:
+            p=read_parameters(obj)
+            self._restored_signature=p.signature()
+            if App.GuiUp and p.CarbonTextureEnabled:
+                # FreeCAD recreates view scenegraphs when opening FCStd. Refresh
+                # once the event loop has restored all component view providers.
+                try:
+                    from PySide import QtCore
+                except ImportError:
+                    from PySide2 import QtCore
+                QtCore.QTimer.singleShot(0,lambda:[apply_material(part.ViewObject,role,CARBON_ROLES,p) for role,part in component_objects(obj).items()])
+        except Exception:
+            self._restored_signature=None
 
     def dumps(self):
         return None
@@ -249,21 +279,42 @@ class PartProxy:
 
     def execute(self, obj):
         try:
-            p = read_parameters(obj.Parameters)
-            if getattr(obj.Parameters.Proxy,'_restored_signature',None)==p.signature():return
+            parent_proxy=getattr(obj.Parameters,'Proxy',None)
+            p=getattr(parent_proxy,'_document_build_parameters',None)
+            validated=p is not None
+            if p is None:p=read_parameters(obj.Parameters)
+            if getattr(parent_proxy,'_restored_signature',None)==p.signature():return
             role = normalise_role(obj.FrameRole)
             from .geometry import build_shape
-            shape = build_shape(p,role)
+            shape = build_shape(p,role,validated=validated)
             placement = App.Placement(shape.Placement)
             import hashlib,json
             from .dependency_cache import shape_token
             from .geometry import component_manifest,component_payload
             manifest=component_manifest(role,p);token=json.loads(manifest)['token'] if manifest else shape_token(shape)
-            current=hashlib.sha256(obj.Shape.exportBrepToString().encode()).hexdigest()
             unchanged=False
-            if all(n in obj.PropertiesList for n in ('ComponentCache','ComponentDocumentDigest')):
-                try:unchanged=json.loads(str(obj.ComponentCache)).get('token')==token and (str(obj.ComponentDocumentDigest)==current or getattr(self,'_verified_document_digest',None)==current)
-                except (ValueError,TypeError,AttributeError):pass
+            has_cache=all(n in obj.PropertiesList for n in ('ComponentCache','ComponentDocumentDigest'))
+            # Comparing OCC's native shape identity is much cheaper than
+            # exporting/hashing its entire BRep. Retain the strong digest path
+            # whenever an object differs or lacks a verified cache record.
+            try:
+                quick_match=(has_cache and str(obj.ComponentDocumentDigest) and
+                             json.loads(str(obj.ComponentCache)).get('token')==token and
+                             obj.Shape.isSame(shape) and
+                             str(obj.Shape.Orientation)==str(shape.Orientation) and
+                             obj.Placement==placement)
+            except (ValueError,TypeError,AttributeError,RuntimeError):quick_match=False
+            if quick_match:
+                current=str(obj.ComponentDocumentDigest)
+                unchanged=True
+            else:
+                current=hashlib.sha256(obj.Shape.exportBrepToString().encode()).hexdigest()
+                if has_cache:
+                    try:
+                        unchanged=(json.loads(str(obj.ComponentCache)).get('token')==token and
+                                   (str(obj.ComponentDocumentDigest)==current or
+                                    getattr(self,'_verified_document_digest',None)==current))
+                    except (ValueError,TypeError,AttributeError):pass
             if not unchanged:
                 # Prepare display triangulation on the GUI thread before the
                 # view provider receives a restored/cached BRep. This avoids
@@ -285,7 +336,7 @@ class PartProxy:
                     if str(getattr(obj,name))!=value:setattr(obj,name,value)
             if App.GuiUp:apply_material(obj.ViewObject,role,CARBON_ROLES,p)
             if role in ('LiPoPad','BatteryEnvelope','FrameCGMarker'):
-                obj.Label={'LiPoPad':'LiPo pad (separate material)','BatteryEnvelope':('LiPo reference (detailed)' if p.DetailedBatteryReference else '1300 mAh LiPo reference (editable)'),'FrameCGMarker':'Active CG (nominal estimate)'}[role]
+                obj.Label={'LiPoPad':'LiPo pad (separate material)','BatteryEnvelope':('LiPo reference (detailed)' if p.DetailedBatteryReference else f'{p.BatteryCells}S LiPo reference (editable)'),'FrameCGMarker':'Active CG (nominal estimate)'}[role]
                 if App.GuiUp:obj.ViewObject.Visibility=p.LiPoPadEnabled if role=='LiPoPad' else p.ShowReferences and (p.BatteryReferenceEnabled if role=='BatteryEnvelope' else p.ShowFrameCG)
             elif role in ('MotorEnvelopes','PropellerDiscs','StackEnvelope'):
                 from .reference_options import enabled
@@ -306,9 +357,10 @@ class PartProxy:
                 if role=='VTXEnvelope':obj.Label='VTX reference'+(' (detailed)' if p.DetailedVTXReference else ' (simple)')
                 if role=='CameraEnvelope':obj.Label='FPV camera reference'+(' (detailed)' if p.DetailedCameraReference else ' (simple)')
                 if role in CAMERA_ROLES:
-                    obj.Label='Camera side plate '+('left' if role.endswith('Left') else 'right')
+                    from .camera_cages import joined_cage
+                    obj.Label='TPU camera cage' if joined_cage(p) and role=='CameraMountLeft' else 'Camera side plate '+('left' if role.endswith('Left') else 'right')
                 if App.GuiUp:
-                    obj.ViewObject.Visibility = p.FPVEnabled and (role in CAMERA_ROLES or p.ShowReferences)
+                    obj.ViewObject.Visibility = p.FPVEnabled and not obj.Shape.isNull() and (role in CAMERA_ROLES or p.ShowReferences)
             elif role in ARM_LOCK_ROLES+LEGACY_ARM_ROLES:
                 obj.Label={'ArmKeystone':'Arm locking keystone','ArmClampPlate':'Upper arm clamp / FC stack plate',
                            'ArmLowerClampPlate':'Lower arm clamp plate',
@@ -384,7 +436,7 @@ def ensure_components(settings):
             elif role=='LiPoPad':
                 view.ShapeColor=(.13,.16,.18)
             elif role=='BatteryEnvelope':
-                view.ShapeColor,view.Transparency=(.91,.45,.12),65
+                view.ShapeColor,view.Transparency=(.30,.36,.42),65
             elif role=='FrameCGMarker':
                 view.ShapeColor=(.95,.13,.15)
             elif role=='StackEnvelope':
@@ -403,8 +455,8 @@ def create_frame(p=None, doc=None):
     require_valid(p)
     invalidate_failed_build(p)
     # Build first: errors cannot leave an incomplete document tree.
-    from .geometry import build_for_update,build_report
-    build_for_update(p)
+    from .geometry import prepare_frame_build,build_report
+    prepare_frame_build(p)
     doc = doc or App.ActiveDocument or App.newDocument("RotorForge")
     doc.openTransaction("Create RotorForge frame")
     try:
@@ -438,13 +490,14 @@ def update_frame(settings, p):
     # ordinary no-op Update behavior so explicit geometry repairs still work.
     current=read_parameters(settings)
     from dataclasses import replace
-    if p.PrintedPartColour!=current.PrintedPartColour and replace(current,PrintedPartColour=p.PrintedPartColour)==p and isinstance(settings.Proxy,ParameterProxy) and str(settings.Status).startswith('Valid'):
+    from .appearance import CARBON_TEXTURE_FIELDS
+    view_fields=CARBON_TEXTURE_FIELDS | {'PrintedPartColour'}
+    if any(getattr(p,n)!=getattr(current,n) for n in view_fields) and replace(current,**{n:getattr(p,n) for n in view_fields})==p and isinstance(settings.Proxy,ParameterProxy) and str(settings.Status).startswith('Valid'):
         require_valid(p);doc=settings.Document;doc.openTransaction('Colour RotorForge printed parts')
         try:
-            if 'PrintedPartColour' not in settings.PropertiesList:
-                settings.addProperty('App::PropertyEnumeration','PrintedPartColour','15 Appearance','Shared printed-part display colour')
-                settings.PrintedPartColour=list(ENUMERATIONS['PrintedPartColour'])
-            settings.PrintedPartColour=p.PrintedPartColour
+            ensure_parameter_properties(settings,p)
+            for name in view_fields:
+                if getattr(settings,name)!=getattr(p,name):setattr(settings,name,getattr(p,name))
             settings.Proxy._restored_signature=p.signature();settings.Proxy._last_full_signature=p.signature()
             apply_document_appearance(settings,p);doc.recompute();doc.commitTransaction();return
         except Exception:doc.abortTransaction();raise
@@ -452,8 +505,8 @@ def update_frame(settings, p):
     prime_document_cache(settings)
     require_valid(p)
     invalidate_failed_build(p)
-    from .geometry import build_for_update,build_report
-    build_for_update(p)
+    from .geometry import prepare_frame_build,build_report
+    prepare_frame_build(p)
     doc = settings.Document
     doc.openTransaction("Edit RotorForge frame")
     try:

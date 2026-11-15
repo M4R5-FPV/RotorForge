@@ -87,19 +87,50 @@ class ComponentCache:
  def manifest(self,key):
   entry=self.latest.get(key)
   if entry is None:return ''
-  return json.dumps(dict(version=__version__,key=key,parameters=entry['parameters'],inputs=entry['inputs'],token=entry['token']),sort_keys=True,separators=(',',':'),allow_nan=False)
+  # An entry's dependency values and digest never change after insertion.
+  # Save the canonical manifest instead of JSON-serialising it repeatedly for
+  # the document properties, native archive and each dependent part.
+  if 'manifest' not in entry:
+   entry['manifest']=json.dumps(dict(version=__version__,key=key,parameters=entry['parameters'],inputs=entry['inputs'],token=entry['token']),sort_keys=True,separators=(',',':'),allow_nan=False)
+  return entry['manifest']
  def has_manifest(self,key,manifest):
   try:
    data=json.loads(manifest)
-   return data['version']==__version__ and any(e['key']==key and e['token']==data['token'] and e['parameters']==data['parameters'] and e['inputs']==data['inputs'] for e in self.entries.values())
+   if data['version']!=__version__ or data['key']!=key:return False
+   # Only this role's cached entries can match. Checking every component is
+   # unnecessary, particularly when restoring a large saved frame.
+   return any((e:=self.entries.get(serial)) is not None and
+              e['token']==data['token'] and e['parameters']==data['parameters'] and
+              e['inputs']==data['inputs'] for serial in self._by_key.get(key,()))
   except (ValueError,KeyError,TypeError):return False
+ def native_manifest_match(self,key,manifest,shape):
+  """Fast, conservative check for an already cached native OCC solid.
+
+  Distinct native shapes continue through the original BRep digest and
+  geometric-verification path. Used only to avoid redundant serialization of
+  the very same solid during repeated document updates.
+  """
+  if shape is None:return False
+  try:
+   data=json.loads(manifest)
+   if data['version']!=__version__ or data['key']!=key:return False
+   for serial in reversed(self._by_key.get(key,())):
+    entry=self.entries.get(serial)
+    if (entry is not None and entry['token']==data['token'] and
+        entry['parameters']==data['parameters'] and entry['inputs']==data['inputs']):
+     other=entry['shape']
+     if (other.isSame(shape) and str(other.Orientation)==str(shape.Orientation) and
+         other.Placement==shape.Placement):return True
+  except (ValueError,KeyError,TypeError,AttributeError,RuntimeError):return False
+  return False
+
  def seed(self,key,manifest,shape,payload=None):
   try:
    data=json.loads(manifest)
    token=shape_token(shape) if payload is None else 'null' if shape.isNull() else hashlib.sha256(payload.encode()).hexdigest()
    if data['version']!=__version__ or data['key']!=key or data['token']!=token:return False
    if not set(data['parameters'])<=_NAMES:return False
-   if any(e['key']==key and e['token']==data['token'] and e['parameters']==data['parameters'] and e['inputs']==data['inputs'] for e in self.entries.values()):return True
+   if self.has_manifest(key,manifest):return True
    parameters={n:tuple(v) if isinstance(v,list) else v for n,v in data['parameters'].items()}
    self._put(dict(key=key,parameters=parameters,inputs=data['inputs'],shape=shape.copy(),**({'payload':payload} if payload is not None else {})));return True
   except (ValueError,KeyError,TypeError,AttributeError):return False

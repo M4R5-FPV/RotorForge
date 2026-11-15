@@ -3,8 +3,12 @@ import FreeCAD as App,Part
 from .front_bumper import toe_commands,shoulder_hull
 from .shape_cleanup import guard_refine
 
-def front_bumper(p,parts):
- if not p.FlexFrontBumper:return Part.Shape()
+def _base_shoe(p,parts,style):
+ """Create a lower plate collar/sole from its finished outline.
+
+ Used independently by either bumper style; the full cage model does not
+ call the standard bumper construction or attach old add-on camera lips.
+ """
  from .protection_geometry import outer_face,offset_face
  from .parameters import plate_holes
  plate=parts['BottomPlate'];face=outer_face(plate)
@@ -12,12 +16,12 @@ def front_bumper(p,parts):
  outer=offset_face(face,fit+wall)
  outer=outer.common(Part.Face(Part.makePolygon([App.Vector(-1000,rear,0),App.Vector(1000,rear,0),App.Vector(1000,front+wall+p.FlexBumperProjection+fit+10,0),App.Vector(-1000,front+wall+p.FlexBumperProjection+fit+10,0),App.Vector(-1000,rear,0)])))
  half=max(abs(outer.BoundBox.XMin),abs(outer.BoundBox.XMax))
- if p.FlexBumperShape!='Follow bottom plate':
+ if style!='Follow bottom plate':
   half=p.FlexBumperWidth/2 if p.FlexBumperWidth else half
   points=[(v.x,v.y) for edge in outer.Edges for v in edge.discretize(Deflection=.025)]
   hull=shoulder_hull(points,half,front+fit+wall,front-wall)
   outer=Part.Face(Part.makePolygon([App.Vector(x,y,0) for x,y in hull+(hull[0],)]))
- commands=toe_commands(p.FlexBumperShape,half,front,fit+wall,p.FlexBumperProjection,p.FlexBumperTipWidth,p.FlexBumperRecess)
+ commands=toe_commands(style,half,front,fit+wall,p.FlexBumperProjection,p.FlexBumperTipWidth,p.FlexBumperRecess)
  if commands:
   edges=[];current=None
   for item in commands:
@@ -39,15 +43,37 @@ def front_bumper(p,parts):
   limit=front-p.FlexBumperLipReach
   if limit>rear:
    body=body.cut(Part.makeBox(2000,limit-rear+1,p.FlexBumperLip+1,App.Vector(-1000,rear-1,p.BottomThickness+fit)))
+ return body,outer,upper,low,front
+
+def _finish_bumper(p,parts,body,upper,low):
+ from .parameters import plate_holes
+ fit=p.FlexBumperFit
  # Keep bolt-head access through the sole/lip; holes never change the carbon.
  tools=[Part.makeCylinder(max(3.,r)+fit,upper-low+2,App.Vector(*pt,low-1)) for pt,r,label in plate_holes(p,'BottomPlate')]
  if tools:body=body.cut(Part.makeCompound(tools))
+ # The O4 camera can sweep into the TPU nose even when the carbon frame
+ # remains sound. Relieve the *printable TPU* only; never touch either plate.
+ if p.FPVEnabled and p.FPVSystemProfile=='DJI O4 Air Unit Pro':
+  from .geometry import camera_envelope
+  from .fpv import camera_angles
+  probes=[camera_envelope(p,a) for a in camera_angles(p)]
+  for camera in probes:
+   if body.BoundBox.intersect(camera.BoundBox):
+    body=body.cut(camera)
  for role,shape in parts.items():
   if role=='BottomPlate' or shape.isNull():continue
-  if role.startswith('CameraMount'):
-   b=shape.BoundBox;tool=Part.makeBox(b.XLength+2*fit,b.YLength+2*fit,b.ZLength+2*fit,App.Vector(b.XMin-fit,b.YMin-fit,b.ZMin-fit))
-  else:tool=shape
-  if body.BoundBox.intersect(tool.BoundBox):body=body.cut(tool)
+  # Bounds are only a cheap rejection test. Subtract actual occupied stock:
+  # a cage's bounding box includes empty space beneath slopes/extensions.
+  if body.BoundBox.intersect(shape.BoundBox):body=body.cut(shape)
  body=guard_refine(body)
  if not body.isValid() or len(body.Solids)!=1 or body.Volume<=0:raise ValueError('Front bumper must remain one connected shoe. Adjust its reach/overlap or increase its wall and sole thickness.')
  return body
+
+
+def front_bumper(p,parts):
+ if not p.FlexFrontBumper or p.CameraCageStyle=='TPU cage':return Part.Shape()
+ if p.FlexBumperVariant=='Integrated camera cage bumper':
+  from .integrated_camera_bumper import integrated_camera_bumper
+  return integrated_camera_bumper(p,parts)
+ body,outer,upper,low,front=_base_shoe(p,parts,p.FlexBumperShape)
+ return _finish_bumper(p,parts,body,upper,low)

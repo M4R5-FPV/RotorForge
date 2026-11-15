@@ -10,7 +10,14 @@ def profile_corners(p,width,height):
  from .flex import insert_rect,camera_interface_polygon
  cy,cz,_,_=insert_rect(p);points=camera_interface_polygon(p,width,height)
  if not points:points=((cy-width/2,cz-height/2),(cy+width/2,cz-height/2),(cy+width/2,cz+height/2),(cy-width/2,cz+height/2))
- radius=p.FlexInsertCornerRadius if p.FlexCameraMode=='Captured inserts' else (0. if p.FlexInterfaceShape=='Side plate outline' else min(2.,width/4,height/4))
+ # TPU polygon profiles use identical straight edges in cutout, insert and preview.
+ # The selected outline must remain identical in the cage pocket, insert and preview.
+ # Applying fillets to this small polygon can create short self-intersecting arcs
+ # in OCC, while the insert-loft fallback used sharp corners instead.
+ tpu_octagon=(getattr(p,'CameraCageStyle','')=='TPU cage' and
+              p.FlexInterfaceShape!='Rounded rectangle')
+ radius=(0. if tpu_octagon else p.FlexInsertCornerRadius if p.FlexCameraMode=='Captured inserts'
+         else (0. if p.FlexInterfaceShape=='Side plate outline' else min(2.,width/4,height/4)))
  corners=[]
  for before,vertex,after in zip(points[-1:]+points[:-1],points,points[1:]+points[:1]):
   la=math.dist(before,vertex);lb=math.dist(after,vertex)
@@ -35,5 +42,8 @@ def insert_layers(p,mount,sign):
  inside,outside=lip_sides(p);outer_thickness=max(.8,p.FlexPadThickness/2)
  layers=[dict(kind='contact',x=lo,thickness=hi-lo,offset=p.FlexInsertLip if inside else -p.FlexInsertFit),
          dict(kind='neck',x=a,thickness=b-a,offset=-p.FlexInsertFit)]
- if outside:layers.append(dict(kind='outside lip',x=b if sign>0 else a-outer_thickness,thickness=outer_thickness,offset=p.FlexInsertLip))
+ if outside:
+  from .carbon_insert_recess import outside_flange_span
+  f0,f1=outside_flange_span(p,mount,sign)
+  layers.append(dict(kind='outside lip',x=f0,thickness=f1-f0,offset=p.FlexInsertLip))
  return tuple(layers)

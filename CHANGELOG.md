@@ -1,3 +1,1470 @@
+## v0.92.88 — CNC-safe curved arc slots in Airflow / outlines
+
+- Add **Arc slot** to the manual airflow shape library: a smooth, round-ended curved channel with configurable width, centre-to-centre chord length, signed bend (-170° to +170°), rotation, grid and positioning.
+- Use the same *analytic circular arcs* in Qt editor preview and exact FreeCAD solid-cutting tools, including blind half-depth pockets, through-holes, perimeter notches and material additions. No polygonal cutter approximation or automatic plate-wide fillet on a pocket boundary.
+- Enforce the minimum R0.5 internal machining radius, at least 1 mm channel width, and non-overlapping end caps. A zero-degree arc remains a valid straight rounded channel; nonzero bends below 3° are rejected to avoid enormous-radius geometry.
+- Include Arc slot among automatic manual-library and mixed generators, with correct left/right bend reversal for mirrored designs. Existing saved pattern JSON is loaded with a default arc bend, and the new field is included in path-cache keys to prevent stale contours.
+- Existing full-depth web/fastener restrictions, pocket-depth limit and final validation remain in place. Headless shape-validation / geometry-continuity / serialization / mirror tests passed; FreeCAD and native Qt are not installed for end-to-end testing.
+
+## v0.92.87 — Depth-only blind pockets; prevent unintended full-thickness fillets
+
+- Fix spurious slits, spikes, and through-thickness contour changes around
+  blind pockets: finish plate outlines and through-vent CNC R0.5 smoothing
+  **before** shallow pocket machining, not afterwards.
+- Pocket cutters now simply lower the selected footprint by the entered depth
+  without feeding their rim into the aesthetic plate-fillet/CNC repair stage.
+- Preserve the existing behavior for through holes, outside notches,
+  mounting clearances, and pocket crossings of plate edges and holes.
+- Reuse validated airflow pattern instances across both build stages; correct
+  a 0.02 mm depth overshoot on the left carbon camera side plate.
+- Bring FreeCAD Addon Manager package metadata up to the actual version.
+- Exact solid and exported machining geometry still require an in-app FreeCAD
+  test; native FreeCAD is not available in the automated headless environment.
+
+## v0.92.86 — Blind pocket cable channels across existing edges and openings
+
+- Blind airflow pockets may now cross carbon plate outlines, mounting holes, slots, through-cut vents, outline notches, and other blind pockets, including pockets of different depths. A connected half-depth cable channel no longer fails the full-depth vent perimeter/clearance checks.
+- Retain strict maximum pocket depth of half the actual plate thickness, genuine through-cut minimum-web/fastener checks, CNC profile corner geometry, and final valid single-solid verification. Reject a pocket that misses carbon material altogether.
+- Do not construct through-cut edge/fastener keepouts for plates containing only blind pockets, avoiding unnecessary exact CAD work.
+- Keep exported through-cut DXF/SVG perimeter and holes intact when shallow pocket outlines reach outside the plate or intersect genuine through-holes. Restore pocket footprints only within the opposite unmachined plate face; do not alter the STEP/native model. Blind pocket machining profiles remain separate files with their own stated depths.
+- Update editor guidance to describe open-ended cable channels and caution about reducing material near hardware seats. No parameter-schema changes; README and PDFs unchanged.
+- Verification: Python compilation and headless Shapely-backed behavioral tests. Native FreeCAD BRep and DXF/CNC export still require an in-app test.
+
+## v0.92.85 — Conservative camera-sweep broad phase and single BRep prototype
+
+- Target TPU cage build checkpoint after insert openings: use a mathematically conservative rotated bounding box of the entire lens-plus-housing camera before constructing the expensive FreeCAD solids for individual tilt angles. Only angles whose boxes could reach a structural cheek or bridge require exact native collision Booleans; all plausible hits retain the original exact checks, OCC-artifact protection and selected-tilt hard failure.
+- Build/fuse the detailed untransformed camera housing only once per TPU-cage tilt sweep. For angles requiring exact checks, rotate and translate a *copy* of that identical local solid; never mutate the prototype. Default camera_envelope behavior for all other callers is unchanged.
+- Report tilt-angle counts, broad-phase skips, actual exact checks and time spent in clearance checks to distinguish this bottleneck from the rest of cage creation. Change misleading "camera clearance cuts" label to "camera clearance checks"; no geometry is cut from the cage by the camera envelope.
+- Carbon material checks, the exact socket/captured insert operations and full final validation are unchanged. Existing parameter schema, saved settings, export and manuals unchanged. Native FreeCAD timing and topology must still be tested in-app.
+
+## v0.92.84 — Scoped airflow refresh, spatial Qt previews and stability
+
+- Reduce editor lag after editing generated/manual airflow openings: publish validated cutout JSON without triggering an unrelated whole-frame GUI refresh. A pending general frame refresh is respected; Create / Update and explicit CAD check still perform full validation and exact FreeCAD solid construction.
+- Invalidate the Airflow plate silhouette only when necessary: changing saved through-cuts without changing frame geometry or additions preserves its existing cached blank. Restrict finished-part profile cache keys to the selected part's patterns; changing cuts on a different plate no longer discards unrelated entries.
+- Use conservative bounding-box components to group Qt preview cutter profiles. Disjoint components are appended rather than repeatedly Boolean-united; potential intersections retain exact balanced Boolean unions. Batch disjoint holes, fastener bores, slots and cutouts into one preview subtraction. FreeCAD manufacturing/CNC tool generation is untouched.
+- When randomizing around Keep cutouts, reject locally colliding candidate profiles before invoking the expensive full-plate containment Boolean. This is a change of test order, not acceptance criteria: both tests still run for every accepted proposal.
+- Transform motor-pad and protector preview reference contours only once per batch of cutouts.
+- Include generator wall-clock elapsed time in success and no-new-shapes messages for easier performance comparisons in FreeCAD.
+- Keep existing parameter schema, saved designs, 3–10 mm selectable carbon web, R0.5 contour validation, LiPo airflow opt-in and unrelated README/manuals unchanged. Pure-Python tests passed; native FreeCAD/Qt speed, CAD topology, and dialog behavior require in-app testing.
+
+## v0.92.83 — LiPo pad editor startup regression fix
+
+- Fix `KeyError: 'LiPoPadCopyAirflow'` on New Frame / Edit Frame introduced in v0.92.82. The new LiPo-pad airflow checkbox existed in the parameter schema and GUI but was missing from the editor field-to-section layout.
+- Place **Copy airflow cuts to LiPo pad** in **Battery → LiPo pad → Pad**, while keeping its linked control in **Airflow / outlines**.
+- Verify complete GUI parameter-to-field classification, including hidden legacy fields, to catch unregistered controls in future changes.
+- Keep existing airflow geometry, saved settings, LiPo pad model and performance optimizations unchanged.
+
+## v0.92.82 — Optional LiPo airflow passthrough and lazy airflow preview
+
+- Add **Copy airflow cuts to LiPo pad** under Battery / LiPo pad, mirrored as a linked checkbox in Airflow / outlines. On (default) retains v0.92.81 behavior; off makes the pad bridge the carrier plate's airflow holes and outline notches while preserving mandatory hardware/strap openings. Works with both outline-following pads and independent pads set to Follow mounting plate; no effect on an independent pad that is not clipped to the plate. Carbon geometry is unchanged.
+- Only construct an airflow-free carrier solid when **Create Frame / Update Frame** actually builds a pad requiring it, and only if the selected carrier has relevant enabled cutouts. Avoid a second carrier build in the normal/default path.
+- Airflow 2-D preview now invalidates its expensive plate silhouette only when the frame contour or enabled **Add material** patterns actually change, not when editing, keeping, reordering or regenerating ordinary cutouts. Pad-only controls no longer invalidate the carbon silhouette cache. Do not trigger redundant preview updates for unchanged parent snapshots or hidden editors.
+- The fast 2-D preview remains advisory. Existing exact CAD clearance, CNC radius and solid-validation checks still execute during Create / Update and the explicit Check plate cuts in CAD action. Existing JSON/FCStd settings default to original behavior.
+- Python compilation and portable geometry/settings regression tests are run headlessly; native FreeCAD and Qt validation still need end-to-end testing.
+
+## v0.92.81 — Airflow generator redesign and fast preview
+
+- Replace the costly whole-plate 40x Qt skeleton / region extraction / repeated simplification pipeline with a bounded, local candidate search around mounting hardware, existing user cuts and checked Keep shapes.
+- Generate a more varied mix of small and medium irregular Web cells and CNC-rounded manual-library profiles; add a Cutout variety control (Mixed shapes / Web cells / Manual shapes).
+- Use multiple staggered placement passes with progressively smaller proposals, allowing new openings to fit in the remaining gaps between kept shapes. Never remove the previous design when a reroll finds no valid additional cutout.
+- Keep mirrored pairs linked by one Keep group, mirror genuinely asymmetric manual polygon geometry rather than only its centre, and permit occasional symmetrical central openings.
+- Cache the exact eroded plate once per relevant geometry/web setting; use spatial buckets and conservative bounding-box rejection before local exact Qt path checks. Do not union kept openings into a huge growing clearance mask for every reroll.
+- Enforce the configured carbon web against plate edges, mounting footprints, kept cuts and new openings; retain the analytic R0.5 validation and the final authoritative FreeCAD manufacturing checks.
+- Render the Airflow preview by painting individual cached through-cut paths over the plate silhouette instead of constructing a 100x-scaled aggregate Boolean subtraction on every pattern revision. Preview filters do not hide real plate openings.
+- Keep a strict generation attempt budget, guard against re-entrant actions, and preserve previous patterns on no-space results/errors. No changes to saved frame parameter schema, machine/export code, README or bundled manuals.
+- Verification: full Python compilation; 120 randomized density/layout/seed scenarios with manual and Web-cell CNC checks; asymmetric mirror geometry comparisons; JSON Keep/group round trips; 35 simulated locked-shape rerolls produced additional cutouts in a representative plate. Native Qt/FreeCAD and exact BRep benchmark remain unverified in this environment.
+
+## v0.92.80 — Stable editor opening and kept-airflow performance
+
+- Prepare and validate the entire New/Edit dialog while it is still hidden; settle its native minimum/initial size before first display. This avoids running the expensive first refresh during the initial Windows paint, which could show a transient small white dialog before the correctly sized editor.
+- Guard the editor action *before* constructing the dialog, preventing re-entrant toolbar/double-click activations from starting a second transient editor while the first is still initializing.
+- Build multiple saved and generated air-cutout Qt Boolean unions in balanced pairs, avoiding repeatedly combining every new opening with an increasingly complicated accumulated plate path. Preserve exact analytic R0.5 contours, profile modes, and existing Keep semantics.
+- Cache complete rounded Qt cutout paths by their immutable shape/dimensions/position/rotation/vertices (bounded to 384 entries), returning independent Qt path copies to callers.
+- Exclude automatic Keep flags and group identifiers from geometric plate-preview cache keys. Keep checkbox changes are saved without rerunning full frame validation or rebuilding visually identical cutout geometry.
+- Build the static mounting / saved-cutout mask once per generation, then compare candidate masks against existing obstructions and individual accepted shapes using cached rectangles instead of continuously performing Boolean operations on a growing available/keep path. Maintain original geometric intersection and perimeter acceptance criteria.
+- Reuse the cached plate-safe/fastener-clearance mask on subsequent Randomize operations when the complete frame geometry, active existing openings, selected web spacing and mirror mode are unchanged. A change in any of these invalidates the single-entry cache; the random structural web itself always changes.
+- Reject re-entrant Generate/Randomize execution, temporarily disable the action buttons during generation, and restore the busy cursor in a `finally` block on success, early return, or error. Report unexpected exceptions to FreeCAD's Report view.
+- Keep manufacturing/export code, shape semantics, parameter schema, README, installation guide, and both existing help PDFs unchanged.
+- Verification: Python compilation, cache/disk round trips, deterministic structural-web checks, 7,040 randomized Shapely geometric acceptance comparisons against the former mask logic, and 200-cutout balanced-union correctness tests passed. Native FreeCAD/Qt UI, OCC Booleans, physical manufacturing and end-to-end rebuild timings require testing inside FreeCAD.
+
+## v0.92.79 — Document rebuild and cache performance
+
+- Reuse the parent's already validated immutable parameter snapshot across dependent FreeCAD parts, avoiding repeated reads of every property for each component; invalidate the snapshot whenever a frame parameter changes.
+- Compute frame mass and CG directly from read-only cached exact solids. Avoid creating unnecessary copies of the whole assembly and reference models solely for these calculations; exported and displayed shapes still receive independent copies.
+- Cache canonical component manifests and restrict exact-match lookups to the requested component's indexed entries instead of scanning the complete BRep cache.
+- On session cache restoration, skip ZIP decompression and SHA-256 hashing for components already verified in memory. Missing components continue through the original digest, FreeCAD BRep import, and shape-validity checks.
+- Preserve 0.92.78's startup/UI/CNC optimizations, all Web cell cutout and Keep/Randomize behavior, the README, and both existing help PDFs without geometry or parameter-schema changes.
+- Python compile/import smoke tests, 32 repeatable web-network cases, cache archive round trips, and synthetic 120-component lookup checks pass. Cache lookup was about 2.9x faster in that synthetic benchmark. Native FreeCAD rebuild speed and real BRep behavior are not yet benchmarked.
+
+## v0.92.78 — Editor startup, layout and CAD-clearance performance
+
+- Complete the editor widget hierarchy before beginning expensive initial validation and preview updates. Defer the first full refresh to the dialog's event loop, with a safe error message inside the open editor if the initial preview fails.
+- Guard against concurrent editor windows caused by repeated New/Edit action activation. Reuse the existing window instead of creating another dialog.
+- Batch Qt paint updates during settings refresh, reducing repeated intermediate GUI repaints while control states and preview messages change.
+- Rebuild wrapping navigation rows only when the visible layout changes. Defer hidden-page wrapping until first display, reuse row containers across resizes, and skip redundant camera-section visibility changes.
+- In the Airflow / Outlines CNC validator, skip exact OpenCASCADE edge-distance queries for edges whose XY bounding boxes cannot possibly violate the requested minimum carbon web. Keep exact distances for nearby edges and the existing acceptance limits.
+- Preserve the full v0.92.77 web-first generator, Randomize, Keep selection, 3–10 mm spacing, manufacturing geometry, README and both RotorForge_Help.pdf copies.
+- Standalone regression checks cover conservative clearance filtering, structural-web signatures, and mocked Qt navigation row reuse. Full GUI and BRep validation still require FreeCAD.
+
+## v0.92.77 — Keep generated openings and optional central cutouts
+
+- Add a **Keep** checkbox beside each automatically generated cutout in the Airflow / Outlines pattern list. It preserves checked openings when Generate/Randomize rebuilds the web, while allowing unchecked automatically generated openings to be replaced.
+- Save Keep flags with the frame. If a generated opening has a mirrored partner, checking either one locks or unlocks both together; centre-spanning openings can be kept individually.
+- Track the full set of kept and newly generated shapes across rerolls, including when Keep is later unchecked. Randomize remains disabled when no unlocked, unedited automatic openings are available.
+- On reopening a saved design, Generate preserves checked automatic openings and manual cutouts while replacing unlocked generated cutouts on the selected plate.
+- Randomize the structural web to occasionally omit a central spine section, keeping cross-ribs attached to the plate so an opening may occupy the middle. Allow the opening generator to treat this central region as a single CNC-rounded symmetrical cutout rather than forcing left/right halves.
+- Preserve structural Minimum web and the selected 3–10 mm carbon spacing, hardware keepouts, and R0.5 corner checks. Manual cutout profiles remain untouched.
+- Leave README and both RotorForge_Help.pdf files unchanged.
+
+## v0.92.76 — Web-first airflow generation
+
+- Replaced predefined-shape placement in automatic airflow designs with a randomized structural carbon-web network. The finished plate outline and protected mounting regions define the available cutout regions.
+- Automatic openings now follow the safe plate boundary, mounting clearances, and generated web ribs instead of being assembled from the manual cutout palette.
+- Preserved adjustable 3–10 mm carbon spacing (with global Minimum web taking precedence), exact mirrored layouts, Randomize behaviour, and through-cut/pocket modes.
+- Automatically converts eligible negative-space regions into editable, analytically R0.5-rounded Web cell profiles for the FreeCAD model and CNC exporter.
+- Extended custom Web cell capacity to 40 vertices for curved, plate-fitted contours; existing saved patterns remain compatible.
+- Manual cutout shapes, Help PDF, README, and all unrelated frame components remain unchanged.
+
+## v0.92.75 — Viewport, airflow and camera calculation optimizations
+
+- Stop rebuilding the entire main dialog's parameter object during each Airflow preview mouse move. Reuse the parameter snapshot already produced by the normal 140 ms settings refresh and update it when the settings change; continue invalidating the preview geometry when its role or saved cutouts change.
+- Avoid duplicate containment caches in the Airflow automatic generator. One bounded per-phase cache now owns the quantized point-in-plate queries.
+- Avoid sampling shared polygon vertices twice during automatic cutout proposals. Preserve the exact original clearance sample positions, design candidates, mirrored layout, chosen gap and R0.5 requirements.
+- Precompute rib-normal factors once per generated cell rather than repeating the same square roots for every potential cutout contour.
+- Preselect recording-crop columns once when measuring virtual-camera frame and propeller visibility, avoiding repeated normalized-coordinate calculations on every image row.
+- Preserve the exact outputs of 1,080 reference automatic cutout cases and 4,000 randomized camera-crop checks. No CAD geometry, manufacturing algorithm or saved-setting schema changes.
+- Keep README and both RotorForge_Help.pdf copies byte-for-byte unchanged.
+
+## v0.92.74 — Automatic cutout control, composite openings, spacing and performance
+
+- Randomize remains disabled until Generate creates an automatic result; it only replaces the previous unchanged generated suffix. Manual edits, removals, and loaded designs cannot be silently replaced.
+- Restore connected multi-part auto openings: randomized Web cells with overlapping machinable geometric accent primitives are proposed as atomic groups, with single-profile alternatives when the composite does not fit. Exact finished-union checks still govern acceptance.
+- Add a 3–10 mm, 1 mm-step Carbon between cutouts dropdown. Save the requested spacing in each generated pattern and enforce it in the CAD final-group clearance checks, subject to the frame's structural Minimum web if that is higher.
+- Adapt structural-spine/rib offsets to the chosen spacing. Cache reusable free-area queries and maintain existing geometry broad-phase rejection.
+- Preserve both RotorForge_Help.pdf copies and README without modification.
+
+## v0.92.73 — Profile reuse and editor responsiveness
+
+- Reuse the exact R0.5 analytic local cutout profile geometry across saved-pattern validation, Airflow/Outlines 2D previews, and FreeCAD CAD tool creation. The 512-entry LRU cache is bounded and keyed by the unrotated shape, dimensions, and custom web vertices, so changing any of those dimensions generates a new profile.
+- Cache edge-hit geometry for repeated mouse movement over Airflow/Outlines preview patterns, invalidated whenever patterns or zoom change. The matching and picking rules remain unchanged.
+- Skip Qt path intersection checks when the broad-phase bounding boxes are disjoint; preserve the full geometric checks when they overlap.
+- Skip expensive FreeCAD solid/solid overlap tests for cutout groups whose 3D bounding boxes cannot overlap; all actual overlapping groups retain the original OCC checks.
+- Remove a redundant second LRU wrapper from the profile-parameter normalization cache.
+- Preserve automatic structural-web generation, seeded variations, mirrored layouts, 5 mm carbon web requirements, R0.5 rounding, mounting keep-outs, and existing geometry. The README and both copies of RotorForge_Help.pdf remain unchanged.
+
+## v0.92.72 — Randomized structural-web airflow designs
+
+- Replaced the deterministic corridor pattern with a new randomized structural network: an axial spine, angled rib junctions, and occasional omitted ribs that create larger openings.
+- Fitted custom, editable CNC-rounded web-cell cutouts between the structural lines instead of repeating fixed rows of slots and hexagons.
+- Changing the design rerolls the structural lines themselves, including junction positions, slopes, and the arrangement of larger and smaller openings.
+- Mirrored layouts reflect the entire finished profile; organic layouts use independently varied left/right contours.
+- Added safe fallback cell proposals if a large opening cannot be placed around real mounting hardware.
+- Added validated scalable polygon profile data to the existing Airflow / Outlines preview, saved patterns, CNC solids, and pocket workflow.
+- Preserved automatic 5 mm minimum carbon webs and exact R0.5 profile rounding.
+- Kept the README and both RotorForge_Help.pdf copies unchanged.
+
+## v0.92.71 — Larger silhouette-filling airflow apertures
+
+- Replaced short row-sized proposals with a corridor-based layout: the generator now scans the selected plate silhouette and its hardware keep-outs to find long, usable carbon bays.
+- Increased the size of connected cutout designs (up to approximately 46–69 mm according to detail setting and available geometry), combining rounded primitive shapes into large openings where clearance permits.
+- Added a second, incremental pass to fill the remaining safe bays after large openings are accepted. More candidate primitives are available for wider plates: Sparse 28, Balanced 56, Detailed 84 (subject to the 200-pattern global limit).
+- Prioritized shoulder bays that can coexist with central openings, and added optional branching features and alternative sculpted axial compositions.
+- Preserved exact bilateral mirroring, user-created cutouts, pocket depth limits, mounting keep-outs and 5 mm minimum carbon webs between finished automatic openings, holes and plate perimeter.
+- Refused tiny point-contact overlap between joining primitives to avoid narrow, unmachinable junctions; skipped scaled duplicates already fully inside accepted cutouts to reduce boolean work.
+- No changes to RotorForge_Help.pdf, README, geometry outside airflow, or manufacturing exporters.
+
+## v0.92.70 — Connected, 5 mm web airflow cutout designs
+
+- Reworked plate-aware automatic cutouts using the supplied commercial FPV plate examples as visual design references. The generator selects structural zones from the actual chosen plate silhouette rather than scattering cutouts on an arbitrary grid.
+- Each proposed opening can be made by overlapping two or more independently CNC-rounded profiles, producing one connected opening in the Qt preview and the CAD cut operation.
+- Apply a minimum 5 mm carbon web **once around the finished merged aperture**: to other openings, the plate outline, mounting holes/bearing footprints, and existing cuts. Persist this 5 mm allowance in generated patterns so FreeCAD checks it again after later frame-geometry changes. Overlap inside the same opening is permitted and required.
+- Change automatic pattern acceptance to validate grouped components atomically; mirrored openings are exact reflected pairs of the complete constituent profiles, not independently-placed shapes.
+- Give central spines, paired swept wings and branched side vents a purposeful front/centre/rear order that responds to available plate space; Randomize changes the recipe and proportions without free-scatter placement.
+- Keep generated primitives individually editable, retain pockets/through-cut options, and preserve all existing saved patterns and manual controls.
+- Preserve the README and both RotorForge_Help.pdf copies verbatim. Native FreeCAD 3D and GUI testing remain necessary before manufacturing.
+
+## v0.92.69 — Plate-aware airflow design and reliable symmetry
+
+- Replaced free-scatter automatic cutouts with front/centre/rear plate-specific motif grammar informed by commercial FPV carbon plate designs.
+- Added Aero spear and Split bridge, two editable CNC R0.5 compatible single-opening profiles, and built mixed multi-opening motifs from existing shapes.
+- Mirrored generation now submits genuine reflected left/right partners atomically; uneven mirrored accents cannot be saved by the generator.
+- Replaced the numeric design variation setting with Generate plate design and Randomize design actions. Reroll replaces the immediately previous unedited automatic pattern, preserving manually authored cuts.
+- Removed the unreliable automatic outline-sculpting interface and generator. Manual outline notches remain available.
+- Reduced geometry sampling and avoided repeated profile/stroker calculations. Existing pocket-depth limits and manufacturing clearances remain in force.
+- Left RotorForge_Help.pdf and README.md untouched.
+
+## v0.92.68 — Preview, airflow, and build-path performance
+
+- Cache unchanged plate and profile outlines in the 2D editor, with safe copies and bounded cache sizes.
+- Reuse the saved Airflow / Outlines preview until the selected part, cutouts or frame settings change.
+- Avoid rebuilding pattern JSON identifiers and repeated filter text during preview interactions.
+- Halve repeated clearance probes in automatic airflow proposals while preserving the generated designs and CNC safety checks.
+- Cache normalized cutout-pattern parsing without exposing mutable cached dictionaries.
+- Skip expensive exact CAD distance checks for hardware keepouts whose planar bounding boxes are provably outside the clearance range.
+- Avoid duplicate shape construction for accepted automatic cutouts.
+- Keep the RotorForge Help PDFs, README, plate geometry rules and manufacturing output formats unchanged.
+
+## v0.92.67 — Adaptive mixed-shape airflow cutouts and CNC-rounded profiles
+
+- Replaced repetitive row-based internal cutout proposals with irregular, clearance-aware compositions based on the actual usable shape of the chosen carbon plate.
+- Added variation seed, density, arrangement (organic or mirrored) and new interior design styles. Generated cutouts remain individually editable.
+- Expanded the cutout shape menu to include triangles, diamonds, trapezoids, hexagons, pentagons, heptagons, octagons, dodecagons, chevrons, parallelograms, kites, hourglasses, crosses, shields and swept fins.
+- Polygon cutters and previews use true circular R0.5 fillets at convex and concave corners; incompatible dimensions are rejected rather than silently shrinking the required cutter radius.
+- Kept the legacy Crescent/Leaf profiles loadable but not offered for new CNC geometry until their freeform curvature can be guaranteed.
+- Preserved the existing manual PDFs and README without modification.
+
+## v0.92.66 — Compact virtual camera workspace
+
+- Rearrange FPV > Camera view into side-by-side camera options on the left and a large aspect-preserving rendered preview on the right, with recording and obstruction results directly below the image.
+- Keep optical profile overrides available in a collapsed Advanced options section; finding any of those controls expands the section automatically.
+- Make the layout stack vertically only when the usable editor width becomes too narrow. Camera images automatically fit the available preview area without rerunning ray tracing when the window is resized.
+- Bound the detailed results panel so long diagnostics no longer force the entire Camera view tab to scroll.
+- Keep all optics, crop, propeller visibility, tilt analysis and frame-generation functions unchanged.
+- Leave both RotorForge_Help.pdf copies and README unchanged.
+
+## v0.92.65 — Restore workbench startup and contour-aware airflow generation
+
+- Fix the FreeCAD startup KeyError for the new Pocket depth input in the Airflow / Outlines search-control registry. Future unnamed numeric controls use a safe fallback label.
+- Replace fixed-row automatic internal cutouts with proposals sampled from the actual selected plate outline, including through-holes and protected mounting regions.
+- Adapt position, shape size and orientation to usable bays in each plate, keep left/right symmetry, and preserve conservative edge and fastener webs and native CAD validation.
+- Keep the redesigned Help PDFs and README unchanged.
+
+## v0.92.64 — Airflow pockets and automatic CNC patterns
+
+- Give the FPV camera view its own full-width workspace, hiding the redundant generic 2D frame preview while retaining the optical render and all related controls.
+- Add selectable blind pocket cuts with editable depth limited to 50% of the carbon part thickness, measured from the upper or outer surface.
+- Export blind-pocket contours separately from through-cut DXF/SVG profiles; add pocket depth and machining-face entries to MachiningOps.csv while retaining pocket geometry in STEP.
+- Offer only cutter-accessible circular, rounded-slot, rounded-rectangle and ellipse shapes for newly designed cuts; maintain loading compatibility with older custom shapes.
+- Introduce conservative automatic internal airflow patterns and sculpted exterior profiles. Proposals are symmetric, protect the existing geometry and hardware keepouts, remain editable, and undergo the normal native CAD checks on building.
+- Do not modify any Help PDFs or the existing README. The manual will be revised separately.
+
+## v0.92.63 — Complete integrated Help manual
+
+- Rebuilt the user guide from the actual RotorForge editor sections and the original illustrated manual.
+- Restored the original design explanations and added current controls, including the separate Airflow / outlines workspace.
+- Relocated every original illustration to the matching feature section; front bumper profiles now appear under TPU > Front bumper.
+- Integrated camera isolation, captured insert recesses, virtual propeller visibility, carbon texture and CNC guidance with the related controls.
+- Preserved the existing documentation design and FreeCAD functionality; this release changes documentation and version metadata only.
+
+## v0.92.62 — Integrated Help manual
+
+- Rebuilt the Help manual as a cohesive, topic-organized guide rather than an original PDF followed by release supplement pages.
+- Integrated recent arm-root, keystone, CNC, camera isolation, flush insert, virtual camera, propeller visibility, carbon-fiber texture and manufacturing controls within their original chapters.
+- Retained the existing illustrations and established document visual style, with updated contents and PDF navigation.
+- Documentation only: all CAD geometry, rendering, interface and exporters remain unchanged.
+
+## v0.92.61 — Updated Help PDF (documentation only)
+
+- Extend the existing 36-page RotorForge Help manual with five matching A4 pages explaining recent arm-root, keystone and CNC geometry controls, TPU/camera insert seats, virtual camera propeller visibility, carbon weave rendering and performance options.
+- Preserve the existing manual typography, colour palette, cover image and page order, with a clickable Contents extension, updated bookmarks and the same Back to contents navigation.
+- Synchronize both packaged Help PDF copies and update the manual and workbench edition labels.
+- No frame geometry, parameter defaults, modelling functions, rendering behaviour, exporters or README changes.
+
+## v0.92.60 — Performance optimization
+
+- Reuse carbon surface and cut-edge scene meshes when only the texture opacity changes or FreeCAD reapplies unchanged appearance settings.
+- Keep appearance-only carbon settings out of native CAD geometry cache signatures, preserving cached frame geometry and virtual-camera meshes.
+- Trace virtual-camera rays through the BVH in near-first order to prune triangles behind closer obstructions; retain the existing BVH builder to avoid introducing a preprocessing slowdown.
+- Avoid full BRep serialization when an unchanged FreeCAD part has the same native OCC shape and a matching verified component cache token; keep the full digest verification fallback for modified/restored solids.
+- Remove duplicate, unused copies of every component in Create/Update Frame preflight; document recompute still receives independent copies as required.
+- Keep camera-view samples valid across texture/colour adjustments while preserving correct invalidation for optics, tilt and geometry changes.
+- No intended change to frame shapes, STL/STEP/DXF/SVG exports, 1 mm cutter rules, or saved-frame parameters.
+
+## v0.92.59 — Default 30% carbon texture opacity
+
+- New frames use 30% carbon texture opacity for both plain-weave faces and laminated cut edges.
+- Unspecified/missing opacity values also fall back to 30%. Previously saved explicit opacity settings are preserved.
+- The texture toggle, weave size, arm orientation, and all geometry/manufacturing exports are unchanged.
+
+## v0.92.58 — Laminated carbon-fiber cut-edge texture
+
+- When the existing Carbon fiber texture option is enabled, broad carbon faces retain the 1×1 plain weave while CNC-cut edges display subtle, horizontal, closely spaced laminate-ply lines.
+- Edge UVs use world-space sheet thickness (Z on horizontal carbon sheets; Y on vertical camera side plates), including curved/filleted edges and mounting-hole walls. Separate physical scale (eight plies in 2 mm) avoids stretching the weave down cut edges.
+- Existing opacity control blends both textures over opaque carbon. Both overlays are removed when disabled or at 0% opacity; no new settings or saved-frame migration.
+- Rendering-only change. Native carbon geometry, manufacturing exports, arm weave directions, and 2D top-view previews are unchanged.
+- Native FreeCAD 3D viewport rendering has not been tested.
+
+## v0.92.57 — Carbon-weave opacity and arm-aligned mapping
+
+- Adjustable carbon texture opacity (0–100%): blends the plain-weave image with opaque carbon, never making the frame transparent.
+- Each carbon arm's weave direction automatically follows its root-to-motor axis; fuselage plates retain the original XY alignment.
+- Matching 2D previews and 3D viewport overlays. Appearance-only settings persist with saved frames and do not rebuild or alter CNC geometry.
+- Older designs default to 100% weave visibility and preserve existing appearance.
+
+## v0.92.56 — Plain-weave carbon texture
+- Replaced 2x2 diagonal twill imagery with a dark 1x1 plain-weave (over-under/checkerboard) carbon-fiber fabric texture.
+- Preserved the face-only UV mapping used to prevent stretching and smeared texture on cut carbon edges.
+- Kept the optional carbon texture toggle and physical weave repeat size; existing settings and saved designs are unchanged.
+- Renamed the bundled PNG asset to prevent the previous texture being reused from the FreeCAD/Coin texture cache.
+- Appearance-only update; no CAD geometry or manufacturing output changes.
+- Native FreeCAD GUI rendering still needs verification.
+
+## v0.92.55 — No-smear carbon weave mapping
+- Replaced the old wide boundary-blended texture with a naturally periodic 2x2 twill motif sampled at its real weave repeat. This removes large blurry fade bands from the PNG itself.
+- Replaced the single projection across every BRep face with explicit XY/XZ UVs on only the broad flat carbon laminate faces. Cut sides keep a dark untextured carbon edge instead of stretching one texture row over their height.
+- Uses a pick-through, depth-offset, Coin3D appearance overlay without modifying the CAD Part geometry or export data.
+- Matches UVs across independent flat faces and across adjacent parts in the same design coordinates, independent of their triangulation.
+- Existing texture toggle and weave repeat setting retained without changing frame parameters.
+- Native FreeCAD visualization still requires user GUI verification.
+
+## v0.92.54 — Optional carbon-fiber weave texture (visual only)
+- Packaged a dark 2x2 twill carbon-fiber seamless PNG texture, with matching tile edges.
+- Added Finishing → Carbon texture toggle and adjustable physical repeat size in mm.
+- Applied repeatable world-space texture coordinates to carbon BRep view objects using Coin3D; camera carbon side plates use vertical mapping.
+- Added an optional woven pattern in editor/part inspection views.
+- Treated finish-only edits as view updates, without full shape regeneration.
+- Automatically attempts to restore texture scene nodes when opening saved FreeCAD frames.
+- Keeps previous flat carbon finish as the default, and excludes all textures from manufactured geometry and export data.
+- Native FreeCAD texture output still requires on-device validation.
+
+## v0.92.53 — High-contrast magenta propellers in virtual camera (test build)
+
+- Change possible propeller sweep in FPV → Camera view from faint amber to bright semi-transparent magenta, with a thin high-contrast perimeter for easier recognition.
+- Update the camera-view legend, hover help, and recording-window explanation to match the new color. The yellow crop boundary, physical obstruction colors, simulation results, and frame geometry remain unchanged.
+- Overlay color updates immediately when toggled; no extra geometry rebuild or ray casting is required. Native FreeCAD GUI rendering remains unverified.
+
+## v0.92.52 — Retired experimental pads and flush carbon camera inserts (test build)
+
+- Remove Scalloped racer and Swept hook from the motor-pad selector. Their irregular profiles caused unreliable offsets for TPU motor protectors and arm-tip sleeves. Older presets are explicitly mapped with a warning to Crown shield and Swept-shoulder shield; review geometry before manufacture.
+- Add **Flush carbon-side captured inserts** under TPU → Camera isolation. When a carbon side plate uses Outside/Both retaining lips, recess its outer flange into a shallow, matching YZ counterbore, leaving a minimum 1.0 mm carbon supporting ledge. No changes to through-neck openings, motor positions, or TPU-cage mounting settings.
+- Generic rounded/special-shaped inserts and DJI O4 split circular/arc-track inserts use matching recess profiles. A separate pocket depth and fit clearance apply only at the exterior face. The matching TPU lip and camera screw reference relocate to the original outside carbon plane.
+- Export exact recessed solids in STEP; add blind pocket operations and depths to MachiningOps.csv. Flat DXF/SVG remain **through cuts only**, so CAM must process pocket geometry separately from STEP with the specified exterior face/depth. No automatic CAM/toolpath is generated; separate aligned pocket outlines are supplied for CAM.
+- Previously saved frames retain projecting carbon-side inserts by default. Native FreeCAD rebuild and machining exports require verification.
+
+## v0.92.51 — Propeller sweep overlay in virtual FPV camera view (test build)
+
+- Compute separate motor-centred propeller swept discs using the existing motor-pad-adjusted positions, prop diameter and reference-plane heights.
+- Show translucent amber possible prop visibility in FPV → Camera view (enabled by default); toggle visibility without regenerating CAD geometry or tracing rays again.
+- Trace each prop disc only in front of the entrance pupil and in front of the first physical frame/TPU hit; opaque frame and TPU measurements stay separate.
+- Report image-wide, central-region, and selected recording-window propeller sweep percentages separately from actual frame/TPU obstruction; include potential prop sweep in tilt-range analysis.
+- This is a conservative swept-area estimate, not simulated blade imagery: RPM, shutter, spinning blades, EIS/sensor crop and individual blade geometry are not calibrated.
+- No changes to saved frame geometry, motor positions, or manufacturing exports. Native FreeCAD GUI test required.
+
+## v0.92.50 — CNC contour auto-repair and uniform TPU camera-facing walls (test build)
+
+- CNC: defer too-short local fillets to a final exact rolling R0.52 mm-cutter repair pass, instead of failing immediately. The pass includes under-radius line/arc junctions and small 2D pocket corners; protect all existing bores, fitted arm miter cells and topology. Refuse only geometry that cannot be repaired without violating these safeguards. Does not modify saved arm-bolt allowances.
+- TPU cage: use exactly the same camera-facing wall X position and straight wall construction for Hard mount, Compression pads and Captured inserts, while keeping the carbon-derived outside shell and M3 mount coordinates fixed.
+- Compression pads: create local flush seats recessed into that constant wall, using the real pad thickness and preload. Preserve the wall everywhere outside the pads and retain at least 1.2 mm of external TPU behind them. Applies also to paired DJI O4 Pro isolators.
+- Flush captured inserts: move the optional camera screw hardware reference start plane and recompute its length to suit the actual flush outer flange; regular projecting lips use their real configured projection instead of a fixed estimate.
+- Retain the v0.92.49 plate, keystone, motor pad, standoff, and TPU geometry features. Native FreeCAD rebuilding and CNC exports still require an in-app validation run.
+
+## v0.92.49 — Automatically resolve cramped R0.5 arm-root transitions (test build)
+
+- Fix the new v0.92.48 build failure at cramped concave arm-root/arm-bolt stock junctions (e.g. `ArmFrontRight X20.32/Y29.53`). The cutter rule no longer immediately rejects a corner solely because one intersecting edge is too short.
+- Before applying individual exact R0.5 fillets, run an **additive rolling-circle closing** of the outer silhouette, selectively retaining only small local patches adjacent to the detected short inside corners. This merges narrow intersection fragments and generates smooth R0.52 cutter-compatible transitions without adding another bolt-stock allowance or changing screw coordinates.
+- Reject any candidate patch that touches drilled holes/cutouts, escapes the fitted-miter joint cell, alters a large portion of the arm, or invalidates the connected outline. Remains strict about genuinely unmillable geometry rather than silently ignoring it.
+- Preserve all saved frame settings, TPU cage improvements, motor-pad profiles, and optional cosmetic fillets. Native FreeCAD and actual CNC export should be checked before machining.
+
+## v0.92.48 — 1 mm CNC end-mill inside-corner rule (test build)
+
+- Introduce a mandatory **R0.5 mm minimum re-entrant corner radius** for finished carbon plate and arm contours (1 mm cutter). Zero user-set cosmetic fillets still allow sharp exterior convex edges, but not sharp concave notches or internal cutout corners.
+- Round qualifying concave vertices using exact OCC arcs in the manufactured 3D carbon outline, not only in a cosmetic preview. All closed cutouts receive mandatory internal corner reliefs even when optional aesthetic cutout filleting is off. Optional nonzero fillets are never reduced to sub-0.5 mm radii.
+- Prevent silent under-sized radii: if a mandatory inside fillet collides with bolt material, fitted joints, nearby geometry, or cannot fit the edge, report the affected part and X/Y position instead of emitting an unmillable profile.
+- Keep compact keystone and its mating pocket aligned, with an R0.5 mm floor for their matching corner arcs. Very small key geometry that cannot support the minimum produces an explicit sizing error.
+- Update 2D plate/arm previews and tooltip explanations. No changes to the saved frame setting names, hole centres, plate reaches, arm bolts, TPU or camera settings.
+- Excludes through-hole drilling/tool compensation; the 1 mm cutter reference concerns plan-view internal corners. Native FreeCAD construction and CNC export need real-world verification.
+
+## v0.92.47 — Straight TPU inner walls and flush captured inserts
+
+- TPU cage inner side walls now use the same two-contact ruled construction in Hard mount, Compression pads and Captured inserts; eliminates soft-only intermediate loft bands.
+- Added **Flush outside captured inserts** under TPU → Camera isolation. When an outside retaining lip is enabled, a matching shallow exterior seat allows the lip face to finish flush with the cage outer wall. Off preserves the projecting lip.
+- A single shared axial layout is used for both left/right printable cassettes and their matching cage seats, including separate DJI O4 Pro inserts.
+- Updated the 2D TPU cage preview and lower bridge wall contacts. Camera mounting centres, structural plate outlines and carbon holes are unchanged.
+
+## v0.92.46 — Scalloped racer profile and swept-hook orientation
+
+- Remove the triangular decorative window from the Scalloped racer pad entirely. Preserve its outer outline, the motor-mounting holes, and the normal optional neck relief controls.
+- Automatically mirror the Swept hook silhouette between left and right arms using the nominal motor quadrant. Its longer outside edge faces outboard and its hooked tip faces the frame front (+Y) or rear (-Y) at zero pad rotation, on all four arms.
+- Mirror the outline before applying any user-selected motor-pad rotation; retain rotation-pivot behavior. The same oriented primitives feed the FreeCAD arm builder, 2D preview, CNC outline and motor protector references.
+- Keep the arm-tip bumper's optional front/rear direction in frame coordinates. Validate motor-bolt web clearance against both silhouette orientations, including asymmetric 3-hole mounting patterns.
+- No changes to other motor pad shapes, arm roots, bolt material allowances, plates, saved parameters or GUI layout. Automated geometry and package tests passed; native FreeCAD rebuilding/export still requires validation.
+
+## v0.92.45 — Two photographed motor pad profiles (test build)
+
+- Add **Scalloped racer** motor pad: rounded outer nose, four-lobed screw-land silhouette and a small rounded triangular lightening window when enough carbon remains around it. Based on the first user photo, scaled parametrically rather than traced to an unmeasured dimension.
+- Add **Swept hook** motor pad: asymmetrical, curved swept tip with a re-entrant shoulder based on the second user photo. Its orientation follows the existing motor-pad rotation control.
+- Both shapes keep user-selected motor patterns, motor-pad size, arm neck length, edge shaping, rotation and motor-tip guard compatibility. Real outlines feed the same 2D preview and 3D motor-pad generator.
+- The optional triangular window is automatically omitted for configurations that cannot maintain required wall thickness to the exterior and the motor/centre holes; motor mounting positions remain untouched.
+- Syntax, analytic outline validity, mounting web, legacy shape compatibility and ZIP checks performed. Native FreeCAD and real CNC exports were not tested.
+
+## v0.92.44 — Independent arm-root and keystone fillets (test build)
+
+- Add **Arm root corner fillet** under Arms → Roots → Root shape. This controls the central junction/root corners independently of **Arm corner fillet** on the beam and motor-side outline. Radius zero keeps the corresponding corners sharp. Protect existing arm bolts and minimum webs; fitted-miter root fillets remain restricted to their own joint cell.
+- Add **Keystone corner fillet** under Arms → Clamps & key → Keystone. When a compact keystone is used with fitted miters, round both the keystone and its matching pocket using a single rounded outline and an outward offset pocket with the configured clearance. Automatically limit an excessive radius so neighboring tangent points cannot cross.
+- Keep analytic circular arcs for native FreeCAD keystone and matching pocket solids (and hence STEP/DXF exports); the editor preview uses closely sampled equivalents. No rounding or outline change at the new keystone setting's default zero.
+- When opening saved frames from earlier versions, initialize the new arm-root radius from the old arm corner fillet to preserve existing root rounding. Newly created frames keep both radii at zero until edited.
+- Preserve all other arm, bolt, standoff, plate-reach, mount-material, and plate-profile settings. Tests: 864 2D keystone geometry/clearance cases, old/new preset compatibility, separate arm-radius selection, and Python compilation. Native FreeCAD rebuild and CNC/STEP export not available to test in this environment.
+
+## v0.92.43 — Fillet fitted arm-root junction corners (test build)
+
+- Extend the existing Arm corner fillet into the exposed central root/junction contours when using **Fitted miters**. Previously an unconditional root-limit exclusion kept these visible corners sharp even at a nonzero fillet radius.
+- Keep Independent arm-root stock unchanged. On fitted joints, preserve each arm's root-bolt support, including its configured additional material allowance and any shared standoff bearing footprint, and reject added fillet material outside the arm's own fitted-miter cell.
+- Apply the same eligible root-corner treatment in the 2D arm preview; radii remain adaptive and may be reduced/skipped by geometry checks. No added material around press nuts or receiving-plate fasteners, and no changes to bolt locations or arm joint clearance.
+- The central junction consists of separate CNC-cut arms. Corner rounding can leave a very small local gap at the exposed joint endpoint, while the straight load-bearing mating edge remains unchanged elsewhere. Inspect actual fitted-arm assembly clearances before cutting.
+- Python syntax and configuration regression checks performed; native FreeCAD geometry generation and final 3D/STEP/DXF behavior remain unverified.
+
+## v0.92.42 — Conservative CNC perimeter spur cleanup (test build)
+
+- Target the tiny outward nubs at overlapping arm-following tabs and plate bodies on Bottom and Mid plates. Use a nominal 2 mm diameter cutter reference (1.0 mm geometric cleanup radius), but **only** consider small local fragments near a short, non-tangent contour junction; do not globally offset or expand the outline.
+- Subtract selected tiny protrusions from the final plate blank; never increase arm, press-nut, standoff or plate mounting support. The required screw/insert/standoff/TPU bearing envelopes are protected explicitly.
+- Validate each BRep subtraction for connected, valid solid geometry; if an offset or boolean fails, retain the original plate instead of blocking frame creation. Match the same conservative intent in the 2D editor preview.
+- No changes to frame dimensions, mounting coordinates, arm-bolt allowance, or existing fillet options. Native FreeCAD build, DXF and STEP still require verification against real frame settings.
+
+## v0.92.41 — Simplify editor maximize controls
+
+- Remove the redundant Maximize window / Restore window action from the bottom bar beside Create/Update frame.
+- Keep the native title-bar maximize/restore button enabled; frame creation and the rest of the editor remain unchanged.
+
+## v0.92.40 — Restore shared arm/receiving-plate contours (test build)
+
+- Fix the arm/plate contour mismatch introduced in v0.92.39: the front Mid-plate and rear Bottom-plate tabs were clipped against a **zero-allowance** arm root while the actual carbon arms included the user's extra bolt material.
+- Build the tab masks using the **same actual arm-root silhouette** as the arms (including shaped roots and selective local bolt reinforcement). Where actual bolt reinforcement grows beyond the original fixed receiving-tab capsule, locally extend its trim mask by **only those exposed arm-bolt discs**; otherwise the old tab cap would clip all the new material and the outlines would still fail to follow. Apply this to the upper/lower clamp-plate root masks too.
+- Make the 2D cutting preview and analytical tab-distance check use that same arm setting; previously the tab clearance checks also used the zero-allowance shape.
+- **Do not** reapply arm-bolt material allowance to press-nut holes or receiving-plate support radii. The original tab overlap capsule, plate reaches and clipping boundaries are retained. No hardware centres or dimensions have moved.
+- No changes to the FreeCAD 3D fillet system, camera TPU rim checks or standoff placement rules. Full final solid validation in native FreeCAD remains necessary.
+
+## v0.92.39 — Independent arm and press-nut envelopes (test build)
+
+- Fix mid-plate press-nut lobes chasing the adjustable arm-bolt reinforcement: the extra allowance now applies to carbon arms only. Receiving plates keep fixed support for their drilled holes and nut seats; their receiving tabs are calculated from the original structural arm footprint, so the nut pads no longer chase the arm as its extra material grows.
+- Reduce oversized circular supports by checking the true hole or press-nut shank with MinimumWeb, and the physical standoff/flange bearing outline with a small 0.35 mm edge lip. Do not add MinimumWeb a second time outside a proud flange or standoff body. Recessed flanges still preserve a full web outside the cut pocket.
+- Use the same standoff/press-nut footprint in reinforcement selection, mount validation, and protected press-nut fillets. Shared arm/standoff screws remain one physical fixing with no duplicate allowances.
+- Preserve the v0.92.38 recursion fix and existing frame settings. Native FreeCAD build remains to be tested.
+
+## v0.92.38 — Break standoff/arm-support recursion (test build)
+
+- Fix a circular dependency in v0.92.37 that made a frame with 6 or 8 standoffs fail to update with `maximum recursion depth exceeded in comparison`.
+- The arm-bolt support calculation now reads the raw standoff hole locations and infers whether the standoff actually bears on an exposed arm from the plate/arm configuration. It no longer calls the full geometry-dependent standoff layout.
+- Preserve v0.92.37's rule that shared standoff and arm-bolt material requirements are independent, applied once, and only on the correct receiving layer. No changes to frame dimensions, plate perimeter geometry, or existing design settings.
+- Regression-tested independently for 4, 6, 8 standoffs, shared/non-shared positions, 2/3 plates, and upper/lower arm placements. The complete 3D rebuild still requires native FreeCAD testing.
+
+## v0.92.37 — Correct shared standoff / arm-bolt reinforcement (test build)
+
+- Correct the shared-fastener radius calculation: arm-bolt material allowance is applied once to the arm-bolt through-hole bearing, not to the standoff outer diameter. The standoff footprint is a separate, fixed requirement, and the larger applicable envelope wins instead of adding margins.
+- Assign the standoff outside-diameter footprint only to the carbon layer which actually supports the standoff (mid, bottom, upper arm clamp or exposed arm top), while the top plate still receives its normal standoff support.
+- Consolidate coincident arm-root and standoff holes into one reinforcement request per physical fastener. Preserve the layer-specific machining holes, bolt positions, nut seats and standoff placement.
+- Continue to use the v0.92.35 selective CAD / editor-path check: existing material stays unchanged, and only a genuinely missing portion of a bearing disk can cause an extension.
+- Source-reviewed and standalone Python tests passed. Native FreeCAD rebuild / final manufacturing checks remain to be performed.
+
+## v0.92.36 — Restore TPU cage M3 carbon bearing support lost in v0.92.35 (test build)
+
+- Fix regression where selective arm-bolt/press-nut material could leave a neighbouring TPU cage M3 mounting hole with less than the required 2 mm carbon rim (for example 3.04 mm from hole centre instead of 3.60 mm).
+- Check the four bottom and four top TPU M3 screw positions against each actual generated carbon-plate blank. Add ONLY missing bearing material at those exact positions; leave already-supported outlines completely unchanged. Never increase an entire perimeter or move mounting holes to hide a failure.
+- Avoid joining unsupported floating mounting pads: if less than 75 percent of a full bearing circle contacts the plate, report the insufficient plate geometry instead of producing a large projection.
+- Preserve the TPU screw bearing material during final plate edge filleting. Mirror the same local decision in the editor's 2D profile calculation.
+- Measure the cage clearance against the exact CAD outside wire, not a tessellated polyline that can falsely reject an exactly sufficient circular rim.
+- Keep the v0.92.35 selective arm-bolt support logic, nut/standoff coordinates and existing TPU cage contour construction unchanged. Native FreeCAD rebuild must be verified in the user's configuration.
+
+## v0.92.35 — Only reinforce mounting material actually missing (test build)
+
+- Remove the v0.92.33 and v0.92.34 sampled perimeter-envelope/shoulder generators. Their outward offsets could create extra bumps and faceted edges.
+- Check each bolt/press-nut support disc against the actual FreeCAD base-plate or arm solid, including tabs, reach geometry and shaped arm roots, before adding any stock. If the full disc already fits inside the part, leave that section of perimeter **completely unchanged**.
+- Where additional bearing material is truly required, add only the exact circular support. Add an anchoring capsule solely when that disc would otherwise be detached or weakly attached to the existing plate.
+- Apply the same incremental support selection to the 2D editor preview, with a small area tolerance for numerical slivers.
+- Keep original bolt, press-nut, standoff, and other hole positions unchanged. Zero extra-material setting retains its established behavior; the selective construction applies when extra material is requested. The staged receiving-plate nut rim remains unchanged.
+- Syntax and standalone support-selection tests passed; full native FreeCAD CAD/export validation requires user testing.
+
+## v0.92.34 — Rebuild plate bolt reinforcement outline (test build)
+
+- Revert the v0.92.33 independent Bézier shoulder patches, which could distort the surrounding plate perimeter.
+- Extend the original Bottom/Mid/Clamp outline with locally tapered, continuous support envelopes instead of stitching disconnected rounded lobes onto the edges.
+- Merge nearby bolt supports into a common smooth plateau along the existing edge. This avoids alternating circular scallops around adjacent arm and press-nut locations.
+- Recalculate envelopes from the untouched original silhouette whenever arm-bolt material allowance or the plate reaches change. Keep all hole centres, nut seats, original arm-bolt stock radii, and TPU parts unchanged.
+- Check that the proposed perimeter covers the complete required cylindrical/capsule support stock before accepting it. Revert to the proven v0.92.32 supports if the geometry cannot be produced safely; never delete required bearing material.
+- Keep the zero-allowance and TopPlate behavior unchanged. The 2D editor and CAD use the same support-envelope generator.
+- Passed 2D geometry checks on 30 varied reach/plate-shape cases plus baseline allowance checks. Native FreeCAD 3D and export checks still require on-device testing.
+
+## v0.92.33 — Smooth arm-bolt reinforcement along plate perimeters (test build)
+
+- Keep the proven v0.92.32 arm-bolt/press-nut radius staging and all fastener coordinates.
+- Where an increased arm-bolt allowance exposes mounting stock outside the original Bottom/Mid/Clamp plate perimeter, blend the support into a wider, continuous full-thickness plate edge using gradual Bezier shoulders rather than leaving isolated circular lobes.
+- Calculate the shoulder from the **original** plate outline on every edit, not the previously reinforced shape. Plate reach edits therefore recalculate their contours from a fixed baseline.
+- Preserve the full bolt/press-nut bearing envelopes: the operation only adds material. Keep the prior zero-allowance geometry unchanged.
+- Use the same portable shoulder geometry in CAD construction and the 2D editor preview; skip geometrically invalid local shoulders, retaining the original structural stock.
+- Tested 48 True-X/Deadcat plate-and-allowance cases and 48 additional reach variants with 2D geometry validation; 46 exact Bezier/curve solids and 48 unions were validated with a standalone OpenCASCADE kernel. Native FreeCAD assembly and final machining profiles remain unverified.
+
+## v0.92.32 — Staged arm-bolt / press-nut reinforcement
+
+- Corrected the receiving plate reinforcement: extra arm-bolt material is no longer added *on top of* the press-nut or recessed-nut bearing allowance.
+- Grow the arm-bolt stock first. Keep the existing nut-seat support envelope unchanged until the growing arm-bolt pad meets it; expand the shared perimeter only after that point.
+- Apply to MidPlate in three-plate frames and the applicable BottomPlate / ArmClampPlate in two-plate designs.
+- Keep all arm bolts, nut seats, bores, holes, plate-contact roles and existing TPU geometry unchanged. No new preset parameters; older saved settings load as before.
+- Verified the staging calculations with True-X and Deadcat presets and arm-nut retention modes. Full native FreeCAD 3D generation remains unverified.
+
+## v0.92.31 — Arm bolt mounting-stock allowance
+
+- Added Arms > Bolts > Extra material around arm bolts (0–6 mm; 0 retains the existing geometry).
+- Increase the local arm-root stock and receiving-plate pad support around the arm bolts, including press-nut flange bearing areas when selected.
+- Extensions use the existing rounded mounting-stock and blend system rather than shifting mounting positions. Mid-plate, bottom plate, and clamp plate receive support in their existing applicable layouts.
+- Preserved TPU camera geometry, motor protectors, hardware centres, and older preset defaults.
+- Native FreeCAD solid generation remains to be tested before machining.
+
+## v0.92.30 — Motor protector arm-tip side coverage
+
+- Motor protectors now follow the complete motor-pad and arm-tip bumper outline even when the optional top sleeve is disabled.
+- The Cover arm tip bumper setting controls top coverage only; lateral walls and bottom protection remain around the full tip.
+- Clarified the setting description. TPU camera cage and camera isolation geometry are unchanged.
+
+## v0.92.29 — TPU captured-interface seat construction (test build)
+
+- Use the rounded-rectangle-style prismatic-layer construction for every TPU captured interface, rather than a ruled loft that tapers retaining-flange material into the cage wall.
+- Preserve the nominal full-depth aperture dimensions; the printed neck alone shrinks according to the per-side fit-clearance control.
+- Keep the working v0.92.28 cage, camera hardware, hard mount, compression pads, and carbon camera geometry unchanged.
+- Requires FreeCAD rebuild tests for non-rectangular shapes and retention.
+
+## v0.92.28 — TPU mounting hardware and interface geometry
+
+- Include the eight M3 top/bottom TPU cage fasteners in optional hardware references, aligned to the existing carbon clearance holes and heat-insert pockets.
+- Create non-rectangular TPU interface cutouts and matching removable parts directly in the YZ plane, with shared polygon geometry and specific failure diagnostics.
+- Keep the rounded-rectangle path, carbon camera cage, and structural TPU cage solids unchanged.
+
+## v0.92.27
+- Replace the unreliable TPU-only Side plate outline interface with selectable Chamfered rectangle, Hexagon, Octagon, Tapered rectangle, and Capsule alongside Rounded rectangle. The cutout, insert and editor preview share the same outline generator.
+- Restrict the TPU and carbon-fibre camera interface menus to their supported shapes independently. Saved TPU presets using the retired Side plate outline migrate to Chamfered rectangle; carbon side-plate options stay unchanged.
+- Preserve the v0.92.26 TPU cage and captured-insert fit construction.
+
+## v0.92.26 — TPU captured insert fit and retention
+
+- Expose insert-to-cutout clearance from 0 to 0.25 mm, with a matching pocket/insert size calculation instead of double-counting the fit.
+- Align outside retaining flanges against the cage wall faces, preventing the previous axial offset.
+- Use a unified TPU-derived contact silhouette for the Side plate outline option in 3D and 2D preview; carbon plate profiles are unchanged.
+- Preserve the v0.92.24 cage body and lower bridge.
+
+## v0.92.24
+
+- Correct TPU lower bridge junctions: corner blend no longer grows exposed rearward tongues beyond the side-wall termination.
+- Blend the raised front edge into the established side-wall front surfaces over a smooth transition, avoiding sharp pointwise clipping peaks.
+- Keep the plate-traced bottom contact, straight Hard-mount inner walls, and existing camera-isolation construction unchanged.
+- Add regression checks for the lower bridge corner limits and package metadata.
+
+## v0.92.23
+
+- Limit the lower TPU front bridge to the inner opening plus a controlled 0.8 mm overlap into each side wall; stop extending a separate bridge skin across the entire outer cheeks.
+- Restore smooth front and rear bridge edges instead of hundreds of visible short line segments, with a bounded fallback for problematic curves.
+- Constrain the raised bridge front only at the embedded wall contacts, removing the abrupt mid-front clipping that produced exposed triangular lips.
+- Preserve independently adjustable bridge height, rear reach and corner blend, the straight Hard mount inner walls, M2/M3 mount positions, and existing soft isolation modes.
+- Native FreeCAD solid and surface validation remain pending.
+
+## v0.92.22
+
+- Prevent lower-bridge front and rear spline interpolation from overshooting into sharp peaks at the side walls.
+- Smooth the clipped raised bridge front boundary into the cheek contacts without moving the plate-derived bottom outline.
+- Preserve straight Hard mount inner walls, selected lower-bridge reach/height/blend, M2/M3 mounting locations, and the separate Compression pads and Captured inserts geometry.
+- Maintain the proven single-piece TPU shell; native FreeCAD solid rebuild still requires verification.
+
+## v0.92.21
+
+- Keep Hard mount inner walls straight while following the actual finished top and bottom plate nose contours at their respective contact surfaces.
+- Clip the raised lower-front bridge at the side-wall front contour so its corners cannot protrude past the supporting wall.
+- Add an adjustable lower bridge corner blend (0–10 mm) to soften the rearward transition into the side cheeks without shifting the outer cage or M3 mounting positions.
+- Update the lightweight lower-bridge footprint preview and retain the working Compression pads and Captured inserts geometry.
+- Preserve the upper-centre opening and the plate-following exterior. Native FreeCAD solid generation requires testing.
+
+## v0.92.20
+- Replace the Hard mount's height-dependent inner-wall easing and 11-station loft with a single straight camera-facing inner wall from bottom contact to top contact.
+- Generate one ruled span between the actual bottom and top plate front contours; remove interpolation bands and uncontrolled upper/lower bulges while retaining the outer X boundary and straight rear edges.
+- Keep M2 camera screw passages, M3 heat-insert holes, Compression pads, Captured inserts and carbon-style camera plates unchanged.
+- Enforce minimum wall thickness and single valid solid; native FreeCAD verification still required.
+
+## v0.92.19
+- Refined TPU hard-mount side-wall surfaces with a constrained smooth loft rather than 29 visible ruled panels.
+- Retained existing camera-facing positions, carbon-plate outline contacts, M2 camera holes and M3 heat-insert locations.
+- Added a bounded geometry check and a lower-resolution ruled fallback if the smooth loft is invalid.
+- Left Compression pads, Captured inserts and carbon side-plate construction unchanged.
+
+## v0.92.18
+- Changed only the TPU Hard mount inner-wall loft to a station-sampled ruled loft, preventing interpolation overshoot that produced hourglass bulges and distorted side walls.
+- Preserved plate-contact geometry, straight rear termination, screw pockets, and both soft camera isolation constructions.
+- Native FreeCAD OCC geometry validation remains outstanding.
+
+## v0.92.17
+- Shorten the TPU Hard mount inner-wall transition to preserve a straight camera-contact section and reduce hourglass pinching.
+- Constrain the loft with more closely spaced transition sections; keep plate-following outer geometry and mounting locations unchanged.
+- Leave Compression pads, Captured inserts, and carbon camera plates untouched.
+- Native FreeCAD geometry and collision checks still require testing.
+
+## v0.92.16
+
+- Fixed hard-mount TPU side-wall contour sampling so camera-facing wall movement no longer changes the plate-derived front silhouette.
+- Extended and smoothed the inner-wall transitions to avoid pronounced hourglass-like bulges.
+- Preserved fixed plate-contact profiles, M3 mounting positions, existing camera screw passages, and separate compression/captured-insert construction.
+- Source-level regression checks only; native FreeCAD geometry remains unverified.
+
+## v0.92.15
+
+- Validate OpenCASCADE camera intersections against both operand bounding boxes before rejecting TPU hard mounts.
+- Cross-check the original left/right cage walls and lower bridge separately; impossible intersections are warned about rather than reported as physical collisions.
+- Preserve real camera collision rejection and existing isolation geometry.
+
+## v0.92.14 — Correct mirrored TPU hard-mount inner-wall coordinates
+- Fix the X-sign error that moved both full-height hard-mount inner walls into the physical camera housing; interpolate from the original plate-contact edge to the correct signed camera-face clearance.
+- Preserve the unchanged outside plate-following contours, lower bridge, M3 mounting positions, camera screw openings, compression pads and captured inserts.
+- Maintain the real camera-vs-cage collision checks; no intersection is silently ignored.
+- Portable geometry/parameter checks passed; native FreeCAD solid generation remains unverified.
+
+## v0.92.13 — Continuous hard-mount camera-facing cage walls
+- Replace the isolated cylindrical TPU hard-mount bearing protrusions with one continuous, lofted camera-facing wall on each side.
+- Preserve both external carbon-plate-following edges and full-size M3 socket landings at top and bottom; move only the internal wall surface toward the camera between those contacts.
+- Match the complete M2 camera-screw opening depth to the newly positioned inner wall, rather than hiding the hole behind a separately fused bearing cylinder.
+- Leave the compression-pad and captured-insert construction unchanged.
+- Correct TPU width prevalidation to use the selected camera clearance; this is a source-level experimental change and has not undergone native FreeCAD shape testing.
+
+## v0.92.12 — Stable TPU hard-mount structural shell
+- Keep the outer TPU cage and full-height side-wall profile identical across all camera isolation modes; switching to Hard mount no longer expands the entire structural wall towards the camera.
+- Create short, integrated, mirrored M2-bearing lands at the actual camera screw positions for Hard mount. The chosen camera-side clearance controls their contact position without changing M3 carbon-plate mounts, plate-following outside surfaces, or the lower front bridge.
+- Require each new bearing to fuse into exactly one valid wall solid. Preserve the existing camera-screw hole cuts and independent compression-pad and captured-insert construction.
+- Leave carbon-fibre camera plates and all non-camera workbench geometry unchanged.
+- FreeCAD native geometry execution is still required to verify the result before manufacturing.
+
+## v0.92.11 — TPU camera clearance validation routing
+
+- Fix the duplicated variable-tilt collision check that rejected a TPU cage at an unselected angle (for example 0 degrees with a 25-degree selected camera tilt).
+- Route all camera-versus-TPU-cage checks through the existing dedicated cage validator, which checks the currently selected angle and warns about other inaccessible tilt angles.
+- Retain normal camera collision checks against carbon plates, standoffs and other physical parts, and retain the carbon side-plate collision validation unchanged.
+- No changes to TPU cage solids, captured inserts, compression pads, mounting holes, editor views or saved parameter formats.
+- Native FreeCAD end-to-end build remains to be verified.
+
+## v0.92.10 — TPU camera collision cross-check
+
+- Validate the final TPU cage camera collision against the three original uncropped structural components (left/right side walls and lower bridge).
+- Prevent an inconsistent OCC Boolean intersection of a cut/refined final cage from falsely rejecting a frame when none of the original components overlaps the camera.
+- Keep actual component overlap blocking and report which component causes it; preserve existing carbon cage, fasteners, tilt, and preview handling.
+- FreeCAD native rebuild still required to verify behavior on the reported design.
+
+## v0.92.9 — TPU collision-range and part-preview corrections
+
+- Validate actual housing-to-cage interference at the currently selected camera tilt as a build-blocking error; report collisions at other variable-tilt positions as explicit Report view warnings rather than blocking a safe selected position. The reported alternate angles are not safe to use without modification.
+- Separate TPU cage wall and captured-insert inspection: cage views show only the receiving through-cutout, pad views show only the removable insert. Neither preview overlays the other part.
+- Preserve the working v0.92.7 captured-insert solids, outer plate-following cage, carbon camera cage, M3 mounting and camera-isolation geometry unchanged.
+
+## v0.92.8 — TPU captured-insert inspection preview
+
+- Show the full-depth captured-insert receiving opening in the TPU camera cage side elevation, using the same Y/Z camera screw datum, insert dimensions and fit allowance as the native CAD cutter.
+- Show the removable captured insert alongside its corresponding opening in one composite inspection view, including the left and right cage views and the camera pad views.
+- Preserve the currently working v0.92.7 solid construction, plate-following outer cage, carbon plate cage, M3 mounting, hard mount and compression-pad geometry. The side-plate interface remains a compact removable insert profile rather than replacing the entire structural wall.
+- Correct left/right camera-pad preview mount lookup; the native FreeCAD GUI must still verify the rendered preview.
+
+## v0.92.7 — Full-depth TPU captured-insert seats
+
+- Replace the former blind TPU cage insert recess with a matching full-thickness opening, so the insert occupies the wall rather than stopping behind a solid skin.
+- Use the same camera-screw datum and YZ profile for the receiving opening and removable insert; retain the existing camera screw/tilt cuts.
+- Give the soft insert a through-wall neck, with the optional retaining faces outside the load-bearing wall instead of buried in it.
+- Preserve the plate-following exterior, M3 plate fasteners, the independent carbon side-plate system and compression-pad behavior.
+- Native FreeCAD solid rebuilding and print-fit still require verification.
+
+## v0.92.6 — TPU heat-insert boss micro-overlap correction
+
+- Handle tiny near-tangent outer boss slivers without a fragile OpenCASCADE fuse, but **only** after verifying the existing cage wall already contains a continuous 1.2 mm supporting envelope around the insert pocket.
+- Retain strict fusion and rejection for any socket that lacks the required material; never discard a functional mounting feature to force a build.
+- Preserve all M3 coordinates, insert-pocket dimensions, plate-following contours, camera interfaces, carbon camera cages, and isolation modes.
+- This is a targeted correction to the v0.92.5 hard-mount Boolean failure; native FreeCAD rebuild is not verified.
+
+## v0.92.5 — TPU-only camera interface profile consistency and adjustable hard-mount clearance
+
+- Use the same explicit chamfered TPU interface polygon for the captured insert and its matching cage recess; avoid the mismatched rounded/straight contours that could invalidate the removable part.
+- Prefer a single-solid axial loft for the TPU Side plate outline captured insert; retain separate diagnostics for invalid insert geometry and screw/tilt openings.
+- Add a user-adjustable Hard-mount side clearance in Camera cage > TPU attachment (default 0.15 mm per side, 0.05–3 mm), without moving the plate-following exterior or M3 plate mounting positions.
+- Keep the carbon-fibre camera side-plate isolation generator unchanged. Native FreeCAD/OpenCASCADE solid validation is still required.
+
+## v0.92.4 — TPU captured-insert single-solid construction
+
+- Build the TPU-only side-plate-outline isolator profile from its target dimensions rather than OCC face offsets, preventing collapsed or self-intersecting offset contours.
+- Retry a failed captured-insert layer fusion as one continuous, eight-section-profile ruled loft.
+- Validate the removable isolator before and after each individual camera screw/tilt cut, with a specific failure message.
+- Leave carbon camera plates, carbon camera isolation, external TPU cage and M3 plate mounting unchanged.
+
+## v0.92.3 — Separate TPU insert interface and seat clearance
+
+- TPU cage *Side plate outline* is now a convex, centred TPU-specific profile, not derived from the carbon side plate or the top/bottom reach.
+- Its preview, removable isolator, and matching blind wall pocket use the same profile generator.
+- Captured insert camera-facing flange is relieved from the cage wall; the narrow insert neck alone enters its dedicated pocket.
+- Added small internal retaining-pocket clearance to avoid coincident OpenCASCADE surfaces.
+- Preserved the existing carbon-fibre camera cage, M3 plate holes, plate-following exterior and compression pads.
+
+## v0.92.2 — TPU isolation and raised bridge corrections
+
+- Separate hard-mount wall clearance from the soft-camera interface so no pad-sized gap is reserved for hard mounting.
+- Use a TPU-specific side-outline profile for removable camera isolators instead of the carbon-plate silhouette.
+- Match the centre floor front at the actual raised height to the cage-wall loft to reduce raised-floor lips.
+- Seat captured inserts with matched blind neck and retaining-chamber geometry, avoiding over-penetrating contact layers.
+- Preserve independent M3 carbon mounting coordinates and unchanged carbon side-plate isolation construction.
+
+## v0.92.1 — TPU camera isolator screw-datum alignment
+
+- TPU-only pads and captured inserts now use compact rounded-rectangle geometry, never a scaled carbon camera side-plate polygon.
+- Centre a removable TPU isolator on the camera screw/tilt travel envelope, not the structural cage profile or a possibly different pivot datum.
+- Keep the blind insert retention pocket aligned with its matching movable insert, while leaving the cage exterior and M3 carbon mounting positions untouched.
+- Reject undersized pads/inserts before cutting a screw slot through their edge; report the minimum needed dimensions.
+- Match the editor preview to this TPU-only isolation positioning.
+- Carbon/aluminium-cut side plate isolation geometry is unchanged. Native FreeCAD CAD rebuild is not verified.
+
+## v0.92.0 — Align lower TPU bridge with side-wall front surface and preview
+
+- Remove the lower bridge's upper-rim nose setback and rear Y offset, which generated visible wavy overlap seams when intersecting the plate-following side walls.
+- Build the bridge as an extrusion of its finished bottom-plate contour and user-defined straight rear edge. This simplifies the operation while preserving the adjustable bridge height.
+- Make the editor's lower bridge preview use the same straight rear edge and outline sampling as the 3D builder, rather than an unrelated curved blended rear edge.
+- Label TPU part inspection as a side elevation rather than a flat cut part. Carbon side plates are unchanged.
+- Native FreeCAD solid generation and captured-insert construction remain unverified. This is a geometry/preview consistency test build, not a verified cure for those other problems.
+
+## v0.91.99 — Correct TPU camera clearance validation across cage height
+
+- Remove the false 2D interference test that treated top/bottom M3 mounting sockets as though they occupied the camera's entire height. This was responsible for the misleading 11.60 mm required versus 9.20 mm available warning on the True-X design.
+- Keep M3 hole X/Y coordinates fixed by the carbon mounting geometry, and retain the minimum 2 mm carbon around each drilled hole.
+- Check whether the camera's required half-clearance fits within the plate-derived outer cage face with a continuous minimum 1.2 mm TPU wall. Do not use the mounting socket's inner X edge as a global limit.
+- Keep the native per-socket pocket validity and exact 3D camera-to-cage collision checks active. This does not bypass real overlaps or alter the camera side walls or plate outlines.
+- Carbon side-plate cage geometry and other frame components are unchanged.
+
+Python regression and syntax tests were performed; full native FreeCAD geometry generation is still unverified.
+
+## v0.91.98 — Separate TPU outline, carbon mounting datums and camera clearance
+
+- Derive the TPU cage M3 X datum from the carbon plate widths and mounting socket size, not from the camera width, selected isolation mode, camera side clearance or existing side-plate geometry.
+- Determine front/rear mounting holes as a supported PAIR on each plate with 2 mm of carbon outside the drill opening, keeping mounting positions independent of TPU cage reach.
+- Keep the outer TPU wall at a fixed plate-derived lateral boundary. Camera width and side clearance now adjust the camera-facing wall surface only. Do not expand the outer wall to accommodate sockets during geometry construction.
+- Preserve the selected straight rear contact edge instead of generating a curved rear reinforcement around the M3 insert bosses. Reject settings that cannot contain a boss within the selected contact reach.
+- Report dimensional conflicts when the camera plus isolation envelope cannot fit between fixed plate boundaries and the heat-insert sockets, rather than silently moving the mounts or carving structural walls.
+- Check actual finished bottom/top carbon outlines at the four M3 holes during native construction; reject less than 2 mm of remaining carbon at the outside edge.
+- Retain the existing standalone TPU isolation cutters and carbon-fibre side-plate geometry generator; their 3D behavior still requires native FreeCAD verification.
+
+Portable regression checks run using supplied True-X and Deadcat presets: consistent M3 datums across Hard mount, Compression pads and Captured inserts; unchanged mounting coordinates when changing camera width/clearance; 2 mm nominal carbon edge support. The narrower Deadcat camera + insert case correctly reports insufficient width rather than shifting the outer cage. No native FreeCAD CAD-kernel execution was available; this is an experimental build, not a verified manufacturing release.
+
+## v0.91.97 — TPU mounting boss spacing and saved-offset diagnostics
+
+- Ensure automatically placed front/rear TPU mounting holes have clearance for their full heat-set insert bosses, not only the M3 drill diameters.
+- Explicitly flag overlapping bosses and suggest resetting legacy mounting offsets when applicable.
+- Keep carbon mounting coordinates stable across camera isolation modes.
+- Carbon camera side-plate geometry and mounting rules are unchanged.
+
+## v0.91.96 — Separate TPU camera isolation and inner-wall clearance
+
+- Make the TPU cage's camera-facing wall respect the complete camera/soft-interface clearance envelope. M3 socket footprint calculations can no longer widen the inner edge inward toward the camera.
+- Keep the same TPU side-wall and plate M3 mount coordinates for Hard mount, Compression pads and Captured inserts; leave the carbon side-plate generator untouched.
+- Add independent TPU-only compression-pad and captured-insert geometry using the actual expanded cage-wall bounds. Compression pads bear against the inside of the wall without structural through-cutouts. Captured inserts fit blind pockets with the selected retaining lip.
+- Handle DJI O4 dual screw-track isolation separately within the TPU geometry path.
+- Remove a final captured-insert support check that was written for carbon side plates and incorrectly applied to TPU blind-pockets.
+- Allow Camera side clearance to be adjusted in the editor for TPU cage with any isolation mode.
+- Update interface help text to distinguish carbon and TPU isolation methods.
+
+Portable syntax checks and both user-supplied True-X/Deadcat preset coordinate checks passed, including consistent mounting positions across all modes. Native FreeCAD solid and GUI tests have not been run; verify print geometry and carbon mounting hole support before manufacturing.
+
+## v0.91.95 — TPU camera-to-wall clearance correction
+
+- Corrected the unified TPU cage's inner wall position to preserve actual camera and isolation clearance; mounting socket footprint adjustments can no longer push its inner face toward the camera.
+- Sized the structural cage for the configured pad allowance regardless of selected isolation mode, maintaining fixed cage and M3 mounting positions when switching Hard mount, Compression pads, and Captured inserts.
+- Positioned M3 heat-insert bosses outside the clear camera envelope while retaining their pocket diameters and depths; the matching plate holes follow the same positions.
+- Added exact 3D camera/cage intersection bounds to FreeCAD Report view for remaining collisions, including possible lower-floor interference.
+- No changes to the carbon side-plate cage builder or noncamera frame components.
+
+Native FreeCAD/OpenCASCADE rebuild is not available in the portable test environment. Verify mounting-hole carbon support and camera clearance in FreeCAD before manufacturing.
+
+## v0.91.94 — TPU camera clearance and isolation stability
+
+- Keep the unified cage wall positions fixed when changing between Hard mount, Compression pads, and Captured inserts; the carbon M3 mounting pattern remains unchanged.
+- Check soft-isolation clearance before generating the CAD loft.
+- Report actual camera-to-cage interference instead of subtracting the camera housing from structural TPU walls and creating unexpected recesses.
+
+## v0.91.93 — TPU cage contour definition (test build)
+- Generate front edges of the unified TPU cage directly from the finished bottom and top plate outlines.
+- Make upper and lower cage side-wall rear cuts straight in top view, instead of offsetting the curved front outline backward.
+- Make the one-piece lower bridge rear edge straight and preserve its adjustable rear reach and height; keep the upper middle open.
+- Keep M3 heat-set socket positions, camera isolation, plate shapes, and the carbon side-plate builder unchanged.
+- Native FreeCAD BRep validation is still required.
+
+## v0.91.92 — TPU socket footprint integrated into cage side walls (test build)
+
+- Expand the *X faces* of the unified TPU cage wall when necessary to fully enclose the actual M3 heat-insert socket, before loft creation. Only the necessary socket footprint is added; camera-envelope checks remain active.
+- Keep carbon-plate M3 mounting coordinates, hole diameters, camera-isolation settings and camera-side spacing unchanged.
+- Aim to eliminate the small exposed socket sliver that previously required an unreliable OpenCASCADE union. Existing individual cut and validation diagnostics remain in place; an unsatisfied socket still fails visibly.
+- Leave the carbon/aluminium flat camera plates, main frame geometry, TPU protection and export paths unchanged.
+- Portable syntax and socket-width regression checks passed. Native FreeCAD solid generation has not been verified.
+
+## v0.91.91 — TPU cage isolated Boolean cutting and diagnostics (test build)
+
+- Fix the confirmed null-result failure at the first cage-opening stage: do not subtract all M3 insert pockets and camera screw/tilt cutters as one compound from a curved loft.
+- Cut valid, intersecting pockets and camera openings individually; validate the remaining solid after each operation.
+- Only refine a successful cut if refinement still produces one valid solid.
+- Report the precise side, cutter type, cutter number and remaining solid count when a cut fails. Never skip required holes or accept fragmented cages.
+- Keep TPU contour construction, camera-isolation selections, carbon camera plates, mounting coordinates and all non-camera frame generators unchanged.
+- Native FreeCAD/OpenCASCADE execution remains outstanding; this is a test build.
+
+## v0.91.90 — TPU cage redundant boss union correction (test build)
+
+- Avoid attempting an OCC Boolean union when the loft already fully encloses the M3 mounting socket; the insert pocket is still cut normally.
+- Keep mounting bosses within the top/bottom cage contact planes rather than extending a small fraction outside the plate-contact face.
+- Retry required unions using different operand order, while rejecting invalid or disconnected solids.
+- Distinguish already-supported bosses from partially exposed bosses in diagnostics. No sockets or mounting holes are removed to make a build pass.
+- Carbon side-plate and other frame geometry generators remain unchanged. Native FreeCAD rebuild verification is outstanding.
+
+## v0.91.89 — TPU cage boss overlap diagnostics (test build)
+
+- Provide a small intentional overlap at each structural M3 socket while preserving its original hole centre and heat-insert pocket.
+- Distinguish tangent/no-volume contact from a genuine OCC fusion failure.
+- Check bosses against the finished front plate outline before attempting the costly Boolean.
+- Keep the carbon camera cage path untouched.
+- Native FreeCAD solid-generation verification is required.
+
+## v0.91.88 — TPU cage integrated mounting sockets (experimental)
+
+- Generate structural wall material around the existing four M3 heat-insert sockets during the wall loft, before Boolean operations.
+- Retain plate-following front contacts, original screw coordinates, independent rear reaches and the three camera isolation choices.
+- Remove the fragile small-cylinder bridging fallback that could fail with a disconnected boss.
+- Limit extra rearward socket support to the immediate upper/lower plate contacts, tapering it back over 2 mm.
+- Report explicit unsupported-hole errors rather than silently moving mounting holes.
+- This update requires native FreeCAD solid and visual verification.
+
+## 0.91.87 — TPU cage mounting boss connectivity
+
+- Fuse M3 heat-insert bosses individually to the unified TPU cage wall.
+- Add a bounded local rounded connector only when a boss falls outside the wall and cannot fuse directly.
+- Keep plate mounting coordinates, camera isolation dimensions and the carbon camera cage unchanged.
+- Provide boss-specific diagnostics when the attachment is too far from the wall.
+
+## 0.91.86 — TPU camera isolation structural separation
+- Prevent switching between Hard mount, Compression pads and Captured inserts from changing the TPU cage perimeter, rear contour or M3 hole coordinates. The camera-facing X spacing can still accommodate soft materials.
+- Keep the legacy soft-isolation camera-sweep hull calculation for flat camera side plates only; the unified TPU cage continues using its own top/bottom plate-outline loft.
+- Draw a consistent exterior TPU cage elevation with camera screw/tilt access. Soft-interface pockets are internal, not giant through-windows in the preview.
+- On the TPU cage, compression pads seat against the inner wall without cutting it away. Captured inserts get a blind neck pocket with an optional internal retaining-lip chamber, plus separate camera screw/tilt openings. Carbon camera plates retain their previous through-insert logic.
+- Verify portable mounting coordinates, TPU side-wall profiles and validation for all three isolation modes using True-X and Deadcat JSON presets. Native FreeCAD CAD Boolean and GUI rendering tests remain outstanding.
+
+## 0.91.85 — Unified flat camera side-plate construction
+- Remove Aluminium cage as a separate editor choice: use Carbon side plates for either carbon fibre or aluminium machining with the same flat geometry and export profiles.
+- Import legacy Aluminium cage presets as Carbon side plates after transferring their saved dimensions; preserve all camera and plate parameters.
+- Remove the redundant aluminium-material tab, dedicated exporter route and stale selector hints. TPU cage construction is unchanged.
+- Check True-X and Deadcat preset loading and geometry dispatch through portable regression tests. Native FreeCAD geometry rebuild is not verified.
+
+## 0.91.84 — TPU cage plate-anchored screw positions
+
+- Locate TPU cage M3 mounting holes independently on the finished top and bottom carbon plates, with editable offsets relative to supported positions.
+- Keep screw positions fixed when TPU cage top or bottom rear reach changes.
+- Validate M3 edge clearance using actual shaped plate geometry rather than obsolete camera side-plate endpoints.
+- Remove screw-boss-driven rear fin deformation; rear wall follows user-selected top and bottom reaches.
+- Remove the obsolete 0.35 mm front projection from the lightweight cage preview.
+
+## 0.91.83 — TPU camera cage side-view Qt polygon compatibility
+
+- Fix the blank camera-mount inspection preview caused by slicing `QPolygonF` when extracting top/bottom plate perimeter polygons. Convert polygon vertices to native lists first and select the largest closed perimeter by area.
+- Handle unavailable plate outlines with an explicit preview message instead of an unrelated Python indexing exception.
+- Apply to all TPU camera isolation choices (hard mount, compression pads and captured inserts); the underlying 3D cage and isolation dimensions are unchanged.
+- This fixes the editor rendering exception, not any separate CAD Boolean failures, which still need native FreeCAD testing.
+
+## 0.91.82 — TPU camera isolation preview and mount checks
+
+- Render TPU cage compression-pad and captured-insert openings in the correct camera Y/Z elevation without reusing the old bracket-outline preview. An invalid preview now reports its own error without blanking the entire canvas.
+- For screw-mounted TPU cages, check the actual lower mounting screw positions against bottom-plate support rather than the retired tabbed side-plate corners.
+- Remove obsolete side-plate/stack overlap and side-bracket material warnings from TPU cages. Native CAD solid, screw, camera-sweep and isolation checks remain in force.
+- Preserve existing hard-mount, compression-pad and captured-insert selections and dimensions; no automatic changes to saved settings.
+
+## 0.91.81 — TPU cage isolation and editor preview correction
+
+- Limit captured-insert and compression-pad recess cutters to their own left/right TPU cage cheek instead of cutting across the entire connected cage.
+- Replace the editor's old camera-bracket silhouette with a plate-contour-based TPU cheek elevation for TPU cage mode.
+- Use the camera isolation settings when drawing the TPU cage opening in the editor.
+- Avoid rejecting TPU isolation choices based on the obsolete carbon side-plate wall profile; final CAD solid validation remains required.
+- Keep M3 plate screws, threaded inserts and independent upper/lower contact reaches unchanged.
+
+## 0.91.80 — TPU cage plate-contact and surface transitions
+
+- Increase cage wall cross-sections to follow both finished plate front contours more accurately between the original three sampling locations.
+- Restrict the extra rearward wall reach needed by the heat-set insert bosses to their immediate plate mounting zones, avoiding the previous broad rearward swoop.
+- Replace the extruded lower centre connection with a shallow tapered loft. Its lower contact follows the finished bottom plate, while its upper front rim transitions inward to prevent projecting front corner lips.
+- Retain the unified cage, adjustable lower and upper attachment reaches, M3 mounting and camera isolation choices.
+- Requires visual and solid-validity testing in native FreeCAD with the user's True-X project; static tests do not validate OpenCASCADE loft operations.
+
+## 0.91.79 — TPU cage side profile and isolation seating correction
+
+- Removed the lower bridge's forward edge overhang, which created small lips at the cage corners.
+- Limited the hardware-boss rear extension to smooth local transitions near the mounting faces instead of pulling the whole side wall rearward.
+- Added dedicated compression-pad clearance using the configured pad dimensions, separate from the hard-mount holes and captured-insert window.
+- Preserved separate bottom/top carbon outline sampling, M3 insert pockets and unified lower bridge.
+- Native FreeCAD rendering and connectivity of soft-isolation cutouts still require testing.
+
+## 0.91.78 — TPU cage Boolean-stage diagnostics and contact handling
+
+- Separate heat-insert/camera screw openings, tilt-clearance cuts and carbon contact operations; identify the exact stage that disconnects the cage.
+- Skip unnecessary solid Boolean cuts when the camera envelope or carbon plate has no volume overlap with the TPU cage.
+- Preserve zero-volume top/bottom carbon contact faces without Boolean subtraction, reducing tolerance-sensitive BRep fragmentation.
+- Report solid counts and volumes in FreeCAD Report view, with specific error messages for camera tilt or plate-contact failures.
+- No TPU cage dimensional or styling changes. FreeCAD runtime validation remains necessary.
+
+## 0.91.77 — TPU cage performance diagnostics and outline sampling
+- Cache plate-edge discretization once per rebuild instead of running dozens of full BRep section intersections.
+- Reduce redundant loft and floor sampling while retaining smooth curved plate contacts.
+- Add elapsed-time checkpoints to the FreeCAD report log to identify remaining slow Boolean operations.
+- Preserve the unified cage and existing mounting/isolation geometry.
+
+## 0.91.76 — Unified plate-following TPU camera cage (experimental)
+
+- One cage style only: continuous lower TPU floor and independent upper side walls (no upper crossbar).
+- Independent top and bottom contact rear-reach settings, plus adjustable centre-floor reach and height.
+- Plate-outline following at each carbon contact; smooth spline wall and floor contours.
+- Existing M3 carbon clearance holes and blind metal heat-set insert pockets remain.
+- Hard mount, compression pads and captured insert camera mounting remain selectable.
+- Remove obsolete split/one-piece chooser and redundant bumper controls from editor.
+- Older saved designs migrate to the one-piece construction.
+- Native FreeCAD solid generation still requires testing; do not manufacture unchecked geometry.
+
+## 0.91.75 — TPU cage lower-bridge continuity
+
+- Anchor the one-piece TPU cage lower bridge inside both generated side walls, not merely against the plate front line.
+- Blend the bridge's rear outline smoothly from each supporting side wall to the independently adjustable central rear reach.
+- Increase controlled side-wall overlap to avoid disconnected solids in saved designs with extended camera mounting tabs.
+- Preserve the single plate-outline cage construction, camera isolation settings, and separate-side open bottom.
+
+**CAD verification:** Geometry must still be rebuilt and visually checked in native FreeCAD.
+
+## 0.91.74 — Rebuilt TPU camera cage as a single plate-outline design
+
+- Replaced the former bracket-plus-perimeter shell assembly with a dedicated TPU camera cage builder. The old camera bracket and previous full-board outline shell are no longer combined for TPU cages.
+- Shape each camera side directly from smooth lofted sections using the finished bottom-plate front edge and top-plate front edge, sampled across its physical width.
+- Keep the central opening above the camera and only construct an adjustable lower connection for one-piece cages. Its forward edge follows the bottom-plate profile.
+- Preserve existing heat-set mounting pockets, camera adjustment openings, captured isolation inserts, and the optional lower bridge reach/height controls.
+- Fail explicitly if the resulting cage is disconnected rather than silently deleting printable walls or falling back to the previous block geometry.
+- This is an unverified native-FreeCAD test build; detailed CAD operation and rendering tests still required.
+
+## 0.91.73 — True-X saved-design TPU cage recovery
+
+- Diagnosed the user-provided three-plate True-X FCStd design: its saved CameraMountLeft is a valid single solid, but newer full-perimeter cage generation fragments after its opening and collision cuts.
+- Add a bounded recovery path for one-piece TPU cages that rebuilds the outer cage front locally from each plate contact, anchored by overlapping the original mounting cheeks. This avoids creating or keeping disconnected fragments from the full-frame annular shell.
+- Preserve the existing camera mount and mounting slots, one-piece lower bridge controls, and camera motion clearance; reject fallback solids if they are disconnected or invalid.
+- Native FreeCAD rebuild not available in this environment. Test with the supplied saved FCStd and verify cage silhouette before manufacturing.
+
+## 0.91.72 — TPU cage disconnected shell fragments
+
+- Discard small, disconnected fragments produced when the plate-outline loft is intersected with the camera aperture and collision envelope. Preserve substantial left/right cage walls and the one-piece lower bridge.
+- Protect the original camera mounting solids when filtering fragments after screw/clearance cuts.
+- Increase the maximum number of bounded, local solid-joining attempts so multi-piece saved profiles are not left half-repaired by an eight-iteration limit.
+- Retain the existing adjustable lower-connection controls, isolation geometry, screw passages and plate outlines. This is a targeted test build: native FreeCAD Boolean verification and the user's saved design remain untested.
+
+## 0.91.71 — TPU camera cage solid connectivity
+
+- Repair small disconnected gaps between the plate-outline TPU cage wall and the original camera mounting cheek using localized solid TPU webs.
+- Check the repair against carbon plates, camera movement envelopes, mounting screw bores and camera isolation openings; do not bridge across the camera's centre opening.
+- Replace the generic CameraMountLeft solid-validation failure with a specific disconnected-cage diagnostic when a safe repair is impossible.
+- Keep the plate-following upper/lower contours and adjustable one-piece lower connection unchanged.
+- No native FreeCAD CAD-kernel validation was available; test the saved design before manufacturing.
+
+## 0.91.70 — Saved design rebuild compatibility
+
+- Made cage perimeter resampling resilient to complex plate outline edge topology from existing saved designs.
+- Added a simpler matched-section loft fallback when the smoothed TPU cage shell cannot form a valid solid.
+- Added a lower-connection geometry fallback when the curved loft fails on a valid older frame outline.
+- Made the new lower-connection controls initialize with safe defaults when loading older settings.
+- Retained one-piece/separate-side options, upper/lower plate-outline contacts, mounting openings, and camera isolation settings.
+
+## 0.91.69 — Adjustable one-piece TPU cage lower connection
+
+- Added **Lower connection rear reach** and **Lower connection height** to Camera cage → TPU attachment. Both controls are enabled only for a one-piece TPU cage.
+- Rebuilt the lower connection with a smooth swept rear edge and lofted slope instead of a fixed-depth straight extrusion.
+- Trimmed the bridge to the actual plate-derived cage exterior to remove small forward lips at the side junctions.
+- Retained the existing plate outlines, camera-isolation system, screw access, and separate-side open bottom.
+
+## 0.91.68 — TPU camera cage profile controls and smoother contours
+
+- Disable and hide the camera cage front/rear shape-profile controls when TPU cage construction is selected; restore them for carbon and aluminium cage types.
+- Bypass the legacy front/rear profile shaping in TPU camera mounting geometry, so the TPU shape is controlled by the finished top and bottom carbon plate outlines.
+- Use evenly spaced arc-length samples and closed B-spline perimeter wires for smoother cage loft surfaces; increase vertical stations for smoother transitions.
+- Preserve open camera centre, one-piece-only short lower bridge, side screw accessibility and camera isolation settings.
+- Native FreeCAD/OpenCASCADE geometry validation is still required.
+
+## 0.91.67 — TPU camera cage opening and accessible camera mounts
+
+- Remove the full-width upper/lower cage contact bands that filled the camera aperture.
+- Preserve an open centre above the camera; create a lower cross-bridge only for one-piece construction, limited to the frontmost 6 mm of the finished bottom-plate footprint.
+- Separate-side cages have no centre cross-bridge.
+- Extend the existing camera screw/arc and captured-insert openings out through the perimeter shell to restore mounting access; retain the original mounting bosses and TPU isolation options.
+- Preserve upper and lower outer contours independently from the finished plates; no carbon-plate cutouts.
+- Native FreeCAD loft/Boolean and assembly checks are still required.
+
+## 0.91.66 — TPU cage plate-to-plate outline profiles
+
+- Construct lower and upper TPU cage perimeter profiles independently from the finished bottom and top plate outlines.
+- Loft between those contours; front extension is limited to the intermediate height.
+- Generate plate-following perimeter regardless of the front-bumper toggle.
+- Preserve existing camera mounting bosses and isolation pathways.
+- This build requires native FreeCAD loft and Boolean testing.
+
+## v0.91.66 — TPU camera cage perimeter reconstruction
+- Rebuild the optional TPU front cage as physical perimeter geometry taken from the finished bottom plate outer wire, not an adjusted flat cheek profile.
+- Add side cheeks, front camera aperture and top/bottom connecting rails; support both one-piece and separate-side construction.
+- Keep the existing camera mounting screws, M3 insert pockets, and TPU camera isolation modes; do not add duplicate isolation controls.
+- Maintain the genuine plate-contact outline and do not cut carbon to make the cage fit.
+- Update cage footprint preview to show the perimeter option on separate side constructions.
+- Native FreeCAD solid and Boolean regression testing still required.
+
+## v0.91.64 — TPU camera cage outline and isolation controls
+
+- Clip the lower camera-cage contact against the **actual finished bottom-plate perimeter**, including shaped corners and nose features, instead of relying on a single sampled front-edge position. This affects the TPU part only; no carbon cutouts are generated.
+- Preserve the cage's forward protective profile **above** its plate contact; the mounting cheek's X span and the existing top/bottom heat-set insert bosses remain unchanged.
+- Return **Hard mount**, **Compression pads**, and **Captured inserts** to **TPU → Camera isolation** as the single camera-isolation selection. The FPV camera-cage section retains its own cage construction, fixed/variable tilt and screw-position controls, not a duplicate isolation mode.
+- This is a geometry/contact correction requiring native FreeCAD checks on the user's chosen plate shape and one-piece/separate TPU cage variants.
+
+## v0.91.63 — TPU camera cage front and mounting support
+
+- Incorporated the TPU cage's forward protection into a smoothly curved camera-side cheek profile, avoiding the old protruding rectangular bumper block.
+- Preserved the bottom-carbon contact outline while allowing the cage nose to extend forward above the bottom plate; upper contact and left/right mounting positions remain unchanged.
+- Allowed the front top and bottom TPU mounting screws to approach the front contact edge with 2 mm of material outside the M3 plate opening; separate carbon/aluminium tab requirements are retained.
+- Preserved Hard mount, Compression pads, and Captured inserts as camera isolation choices for TPU cages. TPU screw and heat-set insert positions continue following the existing mounting controls.
+
+## v0.91.62 — VTX mounting support and permitted body overhang
+
+- Require the complete VTX mounting-hole pattern (including edge material) to remain supported by the rear carrier: mid plate for three-plate frames or bottom plate for two-plate frames.
+- Permit the VTX housing to extend past the sides or rear of its carbon carrier rather than treating its entire body footprint as mandatory deck coverage.
+- Remove the incorrect top-plate requirement to cover the VTX body; retain vertical overlap checks for the actual area beneath the top plate.
+- Make automatic rear reach depend on the fixing pattern rather than the enclosure length, and clarify the VTX/side-guard editor guidance.
+- Continue validating standoff interference and existing structural constraints, retaining exact side-guard collisions and adding exact VTX-versus-propeller interference checks.
+
+## v0.91.61 — New-frame battery strap defaults
+
+- Start the New frame editor with top-plate battery strap openings disabled.
+- Retain user-selected slot dimensions and styles for later enabling.
+- Edit frame and Load settings continue to respect the saved strap-slot state; existing frame geometry is unchanged.
+
+## v0.91.60 — LiPo reference appearance
+
+- Replace the orange detailed LiPo wrapper with a muted graphite-slate finish while preserving the recessed cell seams and 3S–8S individual cell layers.
+- Match the simple 3D LiPo reference and the 2D plan preview to the updated battery colour.
+- Keep dimensions, geometry, connector details, and existing help documentation unchanged.
+
+## v0.91.59 — Stable LiPo cell seams
+
+- Replace the continuous orange LiPo side-wrapper surfaces with cell-aligned 3D panels separated by shallow recessed seams.
+- Reveal dark, physically recessed backing in each seam rather than relying on cell edges covered by the outer wrapper.
+- Retain 3S–8S cell counts, user-editable pack dimensions, balance-connector detailing and existing frame-clearance behavior.
+- Preserve cached detailed reference generation; no additional expensive Boolean cuts are necessary.
+
+## v0.91.58 — LiPo cell-count input compatibility
+
+- Accept valid whole-number battery series counts stored as floats (such as 6.0), including values from the Qt editor and saved configurations.
+- Reject fractional, non-finite or out-of-range battery cell counts without silently rounding them.
+- Preserve the editable 3S–8S battery presets and detailed cell-by-cell reference geometry.
+
+## v0.91.57 — LiPo references
+
+- Added nominal 3S–8S LiPo presets with editable width, length, height and mass.
+- Editing pack measurements switches the selection to Custom dimensions without resetting the cell count.
+- The detailed LiPo model now renders a separate pouch layer for each cell and a matching balance connector contact count.
+- Existing saved designs retain their measurements and import as Custom dimensions.
+
+## 0.91.56 — Editor and virtual camera performance; revised Help manual
+
+- Avoid unnecessary rebuilding of the preview-mode selector on routine parameter refreshes; keep the selected view when available modes are unchanged.
+- Reuse completed virtual camera ray projections for unchanged geometry, optical settings, tilt, and aspect, including when reviewing recording crop overlays.
+- Update bundled Help PDF version labels and add instructions for current digital/analog camera selection, DJI O4 Pro fit checks, camera preview, and bumper handling.
+- Keep carbon plates unchanged by O4 camera clearance routines. Existing physical collision detection remains enabled.
+
+## v0.91.55 — Video-system camera selection filtering
+
+- The physical camera dropdown now displays only analog models for Analog and only digital models for Digital; Custom measurements is available in both modes.
+- Switching video systems preserves custom physical dimensions while resetting a previously selected incompatible camera profile to Custom measurements and refreshing the optical preview defaults.
+- Loading presets filters the visible choices without firing camera-selection callbacks or changing the saved camera dimensions.
+- Switching away from an O4 Pro equipment profile to Analog releases the dedicated digital equipment lock. Choosing O4 Pro equipment explicitly switches to Digital.
+- Frame geometry, camera clearances and carbon/TPU manufacturing geometry are unchanged.
+
+## v0.91.54 — Integrated DJI O4 Pro bumper lip false-collision fix
+
+- Remove the unconditional height-only rejection of the DJI O4 Pro against the integrated TPU bumper lip. A forward-projecting lens may extend below the lip height without intersecting that lip in three dimensions.
+- Keep the integrated front opening's structural lower limit and retain the later exact rotated-camera Boolean clearance against printable TPU. The finished bumper must remain one connected valid solid; real collisions are not silently accepted.
+- Carbon bottom and top plate outlines are unchanged. No automatic camera plate cutouts.
+- Native FreeCAD/OCCT rebuild against the user's exact preset is still required; syntax checks alone cannot guarantee the integrated loft and finishing Boolean succeed.
+
+## v0.91.51 — DJI O4 Pro automatic mounting-centre alignment
+
+- Fixed automatic front/back camera mounting alignment for the DJI O4 Pro. The camera has an asymmetric 16 mm rear-to-screw offset, so its screw-pattern midpoint must be translated onto the **actual sloping cage centreline** rather than aligning only the camera-body datum. The previous placement also missed the upper attachment's rearward offset.
+- Fixed automatic vertical centring to prefer the centre of the real screw-travel envelope where the O4 housing fits between the plates; retain the housing and screw clearance constraints introduced in v0.91.50.
+- Fixed and variable tilt, dual-slot and upper-pivot mounting use actual rotated screw locations. **Custom positions and user-set forward/back offsets remain intentional offsets** and are not silently removed.
+- Corrected the editor information label from “camera centre” to “camera datum” to distinguish the body datum from the mounting pattern.
+- Headless regression checks confirm the O4 screw-pattern travel midpoint aligns with the true cage centreline when the user offset is zero, and the saved 22 mm-standoff/three-plate hard-mount configuration still validates. The saved captured-insert preset requires Fit camera to reduce its insert opening; no silent changes to those dimensions were made.
+- Native FreeCAD GUI rebuilding and the final manufacturing-part collision/boolean verification have not been performed here.
+
+## v0.91.50 — DJI O4 Pro three-plate fit and automatic pivot correction
+
+- Fixed the DJI O4 Pro automatic pivot height: the asymmetric rotated camera **housing** now determines the height, rather than centring only the forward-mounted screw line. This avoids incorrectly sinking the rear casing into the bottom plate at moderate/high tilt.
+- Camera clearance uses the actual bottom-to-top plate cavity from `plate_levels` (e.g. 30 mm for 22 mm standoffs over a 2.5 mm bottom, 5 mm arm, and 3 mm mid plate). Camera/body parts can project through real front openings when exact CAD geometry permits it.
+- `Fit camera` no longer raises O4 standoff height merely because its projected lens envelope crosses a flat-plate plane. The action proposes extra height only if the O4 side screw pattern cannot fit in the real cavity.
+- `Fit camera` now finds the largest feasible O4 TPU insert diameter / retaining lip or compression pad that retains the configured cage edge web over the selected tilt range. Resizing is explicit: imported presets and user-specified printed-part fits are not silently changed.
+- More specific DJI O4 Pro exact-interference messages include the failing component, tilt angle, and real plate gap. True carbon/TPU overlaps continue to be rejected; the full TPU front-bumper generator remains unchanged.
+- Headless parametric regression and actual OpenCASCADE intersection tests against saved Analog Buster carbon solids verified O4 camera clearance at 0–45° with an automatically centred camera and 30 mm cavity. A full native FreeCAD rebuild remains unverified.
+
+## v0.91.49 — DJI O4 Pro mounting & responsiveness
+
+- Correct DJI O4 Pro side-thread positions: both screws on each side remain 16 mm apart vertically; the shared screw line now measures **16 mm forward from the rear housing face** (not the earlier -1.7 mm centre-offset estimate). The detailed thread markers and physical camera/cage fit share this same coordinate. Existing O4 mounts will be rebuilt at the corrected location; inspect them before machining.
+- Balance the **automatic** DJI O4 Pro cage screw pattern vertically around its actual offset 16 mm mounting line. This avoids a false insert-edge failure in the saved Analog Buster 25-degree fixed-tilt configuration after the new screw correction. Custom pivot heights remain unchanged; impossible variable tilt/insert combinations still fail the material support check.
+- Group all manufacturer camera profiles into **Analog cameras** and **Digital cameras** in the unified physical camera selector; DJI O4 Pro is available in Digital cameras. Keep the older DJI equipment enum internally for saved-preset compatibility, including its dedicated air-unit dimensions. Switching away from DJI also releases its camera-dimension locks.
+- Improve the FPV camera renderer by caching lens rays across tilt tests, reducing bounding-volume hierarchy construction passes, and avoiding unnecessary copies of non-physical detailed reference models when preparing the ray mesh. Keep every physical part in the obstruction calculation and preserve image resolution, ray coverage, FOV and crop analysis.
+- Fix the tilt-range sweep performing **two complete ray casts per angle** just to read two statistics. Both percentages now come from one trace at each angle.
+- Reduce needless editor work: reuse the recorded vector frame preview when only virtual-optics settings change, and coalesce rapid field edits with a slightly longer editor refresh debounce (140 ms instead of 80 ms).
+- Display separate geometry/mesh and ray-casting timings in the camera-view result so slow builds versus slow tracing can be diagnosed without new macros.
+- No changes to the existing standard or full-height sculpted TPU bumper shape, other analog/digital camera mount profiles, toolbar graphics or README. Native FreeCAD GUI and complete assembly tests remain outstanding.
+
+## v0.91.48 — DJI O4 Pro camera reference refinement
+
+- Rebuilt the O4 Pro camera's detailed housing as a rounded, gently tapered single BRep sharing its silhouette with the collision probe, instead of a chamfered rectangular block.
+- Reworked the camera optics with a close-fitting front collar, recessed glass, concentric retaining rings and small housing/side-thread details, guided by photographs of the actual DJI O4 Pro module.
+- Kept the published 25.55 mm front-to-back, 20 mm width and 23.3 mm height, four M2 side holes at 16 mm vertical pitch, and the existing estimated -1.7 mm fore/aft screw line unchanged to preserve existing mount compatibility.
+- The camera reference stays an approximate presentation model, not certified dimensional CAD; the rear screw offset and housing curvature remain undimensioned in DJI's drawing.
+- Other physical camera profiles, DJI transmission module, editor options, full-height TPU bumper, icons, presets, README, and Help PDF are unchanged.
+
+## v0.91.47 — Automatically sync virtual FPV view to selected camera
+
+- Selecting any non-DJI physical camera (or custom measurements) automatically returns the virtual camera to **Follow selected camera**, manufacturer/default aspect, and automatic FOV/optical pupil estimate; no previous camera's manual optical calibration leaks into the newly selected camera. Users can still intentionally override optics afterward.
+- Selecting DJI O3/O4/O4 Pro through the FPV system selector also resets the virtual view to follow that chosen system. DJI camera references and mounting geometry are unchanged.
+- Show the currently active optical camera name, approximate diagonal FOV, aspect and follow/manual status directly in FPV > Camera view.
+- When the chosen physical camera changes, update the recording-mode menu and clear any stale rendered camera image and obstruction report. Rendering remains manual to avoid costly frame rebuilding on every editor change.
+- Preserve old presets and all physical camera mounting dimensions, TPU geometry, manufacturing, help PDF and toolbar assets.
+
+## v0.91.46 — Physical camera library and camera-view optics
+
+- Added selectable non-DJI camera references spanning analog 14/19/22 mm, Walksnail and HDZero 14/19 mm, plus editable generic 20/28 mm placeholders. Presets contain real published face sizes/FOV where available and explicitly marked estimates for undimensioned body lengths and M2 hole insets.
+- Made the existing rear-face-to-side-screw offset the shared editable custom-camera measurement for mount holes, pivot, collision model and detailed reference. Single-screw cameras use a friction/variable pivot; existing preset loads are unchanged.
+- Auto-linked **Follow selected camera** to the physical camera's matching optical model. Added published Foxeer T-Rex Mini 4:3/16:9 FOV distinctions, analog Foxeer/RunCam/Caddx and digital Walksnail/HDZero lens presets, while preserving manual FOV/aspect overrides.
+- Placed the virtual optical viewpoint near the selected lens front rather than a fixed 3 mm outside the housing for non-DJI cameras. Simulation is still an equidistant-fisheye approximation, not calibrated distortion/stabilization.
+- Expanded the rounded/tapered non-DJI housing references to include nano variants. DJI and all TPU bumper generation remain untouched.
+
+## v0.91.45 — Caddx Ratel Pro one-screw camera profile
+
+- Add Caddx Ratel Pro physical camera profile under FPV > Camera (19 x 19 mm housing, one side M2 screw per side, 15 mm lens, supplied drawing overall length 28.5 mm). A ~14.2 mm body-only depth, ~14.3 mm forward lens projection, and ~9 mm rear thread inset are drawing-derived estimates and remain editable.
+- Add an independent black Caddx Ratel Pro detailed appearance with tapered shoulders and one M2 brass mounting insert on each side. Foxeer T-Rex Mini and other profiles are unchanged; DJI references remain untouched.
+- Correct single-screw camera plates to position their pivot at the real local camera thread coordinate. Rotate a variable-angle single-screw body around that fixed pivot, not around the camera body's centre; prevent false plate/camera offset and phantom collision warnings.
+- Selecting Ratel Pro changes a fixed two-screw mount to a single-screw variable friction pivot, retaining the selected camera tilt. It does not silently modify other saved camera profiles.
+- Add optional Ratel Pro virtual camera optical preset with Caddx's quoted 125-degree FOV (axis and recording crop uncalibrated); follow the physical model automatically when optical selection is 'Follow selected camera'.
+
+## v0.91.44 — Physical FPV camera housings and correct mounting holes
+
+- Replace the generic rear cuboid with a tapered three-plane FPV housing used by both collision and detailed reference models.
+- Add an explicit Foxeer T-Rex Mini physical preset: 22 x 22 mm face, 6.3 mm screw pitch, 7.7 mm rear screw inset. Approximate 14 mm body-only depth / 10.5 mm lens projection remain editable.
+- Add editable physical screw rear inset and lens projection in FPV > Camera; 0 screw inset preserves legacy centred mounts.
+- Align real cage holes and displayed brass side inserts with the same fore/aft position; keep DJI O4 model unchanged.
+- Preserve all saved legacy camera dimensions and mounting data until user selects the physical preset.
+
+## v0.91.43 — FPV camera fit and detailed camera references
+
+- Fix false tilt-clearance rejections for non-DJI FPV cameras: replace the conservative full cuboid / mandatory 0.2 mm validation margin with a dimension-driven shaped camera housing and round lens probe checked against actual generated frame solids. Camera screw support, physical interference and variable-range checks remain active.
+- Use one shared non-DJI housing/lens specification for analytic camera extents, CAD collision probes and detailed references; keep the DJI O4 Pro mounting and detailed camera code unchanged.
+- Redesign analog and digital detailed camera references with rounded camera housings, chamfered side profiles, front bezels, stepped/knurled M8/M12-style lenses, recessed lens glass, metal side screw inserts and rear connector details. Analog and digital appearances differ. New optional visual-only styles: Foxeer T-Rex Mini, RunCam Phoenix 2, Caddx Ratel 2, Walksnail Avatar HD Pro and HDZero Micro V3. Models are manufacturer-inspired rather than exact CAD reproductions.
+- Improve the existing Fit camera command to expand undersized generic pad/insert rectangles to surround the currently configured screw pitch and tilt path. Report the specific minimum required insert width and height instead of repetitive generic tilt errors. Neither visual style nor optical profile automatically changes the user's measured camera body dimensions or screw spacing.
+- Preserve existing icons, full-height front bumper, saved presets, README and Help PDF. New Camera reference appearance selector is under Finishing > Detailed references.
+
+## v0.91.42 — Distinct RotorForge toolbar icons
+
+- Replace toolbar command icons for New Frame, Edit Frame, Export Frame, Toggle References, Hardware References, Front Isometric, and Help PDF with distinct cyan/teal icon art.
+- Keep existing command names, keyboard/menu behavior, geometry, saved designs, exports, and manuals unchanged.
+- Supply transparent high-resolution PNG assets inside the FreeCAD package for stable toolbar rendering.
+
+## v0.91.41 — Virtual FPV camera tilt alignment
+
+- Fix **FPV → Camera view → Use current camera tilt** for adjustable camera mounts: read the actual **CameraTilt** setting instead of the mechanical arc-slot reference midpoint.
+- Make the disabled preview tilt field display the selected FPV camera angle and resync it when re-enabling **Use current camera tilt**.
+- Keep the manual override preview-only, and preserve the existing tilt-range validity warning when an override lies outside a variable mount's adjustment range.
+- Leave the mounting geometry's separate midpoint reference, frame generation, TPU bumpers, recording crops, other settings, and presets unchanged.
+
+## v0.91.40 — FPV recording-mode crop overlays
+
+- Add a camera-dependent recording-mode selector to **FPV → Camera view**: DJI O3/O4/O4 Pro recording resolutions and supported aspect choices, Walksnail HD Pro/Nano modes, HDZero Micro/Nano feed modes, and generic analog/DVR aspect presets.
+- Render the existing frame/TPU obstruction ray trace through a full reference canvas and shade the areas outside a selected recording window. Highlight the estimated captured region with a yellow outline, preserving the optical-centre crosshair and dashed central-area guide.
+- Recompute visible obstruction percentages specifically **inside the chosen recording area**, and identify the frame/TPU parts contributing to that area.
+- Add optional 0–30% **manual additional crop** for stabilization or other cropping when the user has measured it. Zero assumes no *additional* crop, not that the device's EIS is crop-free. Changing modes/crop can redraw the current ray-traced view without rebuilding the frame.
+- Use manufacturer-listed resolution and aspect modes where available, but DO NOT pretend to know unpublished sensor windows, proprietary lens distortion, RockSteady/Gyroflow crop, or FPS-specific FOV. Some HDZero modes are live-feed formats rather than camera-side recordings.
+- Keep the feature preview-only: no modification to camera hardware geometry, frame construction, stored presets, README, TPU bumper, or STL/STEP exports.
+
+## v0.91.39 — Virtual FPV camera view
+
+- Add **FPV → Camera view** with camera-specific nominal diagonal field of view, 16:9/4:3 options and override for measured lens FOV and optical entrance-pupil offset.
+- Render a first-obstruction ray trace against the actual generated frame, camera-cage and TPU bumper solids; mark blocked regions by part category, report full/central image coverage, and inspect alternate camera tilt angles.
+- Include DJI O3, O4 and O4 Pro, Walksnail Avatar HD Pro/Nano, HDZero Micro/Nano and approximate analog nano/micro/mini/full-body optics. These presets are optical, not automatic mechanical-size modifications.
+- Use an approximate equidistant fisheye map. Manufacturer maximum FOV does not reproduce their lens distortion, live-feed crop, aspect mode, Gyroflow/RockSteady or all optical entrance-pupil locations. This is a geometric fit preview and should be confirmed against real video.
+- Keep all existing bumper modes and frame geometry unchanged. Camera-view fields do not invalidate the geometry build cache.
+
+## v0.91.38 — Adaptive lower-edge fillet for integrated front bumper
+
+- Round the bottommost outside edge of the one-piece TPU nose and bottom-plate gripping shoe, creating a softer lower perimeter.
+- Automatically limit the fillet to the available sole and bumper-wall thickness. Reduce the radius, or omit it entirely when too little material remains.
+- Construct the fillet before cutting the carbon mounting cavity to preserve the plate fit, retaining lip, camera opening and screw access.
+- Keep the standard bottom-plate-only bumper and existing preset settings unchanged. If the CAD kernel rejects a radius, retry smaller radii without failing the whole frame.
+
+## v0.91.37 — Adjustable integrated camera-cage front projection
+
+- Add a dedicated **Camera cage front projection** control (0–8 mm, 0.5 mm steps) to the **Integrated camera cage bumper** settings.
+- Increase only the OUTER front TPU profile around the camera cage, with a smooth upward ramp from the existing lower nose. The internal camera aperture, carbon side-plate fit and bottom-plate mounting cavity are unchanged.
+- Preserve the full-height top-plate front contour while allowing the selected additional exterior projection at the upper brow.
+- Keep the standard bottom-plate bumper and existing presets unchanged. Earlier presets load with front projection = 0 mm.
+- Extend the 2D bumper preview and input validation to reflect the new setting.
+
+## v0.91.36 — Restore sculpted integrated camera bumper
+
+- Fix v0.91.35 regression: the integrated shoulder no longer extends to the rear mounting edge of the entire camera side plate.
+- Restore the fluid front-cage shoulder outline while extending its front grip depth by at most 2.5 mm when needed.
+- Keep the adjustable lower camera opening, with a safe minimum structural corner radius at small centre-reach settings.
+- Preserve both exclusive bumper versions, the top-plate outline, lens clearance and all existing presets.
+
+## 0.91.35
+
+- Fix the integrated TPU bumper's ineffective camera-shoulder reach control. The setting now directly modifies the lower camera aperture and shoulder transition: **0 mm** retains the original full rounded U, and **1–20 mm** chooses the actual lower inward reach (capped by the available opening width). The upper camera opening remains unchanged.
+- Extend the integrated bumper's sculpted outer rear contour around the actual camera side-plate polygon instead of following only its front edge; ease into the wider shoulders above the mounting shoe to reduce exposed carbon near the top.
+- Lower the central camera opening only when the actual camera tilt/envelope requires it, reducing isolated crescent/slit cutouts from the subsequent camera-body subtraction. Reject configurations where the camera intrudes into the bottom mounting lip.
+- Preserve the standard bottom-plate bumper, internal plate/camera cavity cuts, original top-plate contour handling, and the rest of the workbench.
+- Update the reach field label/tool-tip and make its editor control select whole millimetres (0, 1, ..., 20). The default of 0 preserves the previous full-sweep shape for new presets; existing explicit values are respected.
+
+## 0.91.34
+
+- Broaden the integrated camera bumper's rear side silhouette into a continuous, tapered TPU shoulder from the original bottom shoe to the top plate, filling the thin triangular area behind each camera-cage rail.
+- Construct that extra material in the same sole-to-crown loft, not as a fused-on rib, so the front nose and outside curves remain smooth.
+- Leave the camera opening, front contour, bottom-plate mounting cavity, and internal camera/plate clearances unchanged. Preserve standard bottom-plate-only bumper mode.
+
+## 0.91.33
+
+- Rebuilt the integrated camera-cage bumper as a single continuous loft from the bottom-plate shoe sole to the upper camera protection. The bottom collar is no longer a separately fused solid that creates a hard horizontal transition.
+- Used a rounded, curved nose profile that flows tangentially into the widening camera shoulders.
+- Cut the bottom-plate mounting cavity, camera opening, and other required clearances from the unified shell.
+- Left the standard bottom-plate bumper and existing bumper settings unchanged.
+
+## 0.91.32
+
+- Replace the integrated bumper's two separate lofted cage legs with one full-width sculpted TPU shell, using a smoothly lofted nose-to-cage shoulder surface and a circular lower camera opening cut through the single shell.
+- Keep the original bottom-plate-only front bumper as an exclusive, unchanged alternative.
+- Preserve the exact bottom-plate mounting collar, retaining recess, camera enclosure clearances, cutouts and other frame component collision cuts.
+- Make the integrated camera bumper height 0 reach the top-plate underside and conform its front brow toward the sampled top-plate outline.
+- Honour camera grip depth and centre blend reach in the integrated shell geometry; retain preset loading and two bumper type switching.
+- Use analytic radius edges for the centre camera opening and a smooth fairing loft, with a ruled-loft fallback only when OCC cannot form a valid smooth solid.
+
+## 0.91.31
+
+- Added an exclusive Front bumper version selector: original Bottom plate bumper or independently built Integrated camera cage bumper.
+- Preserved the normal slide-on shoe without camera-cage additions. Old camera-cover presets migrate to the integrated variant.
+- Replaced the legacy add-on-cover workflow in the full variant with dedicated rounded-nose, sculpted side-support geometry anchored within the one-piece bumper.
+- Retained full-height top-plate outline following and adjustable camera-guard height, grip depth, and centre reach.
+- Retained bottom-plate fit, camera and side-plate clearance, carbon subtraction, and one-solid validity checks.
+
+## 0.91.30
+
+- Replace the faceted camera-cage bumper loft with a smooth OpenCASCADE loft while preserving a ruled-loft fallback for geometries the CAD kernel cannot interpolate reliably.
+- Correct the outline-trim height: trim the curved support only at its shoe contact, preventing the triangular voids and pinched edges caused by cutting into the support above the bumper.
+- Reduce the root U-slot depth to form a fuller, smoothly connected shoulder at the bumper rather than leaving a deep hollow notch.
+- Keep the full-height nose behind the real top-plate front edge instead of pushing it beyond the plate outline. Full-height = 0 still reaches the top-plate underside.
+- Remove the redundant interior cutter on the already-open U-shaped rails; the normal physical camera-envelope and frame-component clearance subtractions remain in place.
+- Preserve the user's existing settings, adjustable centre blend reach, TPU shoe outline and camera mounting geometry. No installation macros or README changes.
+
+## 0.91.29
+
+- Sculpt the front camera TPU cover with a broad, tangent-controlled transition from each rounded cage grip into the existing front shoe; round the sharp outer profile bends without changing the real camera-cage mating clearance.
+- Fix camera-cover height `0 = full`: the finished TPU now reaches the underside of the top plate without the previous 0.35 mm forced air gap.
+- Read the actual finished top-plate front perimeter (including curved shoulders/recesses) and smoothly sweep the upper TPU brow forward to that outline; leave the inside cage-grip surfaces anchored to the real camera cage.
+- Keep partial-height covers at their requested height, preserve lower outline clipping, adjustable centre reach, camera tilt clearance, and the connected one-piece bumper construction of 0.91.28.
+- Update the two-dimensional preview and height-control help text. No new macros or changes to saved presets.
+
+## 0.91.28
+
+- Rebuild each camera-cage TPU grip and its full-width shoe transition as one continuous rounded loft, removing the Boolean mating seam and mid-transition gap.
+- Shape the transition foot as a compact, embedded support rather than a deep open-ended U that leaves visible voids at the rear of the bumper.
+- Clip the lower transition against the actual curved front-bumper outline, removing toe overhangs without trimming the upper camera-grip geometry.
+- Preserve camera aperture, top-plate clearance, 0–20 mm centre-blend reach and existing saved frame parameters.
+
+## 0.91.27
+
+- Preserve the actual rounded U-shaped camera-grip width all the way into the front bumper; remove the narrow rectangular shoulder neck.
+- Loft a continuously curved, full-width lower shoulder that expands into the TPU shoe, while keeping the camera channel open and upper profile inside the round grip.
+- Restrict the bumper-outline trim to the shoe-contact region, so the loft is not narrowed above the retaining lip.
+- Preserve the adjustable centre blend reach, rounded grip ends, top plate clearance, and existing frame/preset settings.
+- Validate the revised two-sided bumper geometry and camera plate cuts against the saved Analog Buster design.
+
+## 0.91.26
+
+- Remove the tiny crescent-shaped lip artifacts on both rounded TPU camera-cage covers: shorten the rear tips slightly and bury the blend termination within the actual curved front wall rather than its rectangular bounding box.
+- Reshape the raised camera-cover shoulder into a fluid shoe-level taper, starting in front of the open U-channel, without the exposed ledge or inner fins.
+- Add **Camera cover centre blend reach** (0–20 mm, default 2 mm) to independently expand both lower support transitions toward the middle of the existing shoe, without widening its outer footprint.
+- Update the TPU Front bumper editor and 2D preview for the new control; preserve existing presets and all other bumper settings.
+
+## 0.91.25
+
+- Fix v0.91.24's accidental rectangular-grip fallback: use the already calculated rounded camera-cover cross-sections to create the actual solid.
+- Round both front nose corners and the open rear ends of each TPU camera-cage grip; retain the hollow camera channel and two-sided symmetry.
+- Loft through actual camera-cage profile corners with a precise ruled path and a curved alternative when needed; never silently return a square grip.
+- Retain the previously working short shoe-to-cage transition, clipping to the actual front bumper outline and stopping 0.35 mm below the top plate.
+- Keep all existing frame parameters and other workbench functions unchanged; no macros added.
+
+## 0.91.24
+
+- Restore genuinely rounded outer camera-cover corners using a circular-section U-channel; retain the direct open-rear construction that successfully builds in v0.91.23.
+- Follow only the actual camera-cage profile corners to eliminate redundant loft stations and the visible ribbing of earlier full-height lofts.
+- Rebuild the lower bumper-to-cover shoulder with rounded spline-free cross-sections, a smooth zero-slope taper, and a recessed termination inside the cage cover instead of an exposed shelf.
+- Limit the lower shoulder to the existing front shoe silhouette and keep the top cover 0.35 mm below the top plate, preserving all saved frame dimensions and camera clearances.
+- Keep the v0.91.23 construction as a safe fallback for kernel-specific loft problems; no new options or diagnostic macros.
+
+## 0.91.23
+
+- Replace the failing full-height front-bumper camera-cover loft and its landing checks with two direct cage-profile U grips and short, stable lower transitions.
+- Crop the entire lower camera-cover transition to the finished bumper shoe outline, so no shoulder projects beyond the toe.
+- Stop the covers 0.35 mm below the underside of the real top plate; preserve the open U channel, camera tilt clearances, and screw/part subtraction.
+- Maintain the existing front bumper geometry, shoe settings, and saved presets. No installation or version-check macros.
+
+## 0.91.22
+
+- Restore the earlier, successfully building front-bumper shoulder loft instead of the new camera-cover landing algorithm, which could reject valid shoe designs regardless of reach.
+- Trim the lower transition where it joins the actual bumper outline while allowing the upper camera cage to slope rearward, preserving full-height protection.
+- Cut the cover 0.35 mm below the actual top plate lower face, including custom standoff and two-/three-plate configurations.
+- Preserve existing shoe geometry, U-shaped camera grip, camera-clearance subtraction, and true solid connection to the bumper. No new macros or preset changes.
+
+## 0.91.21
+
+- Add a FreeCAD repair installer to update the *actually loaded* RotorForge workbench folder. Addresses old bumper modules continuing to run after installing a newer ZIP or keeping duplicate installations.
+- Installer displays the current source path, backs up the workbench before copying, and requires a FreeCAD restart (rather than pretending loaded Python modules have been updated).
+- Retain the adaptive camera-cover-to-bumper landing geometry introduced in v0.91.20. No frame parameter changes.
+
+## 0.91.20
+
+- Fix curved/concave front-bumper shoes failing with "no usable landing inside the actual shoe outline." The cage cover now chooses its base by actual U-channel contact instead of demanding a full rectangular landing.
+- Anchor supports to the existing bumper's real upper TPU lip, rather than empty space within the outer silhouette.
+- Taper buried U-channel root wall into the specified full-wall thickness; trim any buried extension to the actual shoe outline to avoid unwanted lower protrusions.
+- Preserve camera clearance, the existing frame settings and rounded upper cover.
+
+## 0.91.19
+
+- Fix the front-bumper camera-cover landing check rejecting valid designs with "no usable landing inside the shoe outline". The old check called solid containment on a planar face.
+- Verify the entire candidate footprint with a planar boolean-intersection area check, preserving the original curved bumper outline without unwanted overhang.
+- Add a local offset search for legitimate concave/tapered bumper profiles, without reducing the specified bumper wall thickness.
+- Keep the v0.91.18 U-channel loft, rounded upper cover rim, and all frame/preset values unchanged.
+
+## 0.91.18
+
+- Fixed the camera-cage front bumper failure that surfaced as FreeCAD's "Null shape" error. The cover is now lofted as a direct, open-rear U-channel rather than cutting a slot through a densely segmented closed loft.
+- Added a true-outline-constrained landing at the shoe and a smooth transition into the sloping camera cage, with a small rounded-in top termination.
+- Removed a redundant potentially empty boolean intersection and added explicit connection and camera-sweep checks with descriptive error messages.
+- Retained the saved frame geometry, O4 camera mounting corrections, and 2 mm camera-cage edge allowance.
+
+## 0.91.17
+
+- Rebuilt front bumper camera-cage shoulders as reduced-seam C1-continuous lofts to remove ribbed/wavy top artifacts.
+- Shortened and smoothed the transition from the actual bottom-shoe outline into each side camera cover; retain the true shoe footprint and protective U-channel.
+- Added a gentle rolled upper termination and small top-plate clearance to prevent overhangs.
+- Increased shoulder-to-shoe engagement at the base without changing camera mounting or other frame dimensions.
+
+## v0.91.16 — DJI O4 Pro existing-preset clearance fix
+
+- Switching an existing design to DJI O4 Pro now replaces the former default 4 mm cage-edge web with the supported 2 mm web, without altering other frame settings.
+- Clarify the O4 insert clearance error with the measured available and required distances.
+- Verify the Analog Buster preset's 25-degree O4 camera mounting coordinates, envelope and insert fit in portable validation. The FreeCAD solid-generation engine is required for final manufacturing verification.
+
+## v0.91.15 — DJI O4 Pro camera screw placement
+
+- Align the O4 Pro screw paths, tilt slots, TPU inserts, hardware and detailed camera reference to one common camera-side M2 mounting datum (16 mm pitch, rearward of the lens/body centre).
+- Use an approximate O4 casing profile and cylindrical lens instead of the rectangular camera envelope for assembly interference checks.
+- Avoid rejecting O4 camera clearances from a bounding box before checking the actual top/bottom plate solids and cutouts.
+- Limit O4 Pro camera screw penetration to DJI’s 2 mm maximum; retain the 2 mm camera cage edge web and physical collision checks.
+
+# v0.91.3 - camera protection and continuous arm-tip joins
+
+## 0.91.14
+
+- Replace straight full-height camera bumper pillars with a curved transition from the finished shoe outline to the camera cage grip.
+- Retain the original bottom shoe and plate fit; follow the cage front through the upper section to the top plate.
+- Update the projected protection preview and Help explanation. No workbench tests run for this release.
+
+## 0.91.13
+
+- Keep full-height camera bumper shoulders within the bottom bumper outline.
+- End unclamped split TPU cages smoothly on the bottom-plate edge without a projecting front strip; retain the optional clamp and one-piece connection.
+- Land side-guard extensions on the actual TPU cage and locally enlarged insert bosses.
+- Enable fixed or variable DJI O4 Pro tilt, with independent isolation pieces following each screw path and corresponding preview/support geometry.
+- Update Help controls and installation version. No workbench tests run for this release.
+
+## 0.91.12
+
+- Move the O4 Pro choice into FPV > Camera; preserve hard mounting and add independent compression pads as well as captured inserts.
+- Put O4 isolation dimensions in the TPU camera-isolation section.
+- Use 4.1 mm x 3.5 mm insert pockets and independent 3.2 mm plate clearance holes; bias local bosses outward and reject camera-fixing/pocket interference.
+- Restore full-height separate camera-bumper protection up to the top plate.
+- Add one-piece/split TPU cages, finished-bottom-outline front connections, adjustable split inward reach and optional bottom-plate clamps.
+- Update Help and installation guides. Workbench tests were not run at the user's request.
+
+## 0.91.11
+
+- Rename the widened X layout to Squashed X, including saved-design migration and Help.
+- TPU cages use M3 plate screws and local adjustable heat-set insert pockets and bosses; captured tabs are disabled.
+- Add an optional cage-integrated front bumper and conditional camera-cage subsection; disable the separate TPU shoe for TPU cages.
+- Add DJI O4 Air Unit Pro camera/VTX dimensions, M2 mounting pattern, two separate captured inserts per camera side, and a dedicated detailed camera reference.
+- Update the Help and installation guides. Workbench tests were not run for this release.
+
+## 0.91.10
+
+- Follow both inset tip and expanded motor-pad contours for tip cutouts; require 2 mm opening width and 4 mm2 area.
+- Keep TPU protector side walls continuous on rotated pads and limit sleeve access slots to the sole.
+- Extend the curved camera-bumper shoulder to the full selected cover height.
+- Update the Help and Installation guides.
+
+## 0.91.9
+
+- Derive arm-tip sleeve coverage from the complete motor-protector envelope instead of the first cap polygon, retaining coverage over blended shoulders.
+- Preserve motor seating clearance and the outward-only sleeve limit; update the Help guide.
+
+## 0.91.8
+
+- Make the curved camera-bumper shoulder define the lower outer surface, removing the overlapping rail toe at the shoe join.
+- Preserve the bottom bumper outline and cage fitting slot; update the Help guide.
+
+## 0.91.7
+- Clip camera-bumper shoulders to the actual bottom shoe outline, including shaped front edges.
+- Reshape outward motor-pad shoulders into a continuous envelope with stretched caps.
+- Differentiate the narrow elongated Oval cap from Round cap; add Tapered cap and Shallow arch.
+
+## 0.91.6
+- Keep arm-tip roots pad-aligned; direction now stretches the outward cap.
+- Replace the old tip list with four broad cap profiles; migrate saved styles.
+- Replace camera bumper struts with full-depth curved shoulder bodies.
+
+## 0.91.5
+- Smooth curved shoulder transitions between the shoe and camera grips.
+- Directional arm-tip extensions grow from the existing pad rim; motor-pad orientation stays unchanged.
+- Five broad impact-guard profiles added ahead of the existing shapes.
+
+## 0.91.4
+- Camera bumper protection wraps both cage faces with adjustable grip depth; original bottom shoe outline preserved.
+- Upper motor-protector sleeve restricted to the arm tip.
+- Six additional arm-tip shapes with mirrored orientation.
+
+- Add optional front-bumper rails following the front edge of each camera cage, with full-height or limited-height coverage and feet connected to the shoe.
+- Fill pad reliefs within the arm-tip attachment footprint so the join does not introduce unintended enclosed holes; retain the separately enabled tip cutout.
+- Keep TPU sleeve caps outside the motor reference diameter as well as the original pad footprint.
+- Split Camera cage into wrapping subtabs with an always-visible construction selector and search routing to the appropriate subtab.
+
+# v0.91.2 - exact front bumper camera clearance
+
+- Cut the front bumper against actual camera cage solids, not their bounding boxes. Empty space beneath sloped or extended cages no longer removes bumper material.
+- Preserve real interference relief and the existing bottom-plate fit clearance for carbon, TPU and aluminium cages.
+
+# v0.91.1 - camera cage controls and directional arm bumpers
+
+- Consolidate camera side walls, tilt, mounting mode and camera/insert position into FPV > Camera cage; retain insert manufacture and fit under TPU > Camera isolation.
+- Share cage dimensions across all three materials and migrate the active dimensions from 0.91.0. Enable automatic camera travel support for all cage styles.
+- Set a dedicated minimum 4 mm opening-to-edge web, independent of the general plate web.
+- Add four extending front/rear profile options with independent reach controls and unchanged attachment endpoints.
+- Add five bumper profiles, front/rear and sideways orientations, mirrored asymmetric tips, and optional outline-following cutouts beyond the motor pad.
+- Update previews, sleeves, saved parameters, exports and Help for these settings.
+
+# v0.91.0 - camera cages, material additions and presentation fixes
+
+- Preserve the original carbon camera plates and all existing isolation choices.
+- Add two-piece TPU cages (tabs or screw pilots), with independent wall, length and crossbar controls; add flat CNC aluminium cheeks with independent thickness, length and density. Both support hard mounting, compression pads and captured inserts.
+- Add independent straight, swept, rounded-waist and faceted-waist front/rear cage profiles. Cage exports and mass follow the selected material; aluminium contours stay outside carbon stock sheets.
+- Add material to main/clamp plate outlines with the existing pattern shapes. Require connected overlap and preserve existing holes/slots; perform additions before subtractive patterns.
+- Add round, faceted and forked carbon bumpers beyond the motor pads, plus optional TPU protector sleeves.
+- Make opaque prop/TPU finishes fully opaque and reset per-face materials when changing finishes. Move TPU appearance first and group parts from front to rear.
+- Cache placed reference geometry separately from colours. Avoid repeating validated carbon topology checks and duplicate physical-pair collision checks; retain actual geometry and clearance checks.
+- Improve the generic camera reference with recessed fasteners and a rear connector.
+- Regenerate Help from current controls and update installation version. Remove build outputs, development scripts, test caches, example projects and historical design notes from the install ZIP.
+
+## v0.90.21 — Shared propeller and TPU colours
+
+- Extended **TPU > Appearance > TPU / printed part colour** with all 13 realistic propeller finish choices: smoke grey, clear, clear black, black, white, orange, pink, purple, neon yellow, lime green, blue, red, and teal.
+- Added viewport translucency for clear and smoke variants; this is a visual approximation, not a physical TPU material specification.
+- The selected finish is applied together to camera isolation inserts, front bumper, motor protectors, LiPo pad, rear VTX / ELRS antenna holders, and flexible side guards.
+- Preserved the legacy Yellow and Grey choices so old saved designs load unchanged.
+- Colour changes remain view-only: no changes to part geometry, mass estimates, TPU export files or CNC manufacturing output.
+- Updated the Help and Installation guides and added regression coverage.
+
+## v0.90.20 — Detailed propeller colours
+
+- Added realistic commercial FPV propeller finishes to Finishing > Detailed references, with swatches and transparency for clear/smoke props.
+- All four detailed props update together; palette changes only the display and preserve cached geometry, assembly checks, and exports.
+- Existing JSON/FCStd settings stay compatible.
+
 ## 0.90.19 — front bumper STEP rebuilt from STL mesh
 
 - Generate the front-bumper STL **before** creating its STEP variants, then reconstruct both STEP files from the very same watertight triangle mesh used for that STL.
@@ -892,11 +2359,11 @@ Release history is listed newest first. The Help PDF describes the current featu
 
 ## 0.3.0
 
-- Corrected Stretched X to widen the motor pattern left–right, with a clear width/front–rear aspect label.
+- Corrected Squashed X to widen the motor pattern left–right, with a clear width/front–rear aspect label.
 - Added front and rear standoff controls with common-size shortcuts and custom lengths in the Standoffs tab.
 - Link both height controls so the top stays level: three-plate fronts span bottom-to-top; rears span mid-to-top. Two-plate pairs stay equal.
 - Show both standoff lengths in the editor summary and verify selected lengths in manufacturing exports.
-- Preserved old configurations and normalize older wide Stretched X ratio values.
+- Preserved old configurations and normalize older wide Squashed X ratio values.
 
 ## 0.2.0
 

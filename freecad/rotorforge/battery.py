@@ -2,7 +2,7 @@
 import math
 BATTERY_FIELDS={'BatteryReferenceEnabled','BatteryWidth','BatteryLength','BatteryHeight','BatteryMass',
  'BatteryMount','BatteryX','BatteryY','BatteryRotation','LiPoPadEnabled','LiPoPadWidth','LiPoPadLength',
- 'LiPoPadFrontReach','LiPoPadRearReach','LiPoPadOutlineWidthScale','LiPoPadOutlineLengthScale','LiPoPadThickness','LiPoPadShape','LiPoPadCornerRadius','LiPoPadFollowPlate','LiPoPadPattern',
+ 'LiPoPadFrontReach','LiPoPadRearReach','LiPoPadOutlineWidthScale','LiPoPadOutlineLengthScale','LiPoPadThickness','LiPoPadShape','LiPoPadCornerRadius','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadPattern',
  'LiPoPadGrooveWidth','LiPoPadGrooveDepth','LiPoPadGroovePitch','LiPoPadDensity'}
 
 def battery_point(p,x,y):
@@ -158,7 +158,7 @@ def clipped_grip_segments(p,segments,bounds):
 def validate_battery(p):
  errors=[]
  for name in BATTERY_FIELDS|{'StandoffDensity'}:
-  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate'):continue
+  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate','LiPoPadCopyAirflow'):continue
   if name.startswith('LiPoPad') and not p.LiPoPadEnabled:continue
   if name in ('LiPoPadFrontReach','LiPoPadRearReach'):
    if p.LiPoPadShape=='Mounting plate outline' and (not math.isfinite(getattr(p,name)) or getattr(p,name)<0):errors.append('Pad front/rear reaches must be finite and non-negative (zero means full plate).')
@@ -214,6 +214,34 @@ def pad_blank(p):
  shape.translate(App.Vector(p.BatteryX,p.BatteryY,battery_levels(p)['pad_z']))
  return shape
 
+def pad_parameters_without_airflow(p):
+ """Return a pad-only source for a carrier without through air openings.
+
+ The original carbon remains untouched. Preserve additions and disabled
+ patterns, and only remove enabled cuts/pockets on the selected mounting
+ plate. Do this only during exact CAD creation, never for a 2-D preview.
+ None means there is no difference and avoids rebuilding a second plate.
+ """
+ if p.LiPoPadCopyAirflow or (p.LiPoPadShape!='Mounting plate outline' and not p.LiPoPadFollowPlate):
+  return None
+ from .cutouts import parse_patterns,encode_patterns
+ from .parameters import Parameters
+ role=mounting_role(p)
+ # The dependent-part cache is already keyed by the actual built carrier
+ # solid. Keep-only / metadata changes don't alter that solid and must not
+ # force an expensive pad rebuild. Read the JSON without registering a raw
+ # string dependency on the TrackedParameters instance.
+ patterns=parse_patterns(object.__getattribute__(p,'CutoutPatterns'))
+ should_omit=lambda v: v['enabled'] and v['role']==role and v['mode']!='Add material'
+ if not any(should_omit(v) for v in patterns):return None
+ surviving=[v for v in patterns if not should_omit(v)]
+ # Avoid dataclasses.replace(p,...) here: on TrackedParameters it reads ALL
+ # hundreds of unrelated fields and defeats component-level caching. The
+ # finished carrier's native shape token supplies the geometry dependency.
+ values={name:object.__getattribute__(p,name) for name in p.__dataclass_fields__}
+ values['CutoutPatterns']=encode_patterns(surviving)
+ return Parameters(**values)
+
 def pad_reach_bounds(p,ymin,ymax):
  """Frame Y clipping planes. Zero keeps the corresponding carrier end."""
  rear=max(ymin,p.StackOffsetY-p.LiPoPadRearReach) if p.LiPoPadRearReach else ymin
@@ -223,10 +251,15 @@ def pad_reach_bounds(p,ymin,ymax):
 def pad_standoff_clearance(p):
  return max(6.,p.StandoffHoleDiameter/2)
 
-def make_pad(p,carrier,grooves=True):
+def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
  import FreeCAD as App
  import Part
  z=battery_levels(p)['pad_z']
+ # The secondary plate is constructed only at Create/Update when the user
+ # wants the LiPo pad to bridge carbon airflow openings. All mounting and
+ # strap access holes are retained; the finished carbon plate is unchanged.
+ if carrier_without_airflow is not None:
+  carrier=carrier_without_airflow
  faces=[f for f in carrier.Faces if f.normalAt(0,0).z>.99999]
  face=max(faces,key=lambda f:f.Area).copy();face.translate(App.Vector(0,0,z-face.CenterOfMass.z))
  if p.LiPoPadShape=='Mounting plate outline':

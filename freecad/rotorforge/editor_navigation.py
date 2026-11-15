@@ -1,4 +1,9 @@
-"""Wrapping subsection buttons: no hidden tabs or horizontal arrow navigation."""
+"""Responsive editor navigation with reused row widgets.
+
+Qt layout construction is comparatively costly with dozens of section tabs.
+Do not reconstruct entire rows for every inserted tab, or repeatedly schedule
+row deletion during resizes. Keep the public QTabWidget-like API unchanged.
+"""
 try:
     from PySide import QtCore, QtWidgets
 except ImportError:
@@ -25,6 +30,9 @@ class WrappingSections(QtWidgets.QWidget):
         self.stack = QtWidgets.QStackedWidget()
         layout.addWidget(self.stack, 1)
         self.stack.currentChanged.connect(self._changed)
+        self._rows = []
+        self._layout_signature = None
+        self._reflowing = False
 
     def addTab(self, widget, text):
         return self.insertTab(self.count(), widget, text)
@@ -38,13 +46,55 @@ class WrappingSections(QtWidgets.QWidget):
         self.buttons.insert(index, button)
         self.stack.insertWidget(index, widget)
         self._changed(self.currentIndex())
-        self.reflow()
+        self._layout_signature = None
+        # The dialog initially constructs many hidden pages. Reflow only when
+        # visible rather than O(N^2) repacking on every addTab operation.
+        if self.isVisible():
+            self.reflow()
         return index
 
+    def _pack_rows(self, row_lists, key):
+        if key == self._layout_signature or self._reflowing:
+            return
+        self._reflowing = True
+        try:
+            while self.grid.count():
+                self.grid.takeAt(0)
+            for index, buttons in enumerate(row_lists):
+                if index < len(self._rows):
+                    row, line = self._rows[index]
+                    while line.count():
+                        line.takeAt(0)
+                else:
+                    row = QtWidgets.QWidget(self.header)
+                    line = QtWidgets.QHBoxLayout(row)
+                    line.setContentsMargins(0, 0, 0, 0)
+                    line.setSpacing(3)
+                    self._rows.append((row, line))
+                for button in buttons:
+                    if button.parent() is not row:
+                        button.setParent(row)
+                    line.addWidget(button)
+                    button.show()
+                line.addStretch()
+                self.grid.addWidget(row, index, 0)
+                row.show()
+            # Keep existing row widgets for future resize instead of creating
+            # and deleteLater()-ing hundreds of QObject/layout wrappers.
+            for row, _ in self._rows[len(row_lists):]:
+                row.hide()
+            self._layout_signature = key
+        finally:
+            self._reflowing = False
+
     def reflow(self):
-        while self.grid.count():
-            self.grid.takeAt(0)
+        if not self.isVisible():
+            self._layout_signature = None
+            return
         width = max(100, self.width())
+        key = (width, tuple(id(button) for button in self.buttons))
+        if key == self._layout_signature:
+            return
         rows = [[]]
         used = 0
         for button in self.buttons:
@@ -54,26 +104,14 @@ class WrappingSections(QtWidgets.QWidget):
                 used = 0
             rows[-1].append(button)
             used += size + 3
-        # Each row has its own layout so long labels do not stretch columns
-        # in other rows. Reuse buttons; discard only old row containers.
-        for child in getattr(self, '_rows', []):
-            child.deleteLater()
-        self._rows = []
-        for row_index, buttons in enumerate(rows):
-            row = QtWidgets.QWidget(self.header)
-            line = QtWidgets.QHBoxLayout(row)
-            line.setContentsMargins(0, 0, 0, 0)
-            line.setSpacing(3)
-            for button in buttons:
-                button.setParent(row)
-                line.addWidget(button)
-                button.show()
-            line.addStretch()
-            self.grid.addWidget(row, row_index, 0)
-            self._rows.append(row)
+        self._pack_rows(rows, key)
 
     def resizeEvent(self, event):
         super().resizeEvent(event)
+        self.reflow()
+
+    def showEvent(self, event):
+        super().showEvent(event)
         self.reflow()
 
     def _changed(self, index):
@@ -140,3 +178,30 @@ class CategorySections(QtWidgets.QWidget):
     def currentWidget(self):return self.stack.currentWidget()
     def setCurrentIndex(self, index):self.stack.setCurrentIndex(index)
     def setCurrentWidget(self, widget):self.stack.setCurrentWidget(widget)
+
+
+class CageSections(WrappingSections):
+    """Stable wrapping camera subsections with conditional material pages."""
+    def setTabVisible(self,index,visible):
+        if not hasattr(self,'hidden_pages'):self.hidden_pages=set()
+        was_hidden = index in self.hidden_pages
+        if visible:self.hidden_pages.discard(index)
+        else:self.hidden_pages.add(index)
+        if not visible and self.currentIndex()==index:self.setCurrentIndex(0)
+        if was_hidden != (not visible):
+            self._layout_signature = None
+            self.reflow()
+
+    def reflow(self):
+        if not self.isVisible():
+            self._layout_signature = None
+            return
+        hidden=getattr(self,'hidden_pages',set())
+        columns=max(1,min(3,self.width()//160))
+        visible=[button for i,button in enumerate(self.buttons) if i not in hidden]
+        key=(columns,tuple(id(button) for button in visible))
+        for i in hidden:
+            if i < len(self.buttons):
+                self.buttons[i].hide()
+        rows=[visible[i:i+columns] for i in range(0,len(visible),columns)]
+        self._pack_rows(rows,key)

@@ -26,7 +26,7 @@ class HardwareDialog(QtWidgets.QDialog):
 class HardwareCommand:
  def GetResources(self):
   from .paths import icon_path
-  return dict(Pixmap=icon_path(),MenuText='Hardware references…',ToolTip='Show low-profile round screws and joint retention hardware')
+  return dict(Pixmap=icon_path('toolbar-hardware-references.png'),MenuText='Hardware references…',ToolTip='Show low-profile round screws and joint retention hardware')
  def IsActive(self):return App.ActiveDocument is not None
  def Activated(self):
   from .document import find_parameters

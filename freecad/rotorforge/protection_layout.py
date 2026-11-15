@@ -186,6 +186,9 @@ def closure_profile(p,g):
  low=p.BottomThickness+guard_plate_gap(p) if guard_between_plates(p) else 0.;high=g['top'];points=mount['wall_profile']
  wall_low=min(z for y,z in points);wall_high=max(z for y,z in points)
  zs=sorted({low,high,*[z for y,z in points if low<z<high],(low+high)/2})
+ if p.CameraCageStyle=='TPU cage':
+  boss_ends=(mount['z0']+p.CameraTPUInsertDepth+1,mount['z1']-p.CameraTPUInsertDepth-1)
+  zs=sorted(set(zs+[z+d for z in boss_ends for d in (-.25,.25) if low<z+d<high]))
  def rear(z):
   # Outside the camera wall, continue its contact edge beside plate stock.
   z=max(wall_low,min(wall_high,z))

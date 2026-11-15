@@ -76,6 +76,22 @@ def stem_interior_distance(p,arm,point):
     return max(base_stem_interior_distance(p,arm,point),support_distance(point,arm_supports(p,arm)))
 
 
+def receiving_tab_expansion_discs(p,arm,base_radius):
+    """Only the real bolt-stock overshoot beyond a receiving tab's fixed cap.
+
+    A tab's structural reach is still set by its original bolt-pair capsule.
+    When an arm's *actual* additional bolt stock extends past that capsule,
+    copy precisely the exposed bolt discs into the tab mask before intersecting
+    with the real arm outline and the configured plate-reach bounds.
+
+    Crucially, this does NOT modify any press-nut, standoff or receiving-plate
+    material allowance. When the arm already has enough stock, return empty.
+    """
+    from .mount_support import arm_supports
+    return tuple((centre,r) for centre,anchor,r in arm_supports(p,arm)
+                 if r>base_radius+1e-8)
+
+
 def fitted_roots(p):
     return p.ArmRootFit == ARM_ROOT_FITS[1]
 
@@ -137,7 +153,7 @@ def compact_key_centre(arms):
     return (0., (front[0]**2+front[1]**2-rear[0]**2-rear[1]**2)/(2*(front[1]-rear[1])))
 
 
-def compact_key_outline(p, arms, pocket=False):
+def compact_key_outline(p, arms, pocket=False, rounded=True):
     x, y = compact_key_centre(arms)
     a, b = p.KeystoneWidth/2, p.KeystoneLength/2
     if a <= 0 or b <= 0:
@@ -159,7 +175,71 @@ def compact_key_outline(p, arms, pocket=False):
             nx,ny,c=prev;mx,my,d=cur;det=nx*my-ny*mx
             out.append(((c*my-ny*d)/det,(nx*d-c*mx)/det))
         pts=tuple(out)
-    return tuple((x+u,y+v) for u,v in pts)
+    outline=tuple((x+u,y+v) for u,v in pts)
+    if not rounded:
+        return outline
+    # Polygon version of exactly the same tangent arcs used in the OCC solid.
+    # A fine chordal approximation is sufficient for 2D previews/clearance
+    # tests; native CAD output uses the analytic arcs below.
+    arcs=compact_key_corner_arcs(p,arms,pocket,outline)
+    if not arcs:return outline
+    sampled=[]
+    for start,centre,end in arcs:
+        a0=math.atan2(start[1]-centre[1],start[0]-centre[0])
+        a1=math.atan2(end[1]-centre[1],end[0]-centre[0])
+        sweep=(a1-a0)%(2*math.pi)
+        radius=math.dist(start,centre)
+        segments=max(2,int(math.ceil(sweep/max(1e-3,2*math.acos(max(-1.,1.-.001/max(radius,1e-9)))))))
+        sampled.extend((centre[0]+radius*math.cos(a0+sweep*k/segments),
+                        centre[1]+radius*math.sin(a0+sweep*k/segments))
+                       for k in range(segments))
+    return tuple(sampled)
+
+
+def _keystone_fit_radius(points):
+    """Largest safe common roundover without crossing adjacent tangencies."""
+    limits=[]
+    for before,point,after in zip(points[-1:]+points[:-1],points,points[1:]+points[:1]):
+        u=((before[0]-point[0])/math.dist(before,point),(before[1]-point[1])/math.dist(before,point))
+        v=((after[0]-point[0])/math.dist(after,point),(after[1]-point[1])/math.dist(after,point))
+        alpha=math.acos(max(-1.,min(1.,u[0]*v[0]+u[1]*v[1])))
+        limits.append(.45*min(math.dist(before,point),math.dist(point,after))*math.tan(alpha/2))
+    return min(limits)
+
+
+def compact_key_corner_arcs(p, arms, pocket=False, outline=None):
+    """Tangent (start, centre, end) arcs shared by the keystone and arm pocket.
+
+    The pocket is a parallel outward offset of the original polygon. Its
+    roundover radius must be the key's effective radius PLUS the radial
+    clearance to keep the normal separation between corresponding curves.
+    Both profiles use the same clamped key radius so they cannot drift apart.
+    """
+    from .plate_fillets import MIN_CNC_RADIUS_MM
+    key=compact_key_outline(p,arms,False,False)
+    pocket_points=compact_key_outline(p,arms,True,False)
+    requested=max(p.KeystoneFillet,MIN_CNC_RADIUS_MM)
+    effective=min(requested,_keystone_fit_radius(key),
+                  _keystone_fit_radius(pocket_points)-p.KeystoneClearance)
+    if effective<MIN_CNC_RADIUS_MM-1e-5:
+        raise ValueError('The keystone pocket cannot fit an R0.5 mm internal corner '
+                         'for a 1 mm CNC cutter. Increase the key width/length or clearance.')
+    radius=effective+(p.KeystoneClearance if pocket else 0.)
+    points=outline if outline is not None else (pocket_points if pocket else key)
+    arcs=[]
+    for before,vertex,after in zip(points[-1:]+points[:-1],points,points[1:]+points[:1]):
+        lu=math.dist(before,vertex);lv=math.dist(after,vertex)
+        u=((before[0]-vertex[0])/lu,(before[1]-vertex[1])/lu)
+        v=((after[0]-vertex[0])/lv,(after[1]-vertex[1])/lv)
+        alpha=math.acos(max(-1.,min(1.,u[0]*v[0]+u[1]*v[1])))
+        tangent=radius/math.tan(alpha/2)
+        start=(vertex[0]+u[0]*tangent,vertex[1]+u[1]*tangent)
+        end=(vertex[0]+v[0]*tangent,vertex[1]+v[1]*tangent)
+        dx,dy=u[0]+v[0],u[1]+v[1];length=math.hypot(dx,dy)
+        dist=radius/math.sin(alpha/2)
+        centre=(vertex[0]+dx/length*dist,vertex[1]+dy/length*dist)
+        arcs.append((start,centre,end))
+    return tuple(arcs)
 
 
 

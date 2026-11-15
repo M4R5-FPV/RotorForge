@@ -2,14 +2,14 @@
 GUARD_VENT_SHAPES=('Horizontal slots','Rounded slots','Ellipses','Hexagons','Diamonds','Chevrons','Circles','Triangles','Inverted triangles','Octagons','Slanted slots','Arrows','Shields','Teardrops','Crosses','Hourglasses')
 FLEX_OPTIONS={'FlexCameraMode': ('Hard mount',
                     'Camera attachment',
-                    'Hard mount retains the original side plates. Compression pads widen the cage for two pressed '
-                    'pads. Captured inserts replace the side-plate screw openings with retained flexible inserts; tilt '
+                    'For carbon side plates, soft isolation uses removable pads or through-inserts. For the TPU cage, '
+                    'the exterior and plate screw pattern stay fixed while pads bear on the inside wall or captured inserts seat in blind pockets; tilt '
                     'settings and screw paths stay unchanged.',
                     ('Hard mount', 'Compression pads', 'Captured inserts')),
  'FlexPadThickness': (2.0,
                       'Camera pad thickness',
                       'Free thickness of each pad between the camera and side plate. Soft modes set their own side '
-                      'spacing; the ordinary Camera side clearance applies only to Hard mount.'),
+                      'spacing for carbon plates. On the TPU cage, Camera side clearance remains independently adjustable in every mode.'),
  'FlexPadPreload': (0.15,
                     'Camera pad compression',
                     'Per-side compression allowance. Printed free material extends this far into the nominal camera '
@@ -33,19 +33,19 @@ FLEX_OPTIONS={'FlexCameraMode': ('Hard mount',
                    'Insert retaining lip',
                    'Flange overlap around the carbon opening on the selected retaining-lip faces.'),
  'FlexInsertFit': (0.15,
-                   'Insert fit clearance',
-                   'Radial clearance between the printed insert neck and its carbon opening. Positive values loosen '
-                   'the fit.'),
+                   'Insert-to-cutout clearance',
+                   'Per-side clearance from the nominal TPU cage opening to the removable insert neck: 0 to 0.25 mm. '
+                   '0 mm is a nominal press fit, not a guaranteed assembly fit. Test-print before flying.'),
  'FlexDensity': (1.21,
                  'Flexible material density',
                  'Nominal printed TPU/silicone density in g/cm3 for volume-based mass estimates; adjust for your '
                  'actual print/material.'),
  'FlexInterfaceShape': ('Rounded rectangle',
                         'Camera interface outline',
-                        'Choose a rounded rectangle or a scaled plain side-wall silhouette, without locating tabs. '
+                        'TPU cage: choose a dedicated insert outline (the cage exterior is not changed). Carbon side plates: choose rounded rectangle or side plate outline. '
                         'Captured openings and matching TPU necks use the insert corner radius. Compression-pad '
                         'outlines retain their existing geometry.',
-                        ('Rounded rectangle', 'Side plate outline')),
+                        ('Rounded rectangle', 'Side plate outline', 'Chamfered rectangle', 'Hexagon', 'Octagon', 'Tapered rectangle', 'Capsule')),
  'FlexMotorProtectors': (False,
                          'Create motor-pad protectors',
                          'Generate four separate TPU cups matching the selected pad shape, rotation and actual arm '
@@ -234,7 +234,7 @@ for _name,_extra in {
  'FlexGuardWireFrontY':' In Between plates this sets one end of the combined span.',
  'FlexGuardWireRearY':' In Between plates this sets the other end of the combined span.',
  'FlexGuardWireWidth':' Between plates adds this width to the distance between the front and rear centres.',
- 'FlexGuardVTXOpening':' A fully covering opening also permits lateral VTX overhang beyond the plates while retaining mounting-hole support and collision checks.'
+ 'FlexGuardVTXOpening':' Add a VTX opening only where the housing actually passes through the guard; carbon carrier overhang depends on screw support, not this option.'
 }.items():
  _entry=FLEX_OPTIONS[_name];FLEX_OPTIONS[_name]=(_entry[0],_entry[1],_entry[2]+_extra)+_entry[3:]
 

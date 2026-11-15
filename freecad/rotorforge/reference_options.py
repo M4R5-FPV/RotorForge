@@ -1,6 +1,6 @@
 """Portable selectors and simple reference appearance; no CAD imports."""
 FLAGS={'MotorEnvelopes':'DetailedMotorReferences','PropellerDiscs':'DetailedPropReferences','StackEnvelope':'DetailedStackReference','CameraEnvelope':'DetailedCameraReference','VTXEnvelope':'DetailedVTXReference','BatteryEnvelope':'DetailedBatteryReference'}
-SIMPLE={'MotorEnvelopes':((.42,.46,.52),50),'PropellerDiscs':((.18,.70,.82),86),'StackEnvelope':((.20,.68,.36),68),'CameraEnvelope':((.18,.21,.25),15),'VTXEnvelope':((.58,.27,.68),35),'BatteryEnvelope':((.91,.45,.12),65)}
+SIMPLE={'MotorEnvelopes':((.42,.46,.52),50),'PropellerDiscs':((.18,.70,.82),86),'StackEnvelope':((.20,.68,.36),68),'CameraEnvelope':((.18,.21,.25),15),'VTXEnvelope':((.58,.27,.68),35),'BatteryEnvelope':((.30,.36,.42),65)}
 
 def enabled(p,role):return bool(p is not None and getattr(p,FLAGS.get(role,''),False))
 
