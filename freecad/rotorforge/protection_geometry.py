@@ -80,6 +80,22 @@ def guard_union(items):
  return guard_refine(items[0].multiFuse(items[1:])) if len(items)>1 else items[0]
 
 
+def cut_guard_openings(body,tools):
+ """Keep exact overlapping-cutter fusion; compound only separated groups."""
+ from .geometry_bounds import separated_box_groups
+ if not tools:return body
+ groups=separated_box_groups([tool.BoundBox for tool in tools])
+ if len(groups)<=1:return body.cut(guard_union(tools))
+ try:
+  merged=[guard_union([tools[i] for i in group]) for group in groups]
+  if not all(not s.isNull() and s.isValid() for s in merged):raise ValueError('invalid opening tool')
+  result=body.cut(Part.makeCompound(merged))
+  if result.isNull() or not result.isValid():raise ValueError('invalid opening cut')
+  return result
+ except Exception:
+  return body.cut(guard_union(tools))
+
+
 def guard_top_strap_tools(p,collars,body):
  """Open the floor beneath top straps when a wall sits inside the outline."""
  from .protection_layout import guard_between_plates
@@ -94,46 +110,86 @@ def guard_top_strap_tools(p,collars,body):
   footprints.append((Part.Face(Part.makePolygon(points+[points[0]])).extrude(App.Vector(0,0,height)),min(y for x,y in polygon),max(y for x,y in polygon)))
  # Keep a straight, open ledge under each intersecting passage. Extending
  # through the wall avoids fragile strips at a notch's rounded inner corner.
- spans={(lo,hi) for tool,lo,hi in footprints if body.common(tool).Volume>1e-7}
+ from .geometry_bounds import box_distance
+ bounds=body.BoundBox
+ spans={(lo,hi) for tool,lo,hi in footprints if box_distance(bounds,tool.BoundBox)<=1e-6 and body.common(tool).Volume>1e-7}
  strap_tools=[box(-500,lo,z,1000,hi-lo,height) for lo,hi in sorted(spans)]
  if any(tool.common(collar).Volume>1e-6 for tool in strap_tools for collar in collars):
   raise ValueError('Top-plate strap passage intersects a side-guard bearing sleeve; move the strap or post.')
  return strap_tools
 
 
-def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
+class GuardBuildWork:
+ # Scoped to one frame generation. Only exact, read-only native geometry is
+ # shared; independent left/right lofts, openings and checks are unchanged.
+ def __init__(self):
+  from .dependency_cache import NativeStageCache
+  self.auxiliary=NativeStageCache(max_entries=2)
+  self.outlines={};self.sections={};self.reliefs={}
+
+ def unnotched_top(self,p):
+  from .geometry import _component_carbon
+  return self.auxiliary.get('unnotched_top',p,lambda t:_component_carbon(t,'TopPlate',{},include_strap_notches=False))
+
+ def outline(self,shape):
+  from .dependency_cache import shape_token
+  key=shape_token(shape)
+  if key not in self.outlines:
+   cap=max((f for f in shape.Faces if f.BoundBox.ZLength<1e-5),key=lambda f:f.Area)
+   face=Part.Face(cap.OuterWire)
+   wire=face.OuterWire
+   self.outlines[key]=(wire,face.BoundBox.ZMin,[(v.x,v.y) for v in wire.discretize(Deflection=.06)])
+  return key,self.outlines[key][2]
+
+ def edge(self,key,y,sign):
+  station=(key,y)
+  if station not in self.sections:
+   wire,z,_=self.outlines[key]
+   section=wire.section(Part.makeLine(App.Vector(-1000,y,z),App.Vector(1000,y,z)))
+   self.sections[station]=tuple(v.Point.x for v in section.Vertexes)
+  xs=[x for x in self.sections[station] if sign*x>=-1e-6]
+  return (max(xs) if sign>0 else min(xs)) if xs else None
+
+ def relief(self,stock,distance):
+  from .dependency_cache import shape_token
+  key=(shape_token(stock),distance)
+  if key not in self.reliefs:
+   profile=outer_face(stock)
+   if distance>0:profile=offset_face(profile,distance)
+   bounds=stock.BoundBox
+   tool=profile.extrude(App.Vector(0,0,bounds.ZLength+2*distance))
+   tool.translate(App.Vector(0,0,bounds.ZMin-distance));self.reliefs[key]=tool
+  return self.reliefs[key]
+
+
+def side_guards(p,carbon=None,roles=None,include_strap_passages=True,work=None):
  if not p.FlexSideGuards:return {}
- from .protection_layout import guard_layout,guard_vents,usb_window,vent_polygon,grip_bridge,guard_wire_openings,guard_strap_windows,guard_plate_gap,guard_between_plates,guard_vtx_window,guard_wall_inner_x
+ from .protection_layout import guard_layout,guard_vents,usb_window,vent_polygon,grip_bridge,guard_wire_openings,guard_strap_windows,guard_plate_gap,guard_between_plates,guard_vtx_window,guard_wall_inner_x,closure_profile,guard_main_wall_x,guard_closure_wall_bounds,guard_station_at,closure_stations
  if carbon is None:raise ValueError('Side guards require finished carbon plate outlines.')
  # The guard bridges the top plate's strap recesses along its unnotched
  # perimeter. Use this envelope for both the wall and its plate clearance;
  # the actual carbon part keeps its strap openings and other finishing cuts.
+ import time
+ from .geometry_bounds import box_distance
+ work=GuardBuildWork() if work is None else work
+ started=time.perf_counter()
  upper_stock=carbon['TopPlate']
  if p.StrapSlotsEnabled and p.StrapOpeningStyle=='Outline cutouts':
-  from .geometry import _component_carbon
-  upper_stock=_component_carbon(p,'TopPlate',{},include_strap_notches=False)
- def outline(shape):
-  cap=max((f for f in shape.Faces if f.BoundBox.ZLength<1e-5),key=lambda f:f.Area)
-  face=Part.Face(cap.OuterWire)
-  return face,[(v.x,v.y) for v in face.OuterWire.discretize(Deflection=.06)]
- edge_cache={}
- def edge(face,y,sign):
-  key=(face.hashCode(),round(y,8),sign)
-  if key in edge_cache:return edge_cache[key]
-  # Intersect the actual curve; coarse whole-wire sampling can select the
-  # opposite arm tab near a short tip and produce a cross-frame spike.
-  z=face.BoundBox.ZMin
-  section=face.OuterWire.section(Part.makeLine(App.Vector(-1000,y,z),App.Vector(1000,y,z)))
-  xs=[v.Point.x for v in section.Vertexes if sign*v.Point.x>=-1e-6]
-  result=(max(xs) if sign>0 else min(xs)) if xs else None
-  edge_cache[key]=result
-  return result
+  upper_stock=work.unnotched_top(p)
+ outline,edge=work.outline,work.edge
+ auxiliary_time=time.perf_counter()-started
  result={};w=p.FlexGuardWall;r=(p.StandoffDiameter+p.FlexGuardFit)/2+w
  for g in guard_layout(p):
   if roles is not None and g['role'] not in roles:continue
+  tick=time.perf_counter();stages=[('auxiliary carrier',auxiliary_time)]
+  def mark(label):
+   nonlocal tick
+   now=time.perf_counter();stages.append((label,now-tick));tick=now
   upper_face,upper=outline(upper_stock);lower_face,lower=outline(carbon[g['lower_role']]);lo=g['rear']+p.FlexGuardRearInset;hi=g['front']-p.FlexGuardFrontInset;sign=g['sign'];z0=carbon[g['lower_role']].BoundBox.ZMin;z1=g['top']
   if guard_between_plates(p):z0=g['z']
   ys={lo,hi};ys.update(lo+(hi-lo)*i/max(1,int((hi-lo)/3)+1) for i in range(1,max(1,int((hi-lo)/3)+1)))
+  closure=closure_profile(p,g)
+  if closure:ys.update((closure['start'],closure['join']))
   ys.update(y for x,y in upper+lower if lo<y<hi);ys=sorted({round(y,4) for y in ys});wires=[];stations=[]
   for y in ys:
    xt=edge(upper_face,y,sign);xb=edge(lower_face,y,sign)
@@ -155,6 +211,7 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
     points=[App.Vector(xb,y,low),App.Vector(xb+sign*w,y,low),
             App.Vector(xt+sign*w,y,z1),App.Vector(xt,y,z1)]
    wires.append(Part.makePolygon(points+[points[0]]));stations.append((y,xb,xt,low))
+  mark("exact plate sections")
   body=Part.makeLoft(wires,True,True);pads=[];collars=[]
   for stand,band in zip(g['stands'],g['bands']):
    sx,sy=stand['point'];low,high=band
@@ -165,17 +222,16 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
    bridge=capsule(a,b,rad,low,high-low)
    half=box(sx if sign>0 else sx-1000,-500,low-1,1000,1000,high-low+2)
    pads.append(bridge.common(half))
-  from .protection_layout import closure_profile
-  closure=closure_profile(p,g)
   if closure:
-   bottom_face,_=outline(carbon['BottomPlate']);layers=[]
-   low=closure['sections'][0][0];high=closure['sections'][-1][0]
-   if closure['sections'][0][1]<=closure['start']+2:
+   bottom_face,bottom_outline=outline(carbon['BottomPlate']);layers=[]
+   if min(end for z,end in closure['sections'])<=closure['start']+p.FlexGuardWall:
     raise ValueError('Camera side plates need at least 2 mm forward of the foremost standoffs for a full side closure.')
+   sample_ys=closure_stations(closure,(station[0] for station in stations),(bottom_outline,upper))
+   count=len(sample_ys)
    for start,(z,end) in zip(closure['starts'],closure['sections']):
-    t=(z-low)/(high-low);inside=[];outside=[]
+    inside=[];outside=[]
     landing_x=closure['x']
-    if p.CameraCageStyle=='TPU cage':
+    if closure['mode']!='Plate outlines only' and p.CameraCageStyle=='TPU cage':
      from .camera_cages import joined_cage
      stock=carbon.get('CameraMountLeft' if joined_cage(p) or sign<0 else 'CameraMountRight')
      if stock is not None and not stock.isNull():
@@ -183,40 +239,50 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
       section=stock.common(Part.makeLine(App.Vector(-500,end,probe_z),App.Vector(500,end,probe_z)))
       xs=[v.Point.x for v in section.Vertexes if sign*v.Point.x>0]
       if xs:landing_x=max(xs) if sign>0 else min(xs)
-    for i in range(13):
-     s=i/12;y=start+(end-start)*s
-     xb=edge(bottom_face,y,sign);xt=edge(upper_face,y,sign)
-     if xb is None:xb=edge(bottom_face,min(y,closure['sections'][0][1]),sign)
-     if xt is None:xt=edge(upper_face,min(y,closure['sections'][-1][1]),sign)
-     if xb is None or xt is None:raise ValueError('Full side closure needs bottom and top plate support up to the camera side plates.')
-     x=guard_wall_inner_x(p,xb*(1-t)+xt*t,sign)
-     blend=max(0.,min(1.,(y-(end-14))/14));blend=blend*blend*(3-2*blend)
-     x=x*(1-blend)+landing_x*blend
-     inside.append(App.Vector(x,y,z));outside.append(App.Vector(x+sign*w,y,z))
+    for y in sample_ys:
+     main=guard_station_at(stations,min(y,closure['join']))
+     main_x=guard_main_wall_x(p,g,main,z)
+     if y<=closure['join']:
+      x,outer_x=main_x,main_x+sign*w
+     else:
+      xb=edge(bottom_face,y,sign);xt=edge(upper_face,y,sign)
+      # If the new rearward overlap precedes the bottom plate, transition
+      # from the actual lower carrier rather than requiring an absent face.
+      if xb is None and y<hi:xb=edge(lower_face,y,sign)
+      if xb is None and y<hi:xb=xt
+      if xb is None or xt is None:raise ValueError('Full side closure needs bottom and top plate support up to the camera side plates.')
+      x,outer_x=guard_closure_wall_bounds(p,g,closure,y,z,xb,xt,landing_x,main_x)
+     inside.append(App.Vector(x,y,z));outside.append(App.Vector(outer_x,y,z))
     layers.append((inside,outside))
    # Explicit planar faces avoid coincident ruled-loft surface failures at
    # the existing wall. The broad ribbon has no internal partition faces.
    faces=[]
    def quad(a,b,c,d,reverse=False):
     if reverse != (sign<0):a,b,c,d=d,c,b,a
-    for triangle in ((a,b,c),(a,c,d)):
-     faces.append(Part.Face(Part.makePolygon(list(triangle)+[triangle[0]])))
+    # Keep genuinely planar patches as quads. Only nonplanar patches need
+    # a diagonal, so the finished TPU surface has fewer artificial seams.
+    normal=(b-a).cross(c-a)
+    if normal.Length>1e-10 and abs(normal.dot(d-a))/normal.Length<=1e-8:
+     faces.append(Part.Face(Part.makePolygon([a,b,c,d,a])))
+    else:
+     for triangle in ((a,b,c),(a,c,d)):
+      faces.append(Part.Face(Part.makePolygon(list(triangle)+[triangle[0]])))
    for k,(inside,outside) in enumerate(layers):
     if k in (0,len(layers)-1):
-     for i in range(12):quad(inside[i],inside[i+1],outside[i+1],outside[i],k>0)
+     for i in range(count-1):quad(inside[i],inside[i+1],outside[i+1],outside[i],k>0)
     if k==0:continue
     prev_in,prev_out=layers[k-1]
-    for i in range(12):
+    for i in range(count-1):
      quad(prev_in[i],prev_in[i+1],inside[i+1],inside[i],True)
      quad(prev_out[i],prev_out[i+1],outside[i+1],outside[i])
-    for i in (0,12):quad(prev_in[i],prev_out[i],outside[i],inside[i],i>0)
+    for i in (0,count-1):quad(prev_in[i],prev_out[i],outside[i],inside[i],i>0)
    extra=Part.makeSolid(Part.makeShell(faces));extra=guard_refine(extra)
    if not extra.isValid() or len(extra.Solids)!=1 or extra.Volume<=0:raise ValueError('Camera-side closure could not form a continuous panel; review plate and camera positions.')
    # Replace the forward wall rather than fusing two long coincident skins.
-   # The join stays at the forward posts; original post supports stay.
-   body=body.cut(box(-500,closure['start']+4,-500,1000,1000,1000))
+   # The cut is inside the extra panel's short rear overlap; post supports stay.
+   body=body.cut(box(-500,closure['join'],-500,1000,1000,1000))
    body=body.fuse(extra)
-  body=guard_union([body]+pads);tools=[];hardware=[];bearing_hardware=[]
+  body=guard_union([body]+pads);mark("wall loft and supports");tools=[];hardware=[];bearing_hardware=[]
   from .antenna_geometry import antenna_guard_clearance
   tools.extend(antenna_guard_clearance(p))
   from .elrs_geometry import elrs_guard_clearance
@@ -260,20 +326,24 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
    if role in ('ArmFrontRight','ArmFrontLeft','ArmRearLeft','ArmRearRight','ArmClampPlate','ArmLowerClampPlate','BottomPlate','MidPlate','TopPlate') and not stock.isNull():
     if role=='TopPlate':stock=upper_stock
     relief=guard_plate_gap(p) if role in ('BottomPlate','MidPlate','TopPlate') else .15
-    profile=outer_face(stock)
-    if relief>0:profile=offset_face(profile,relief)
-    tool=profile.extrude(App.Vector(0,0,stock.BoundBox.ZLength+2*relief));tool.translate(App.Vector(0,0,stock.BoundBox.ZMin-relief));hardware.append(tool);bearing_hardware.append(stock if role in ('BottomPlate','MidPlate','TopPlate') else tool)
+    tool=work.relief(stock,relief);hardware.append(tool);bearing_hardware.append(stock if role in ('BottomPlate','MidPlate','TopPlate') else tool)
   if closure:
    hardware.extend(stock for role,stock in carbon.items() if role.startswith('CameraMount') and not stock.isNull())
   from .parameters import motor_centres,plate_levels
   prop_z=plate_levels(p)['arm_z']+p.ArmThickness+p.PropReferenceHeight
   tools.extend(Part.makeCylinder(p.PropDiameter/2+1,4.25,App.Vector(mx,my,prop_z-2)) for mx,my in motor_centres(p))
+  mark("relief and opening tools")
   # Carbon tools overlap at arm/plate interfaces. Subtract separately before
   # the vent union so coincident cutters cannot leave residual islands.
   for tool in hardware:
    if body.BoundBox.intersect(tool.BoundBox):
     body=body.cut(tool)
-  if tools:body=body.cut(guard_union(tools))
+  # Do not fuse cutters separated from the remaining wall. Their difference
+  # is empty; retain touching/nearby cutters and exact native operations.
+  wall_bounds=body.BoundBox
+  tools=[tool for tool in tools if not tool.isNull() and box_distance(wall_bounds,tool.BoundBox)<=1e-6]
+  if tools:body=cut_guard_openings(body,tools)
+  mark("wall relief booleans")
   if hardware:
    # The full front sleeve can approach the arm beneath it. Relieve only its
    # outer wall locally, retaining a continuous minimum 0.8 mm circular shell.
@@ -293,6 +363,8 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True):
   body=guard_refine(body.cut(Part.makeCompound(bores)))
   if not body.isValid() or len(body.Solids)!=1:raise ValueError(g['role']+' cannot connect its actual plate edges and full bearing bands; check plate reach, post positions and prop clearance.')
   if closure and body.BoundBox.YMax<max(y for z,y in closure['sections'])-1e-5:raise ValueError('Camera-side enclosure did not retain its full forward panel; review plate reach and camera landing.')
+  mark('bearing sleeves and validation')
+  App.Console.PrintMessage('RotorForge guard detail '+g['role']+': '+', '.join(f'{k}: {v:.3f}s' for k,v in stages)+'\n')
   result[g['role']]=body
  return result
 

@@ -1,9 +1,10 @@
 """LiPo placement and printable/grip-pad layout; CAD imports remain lazy."""
 import math
+from .pad_text import PAD_TEXT_FIELDS,validate_pad_text,text_layout,text_cutters
 BATTERY_FIELDS={'BatteryReferenceEnabled','BatteryWidth','BatteryLength','BatteryHeight','BatteryMass',
  'BatteryMount','BatteryX','BatteryY','BatteryRotation','LiPoPadEnabled','LiPoPadWidth','LiPoPadLength',
- 'LiPoPadFrontReach','LiPoPadRearReach','LiPoPadOutlineWidthScale','LiPoPadOutlineLengthScale','LiPoPadThickness','LiPoPadShape','LiPoPadCornerRadius','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadPattern',
- 'LiPoPadGrooveWidth','LiPoPadGrooveDepth','LiPoPadGroovePitch','LiPoPadDensity'}
+ 'LiPoPadFrontReach','LiPoPadRearReach','LiPoPadOutlineWidthScale','LiPoPadOutlineLengthScale','LiPoPadThickness','LiPoPadShape','LiPoPadCornerRadius','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','LiPoPadPattern',
+ 'LiPoPadGrooveWidth','LiPoPadGrooveDepth','LiPoPadGroovePitch','LiPoPadDensity'} | PAD_TEXT_FIELDS
 
 def battery_point(p,x,y):
  a=math.radians(p.BatteryRotation);c,s=math.cos(a),math.sin(a)
@@ -156,9 +157,9 @@ def clipped_grip_segments(p,segments,bounds):
  return tuple(result)
 
 def validate_battery(p):
- errors=[]
- for name in BATTERY_FIELDS|{'StandoffDensity'}:
-  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate','LiPoPadCopyAirflow'):continue
+ errors=validate_pad_text(p)
+ for name in (BATTERY_FIELDS-PAD_TEXT_FIELDS)|{'StandoffDensity'}:
+  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk'):continue
   if name.startswith('LiPoPad') and not p.LiPoPadEnabled:continue
   if name in ('LiPoPadFrontReach','LiPoPadRearReach'):
    if p.LiPoPadShape=='Mounting plate outline' and (not math.isfinite(getattr(p,name)) or getattr(p,name)<0):errors.append('Pad front/rear reaches must be finite and non-negative (zero means full plate).')
@@ -169,6 +170,7 @@ def validate_battery(p):
   if name.startswith('LiPoPadGroove') and p.LiPoPadPattern=='Solid':continue
   if name=='LiPoPadCornerRadius':
    if p.LiPoPadShape=='Rounded rectangle' and not 0<=p.LiPoPadCornerRadius<min(p.LiPoPadWidth,p.LiPoPadLength)/2:errors.append('Pad corner radius must be smaller than half the shorter pad dimension.')
+   if p.LiPoPadShape=='Mounting plate outline' and (not math.isfinite(p.LiPoPadCornerRadius) or p.LiPoPadCornerRadius<0):errors.append('Plate-following pad corner radius must be finite and non-negative.')
   elif getattr(p,name)<=0:errors.append(name+' must be greater than zero.')
  if not -180<=p.BatteryRotation<=180:errors.append('Battery rotation must be between -180 and 180 degrees.')
  if p.LiPoPadEnabled and p.LiPoPadPattern!='Solid':
@@ -251,17 +253,151 @@ def pad_reach_bounds(p,ymin,ymax):
 def pad_standoff_clearance(p):
  return max(6.,p.StandoffHoleDiameter/2)
 
+def pad_flush_seats(p):
+ """Only flush heads on the actual battery-facing carbon surface."""
+ if not p.LiPoPadCoverCountersunk:return ()
+ from .screw_heads import countersink_specs
+ role=mounting_role(p);axis=-1 if role=='TopPlate' else 1
+ return tuple(s for s in countersink_specs(p,role) if s['axis']==axis)
+
+
+def pad_standoff_points(p):
+ from .parameters import standoff_layouts
+ covered=tuple(s['point'] for s in pad_flush_seats(p) if s['label']=='Standoff screw')
+ return tuple(s['point'] for s in standoff_layouts(p) if not any(math.dist(s['point'],pt)<1e-6 for pt in covered))
+
+
+def pad_fastener_clearances(p):
+ """Standoffs retain their original 6 mm clearance; when flush coverage is
+ active, also protect any remaining proud hardware at the battery face.
+ """
+ clearances=[(*pt,pad_standoff_clearance(p)) for pt in pad_standoff_points(p)]
+ if not p.LiPoPadCoverCountersunk:return tuple(clearances)
+ from .hardware_layout import hardware_layout,SIZES
+ from .parameters import plate_levels
+ top=mounting_role(p)=='TopPlate';z=plate_levels(p)['top_z']+p.TopThickness if top else 0.
+ axis=-1 if top else 1
+ for spec in hardware_layout(p):
+  x,y,sz=spec['point'];d=spec['diameter']
+  if abs(sz-z)<1e-6 and spec['axis']==(0,0,axis) and spec['head']!='Countersunk':
+   clearances.append((x,y,.95*d+.1))
+  seat=spec.get('seat')
+  if spec['nut'] and seat and abs(seat['z']-z)<1e-6 and seat['axis']==-axis:
+   # External nut/flange on this surface cannot be hidden by the pad.
+   rr=p.PressNutFlangeDiameter/2 if spec.get('press') else SIZES[d][4]/math.sqrt(3)
+   clearances.append((x,y,rr+.1))
+ by_point={}
+ for x,y,r in clearances:
+  key=(x,y);by_point[key]=max(r,by_point.get(key,0.))
+ return tuple((*pt,r) for pt,r in by_point.items())
+
+
+def pad_face_with_flush_holes(p,face,seats):
+ """Fill only isolated circular screw openings, never the outer perimeter,
+ slots or a combined hole/cutout. Face is already at the pad extrusion datum.
+ """
+ import Part
+ if not seats:return face
+ outer=face.OuterWire;remaining=[outer];filled=0
+ for wire in face.Wires:
+  if wire.isSame(outer):continue
+  box=wire.BoundBox;centre=((box.XMin+box.XMax)/2,(box.YMin+box.YMax)/2)
+  disk=Part.Face(wire)
+  for s in seats:
+   d=s['head_diameter']
+   if (math.dist(centre,s['point'])<.015 and abs(box.XLength-d)<.015 and abs(box.YLength-d)<.015
+       and abs(disk.Area-math.pi*(d/2)**2)<.03):
+    filled+=1;break
+  else:remaining.append(wire)
+ if not filled:return face
+ merged=Part.makeFace(remaining,'Part::FaceMakerBullseye')
+ if len(merged.Faces)==1 and merged.isValid():return merged.Faces[0]
+ raise ValueError('Could not restore the isolated flush screw openings in the LiPo pad.')
+
+
+def pad_rounding_radii(radius,width,length):
+ """Bound the trials by the *actual* cropped pad, not inactive pad dimensions."""
+ if not math.isfinite(radius) or radius<=1e-8:return ()
+ r=min(radius,.49*min(width,length))
+ return tuple(r*.7**i for i in range(12) if i==0 or r*.7**i>=.01) if r>1e-8 else ()
+
+
+def round_pad_outline(shape,radius):
+ """Roll a disk inside the outer perimeter only; never add stock or alter holes.
+
+ Work before the fastener and grip cuts. A convex corner (including a clipped
+ reach corner or an existing smaller arc) is rounded by an inward/outward
+ round offset. Retain the original solid if the contour cannot support it.
+ """
+ if not math.isfinite(radius) or radius<=1e-8:return shape
+ import FreeCAD as App
+ import Part
+ from .cnc_perimeter import _as_single_face
+ from .cnc_autorepair import _rounded_offset
+ if shape.isNull() or len(shape.Solids)!=1:return shape
+ box=shape.BoundBox
+ cap=max((f for f in shape.Faces if f.BoundBox.ZLength<1e-6 and abs(f.BoundBox.ZMin-box.ZMax)<1e-6),key=lambda f:f.Area)
+ outer=Part.Face(cap.OuterWire)
+ holes=[Part.Face(w) for w in cap.Wires if not w.isSame(cap.OuterWire)]
+ from .geometry_bounds import box_distance
+ from time import perf_counter
+ hole_bounds=[(h,h.OuterWire,h.BoundBox) for h in holes]
+ for r in pad_rounding_radii(radius,box.XLength,box.YLength):
+  try:
+   tick=perf_counter();rolled=_rounded_offset(outer,r,False);offset_time=perf_counter()-tick;tick=perf_counter()
+   # Intersect, not replace: no pad material can extend beyond the old shape.
+   outline=_as_single_face(outer.common(rolled).removeSplitter())
+   if not outline.isValid():continue
+   removed=outer.cut(outline)
+   if removed.Area<1e-7:
+    if r<radius-1e-6:App.Console.PrintMessage(f'LiPo pad: outline already supports the feasible R{r:.2f} mm corner radius.\n')
+    return shape
+   # Avoid opening a previously enclosed hole to air (even a very small web).
+   clip_time=perf_counter()-tick;tick=perf_counter()
+   outline_wire=outline.OuterWire;removed_box=removed.BoundBox
+   if any(outline.distToShape(wire)[0]>1e-6 or outline_wire.distToShape(wire)[0]<1e-5 or
+          (box_distance(removed_box,hb)<=1e-6 and removed.common(h).Area>1e-7) for h,wire,hb in hole_bounds):continue
+   hole_time=perf_counter()-tick;tick=perf_counter()
+   outline.translate(App.Vector(0,0,box.ZMin-outline.CenterOfMass.z))
+   tool=outline.extrude(App.Vector(0,0,box.ZLength))
+   result=shape.common(tool).removeSplitter()
+   if result.isNull() or not result.isValid() or len(result.Solids)!=1:continue
+   if result.Volume>shape.Volume+1e-6:continue
+   final_cap=max((f for f in result.Faces if f.BoundBox.ZLength<1e-6 and abs(f.BoundBox.ZMin-box.ZMax)<1e-6),key=lambda f:f.Area)
+   if len(final_cap.Wires)!=len(cap.Wires):continue
+   if r<radius-1e-6:App.Console.PrintMessage(f'LiPo pad: requested corner radius {radius:g} mm limited to R{r:.2f} mm by the outline.\n')
+   App.Console.PrintMessage(f'RotorForge LiPo rounding detail: offsets: {offset_time:.3f}s, planar clipping: {clip_time:.3f}s, hole checks: {hole_time:.3f}s, solid clipping and validation: {perf_counter()-tick:.3f}s (accepted R{r:g})\n')
+   return result
+  except Exception:
+   continue
+ App.Console.PrintWarning('LiPo pad: no safe outer rounding fits this outline; retaining original corners. Reduce the corner radius or adjust pad reaches.\n')
+ return shape
+
+
 def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
  import FreeCAD as App
  import Part
+ import time
+ from .geometry_bounds import box_distance
+ tick=time.perf_counter();stages=[]
+ def mark(label):
+  nonlocal tick
+  now=time.perf_counter();stages.append((label,now-tick));tick=now
  z=battery_levels(p)['pad_z']
  # The secondary plate is constructed only at Create/Update when the user
  # wants the LiPo pad to bridge carbon airflow openings. All mounting and
  # strap access holes are retained; the finished carbon plate is unchanged.
  if carrier_without_airflow is not None:
   carrier=carrier_without_airflow
- faces=[f for f in carrier.Faces if f.normalAt(0,0).z>.99999]
+ seats=pad_flush_seats(p)
+ # The lower plate's actual screw rims are on ZMin, not its inner upper face.
+ sign=-1 if seats and p.BatteryMount=='Bottom plate' else 1
+ faces=[f for f in carrier.Faces if sign*f.normalAt(0,0).z>.99999]
+ if seats:
+  surface=seats[0]['z'];faces=[f for f in faces if abs(f.CenterOfMass.z-surface)<1e-6]
+  if not faces:raise ValueError('Could not locate the battery-facing screw seating plane.')
  face=max(faces,key=lambda f:f.Area).copy();face.translate(App.Vector(0,0,z-face.CenterOfMass.z))
+ if seats:face=pad_face_with_flush_holes(p,face,seats)
  if p.LiPoPadShape=='Mounting plate outline':
   shape=face.extrude(App.Vector(0,0,p.LiPoPadThickness))
   if p.LiPoPadOutlineWidthScale!=100:
@@ -273,25 +409,80 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
    shape=shape.common(outline).removeSplitter()
   box=face.optimalBoundingBox(False);rear,front=pad_reach_bounds(p,box.YMin,box.YMax)
   if front<=rear:raise ValueError('Pad front/rear reaches do not overlap the carrier.')
-  shape=shape.common(Part.makeBox(box.XLength+2,front-rear,p.LiPoPadThickness,App.Vector(box.XMin-1,rear,z))).removeSplitter()
+  # With full reaches and no width scaling, the exact carrier extrusion
+  # already lies inside this prism. Refinement is retained, without a
+  # coincident full-solid Boolean. All cropped cases use the old operation.
+  if p.LiPoPadOutlineWidthScale==100 and rear==box.YMin and front==box.YMax:
+   shape=shape.removeSplitter()
+  else:
+   shape=shape.common(Part.makeBox(box.XLength+2,front-rear,p.LiPoPadThickness,App.Vector(box.XMin-1,rear,z))).removeSplitter()
+  mark('carrier and reach clipping')
+  shape=round_pad_outline(shape,p.LiPoPadCornerRadius)
+  mark('outer rounding')
  else:
   shape=pad_blank(p)
   supported=shape.common(face.extrude(App.Vector(0,0,p.LiPoPadThickness))).removeSplitter()
   if supported.isNull() or supported.Volume<1e-6:raise ValueError('LiPo pad does not contact the mounting plate; move or resize it.')
   if p.LiPoPadFollowPlate:shape=supported
- from .parameters import standoff_layouts
+  mark('carrier and reach clipping')
  from .geometry import cylinder
- tools=[cylinder(*stand['point'],pad_standoff_clearance(p),z-.01,p.LiPoPadThickness+.02) for stand in standoff_layouts(p)]
+ tools=[cylinder(x,y,r,z-.01,p.LiPoPadThickness+.02) for x,y,r in pad_fastener_clearances(p)]
+ shape_bounds=shape.BoundBox
+ tools=[tool for tool in tools if box_distance(shape_bounds,tool.BoundBox)<=1e-6]
  if tools:shape=shape.cut(Part.makeCompound(tools)).removeSplitter()
+ mark('fastener clearances')
+ # The outline-only export deliberately omits all shallow surface machining.
+ layout=None
+ grip_box=None
+ if grooves and p.LiPoPadTextEnabled:
+  if shape.isNull() or len(shape.Solids)!=1:raise ValueError('LiPo pad must be connected before lettering; adjust the pad outline or openings.')
+  box=grip_box=shape.optimalBoundingBox(False)
+  layout=text_layout(p,(box.XMin,box.YMin,box.XMax,box.YMax))
+  if layout:
+   depth=p.LiPoPadTextDepth
+   bottom=z if p.BatteryMount=='Bottom plate' else z+p.LiPoPadThickness-depth
+   # Use one set of cutters. Exact overlap must equal the designed depth;
+   # the remaining 0.01 mm is deliberately outside the battery-facing surface.
+   outside=z-.01 if p.BatteryMount=='Bottom plate' else bottom
+   letter_tools=text_cutters(layout,outside,depth+.01)
+   for letter in letter_tools:
+    expected=letter.Volume*depth/(depth+.01)
+    if expected-shape.common(letter).Volume>max(1e-7,expected*1e-6):
+     raise ValueError('LiPo pad lettering crosses the pad edge or an opening. Move the text, reduce its size or choose another position.')
  if grooves:
   from .geometry import capsule
   bottom=z-.01 if p.BatteryMount=='Bottom plate' else z+p.LiPoPadThickness-p.LiPoPadGrooveDepth
-  box=shape.optimalBoundingBox(False);bounds=grip_bounds(p,(box.XMin,box.YMin,box.XMax,box.YMax))
+  box=grip_box if grip_box is not None else shape.optimalBoundingBox(False);bounds=grip_bounds(p,(box.XMin,box.YMin,box.XMax,box.YMax))
   segments=clipped_grip_segments(p,groove_segments(p,bounds),(box.XMin,box.YMin,box.XMax,box.YMax))
-  tools=[capsule(a,b,p.LiPoPadGrooveWidth/2,bottom,p.LiPoPadGrooveDepth+.01) for a,b in segments]
+  radius=p.LiPoPadGrooveWidth/2
+  if layout:
+   x0,y0,x1,y1=layout[2]
+   # A capsule wholly inside the reserved rectangle is removed by the old
+   # cutter subtraction anyway. Skip creating its OCC solid entirely.
+   eps=1e-7
+   if p.LiPoPadGrooveDepth<p.LiPoPadThickness:
+    segments=tuple((a,b) for a,b in segments if not (min(a[0],b[0])-radius>x0+eps and max(a[0],b[0])+radius<x1-eps and min(a[1],b[1])-radius>y0+eps and max(a[1],b[1])+radius<y1-eps))
+  tools=[capsule(a,b,radius,bottom,p.LiPoPadGrooveDepth+.01) for a,b in segments]
+  if layout:
+   x0,y0,x1,y1=layout[2]
+   keep=Part.makeBox(x1-x0,y1-y0,p.LiPoPadThickness+.04,App.Vector(x0,y0,z-.02))
+   trimmed=[]
+   for tool in tools:
+    b=tool.BoundBox
+    if b.XMax>x0 and b.XMin<x1 and b.YMax>y0 and b.YMin<y1:
+     tool=tool.cut(keep)
+    if not tool.isNull():trimmed.extend(tool.Solids)
+   tools=trimmed
+  shape_bounds=shape.BoundBox
+  tools=[tool for tool in tools if box_distance(shape_bounds,tool.BoundBox)<=1e-6]
+  mark('grip and lettering tools')
   if tools:shape=shape.cut(Part.makeCompound(tools)).removeSplitter()
+  if layout:shape=shape.cut(Part.makeCompound(letter_tools)).removeSplitter()
+  mark('grip and lettering booleans')
  if shape.isNull() or not shape.isValid() or len(shape.Solids)!=1:
   raise ValueError('LiPo pad must remain one connected part after plate cuts and 6 mm standoff clearances. Adjust its width/reaches or simplify cuts.')
+ mark('final validation')
+ App.Console.PrintMessage('RotorForge LiPo geometry detail: '+', '.join(f'{k}: {v:.3f}s' for k,v in stages)+'\n')
  return shape
 
 def battery_envelope(p):

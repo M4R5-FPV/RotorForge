@@ -11,6 +11,7 @@ PCB=(.08,.32,.23);SILICONE=(.15,.17,.19);CHIP=(.075,.085,.09)
 PROP=(.18,.57,.62);GLASS=(.12,.27,.36)
 from .reference_options import (FLAGS,SIMPLE,enabled,SHAFT_DIAMETER,PROP_BORE,PROP_HUB_HEIGHT,LOCKNUT_AF,LOCKNUT_HEIGHT,blade_pitch_angle,shaft_top)
 from .prop_palette import prop_finish
+from .motor_palette import MOTOR_BELL, motor_finish, reference_face_colours
 def box(x,y,z,a,b,c):return Part.makeBox(a,b,c,App.Vector(x,y,z))
 def cyl(radius,height,x=0,y=0,z=0):return Part.makeCylinder(radius,height,App.Vector(x,y,z))
 def ring(ro,ri,h,z=0,x=0,y=0):return cyl(ro,h,x,y,z).cut(cyl(ri,h+.02,x,y,z-.01))
@@ -46,11 +47,11 @@ def motor_model(d,h,bolt_circle=None,count=4,hole=3.2,phase=0.):
  # Keep a radial 0.5 mm gap to every mounting-screw shank, independent of
  # its engagement length; screw heads sit below the mounting plane.
  items.append((ring(support_radius,min(r*.15,support_radius*.4),h*.30-foot_h,foot_h),BLACK))
- items.append((ring(r,r*.87,h*.64,h*.30),BLACK))
- items.append((ring(r*.99,r*.86,h*.06,h*.94),BLACK))
- items.append((cyl(min(r*.55,5.5),h*.10,z=h*.90),BLACK))
+ items.append((ring(r,r*.87,h*.64,h*.30),MOTOR_BELL))
+ items.append((ring(r*.99,r*.86,h*.06,h*.94),MOTOR_BELL))
+ items.append((cyl(min(r*.55,5.5),h*.10,z=h*.90),MOTOR_BELL))
  for i in range(6):
-  spoke=box(-r*.075,r*.19,h*.94,r*.15,r*.7,h*.06);spoke.rotate(App.Vector(),App.Vector(0,0,1),i*60);items.append((spoke,BLACK))
+  spoke=box(-r*.075,r*.19,h*.94,r*.15,r*.7,h*.06);spoke.rotate(App.Vector(),App.Vector(0,0,1),i*60);items.append((spoke,MOTOR_BELL))
  # Smooth M5 shaft; no expensive helical thread geometry in a display model.
  items.append((cyl(SHAFT_DIAMETER/2,shaft_top(h)-h+.2,z=h-.2),METAL))
  nut_z=h+PROP_HUB_HEIGHT;cr=LOCKNUT_AF/math.sqrt(3)
@@ -299,8 +300,8 @@ def vtx_model(w,l,h,holes,digital,style='Automatic'):
 def lipo_model(w,l,h,cells=6):
  """Visual soft-pouch LiPo: one distinct pouch layer per series cell.
 
- Power leads and balance header are schematic and deliberately excluded from
- the clearance envelope. Cells are arranged in the illustrative vertical stack.
+ Only the battery pack is shown; external wires and connectors are omitted.
+ Cells are arranged in the illustrative vertical stack.
  """
  cells=int(cells)
  if not 3<=cells<=8:raise ValueError('LiPo reference supports 3S through 8S.')
@@ -346,23 +347,6 @@ def lipo_model(w,l,h,cells=6):
   items.append((box(-w*.49,y,h*.03,w*.98,l*.03,h*.94),dark))
  items.append((box(-w*.31,-l*.26,h*.984,w*.62,l*.53,h*.012),dark))
  items.append((box(-w*.23,-l*.18,h*.996,w*.46,l*.12,h*.004),silver))
- # Power leads at the rear. Modelled short and close to the pack for preview.
- lead=min(12.,l*.18);wire_r=min(.95,w*.025,max(.5,h*.035));z=h*.57
- for x,col in ((-w*.13,(.70,.07,.045)),(w*.13,dark)):
-  items.append((Part.makeCylinder(wire_r,lead*.65,App.Vector(x,l*.48,z),App.Vector(0,1,0)),col))
- plug_w=min(w*.36,12.);plug_h=min(h*.27,8.)
- plug=chamfer_box(plug_w,lead*.32,plug_h,z-plug_h/2,min(1.,plug_w*.12))
- plug.translate(App.Vector(0,l*.5+lead*.79,0));items.append((plug,(.69,.45,.13)))
- # One balance contact for each cell boundary: 3S => 4 pins, 8S => 9.
- # Connector is representational, not an electrical wiring diagram.
- ncontacts=cells+1;pinpitch=min(1.65,(w*.56)/(ncontacts+1))
- header_w=(ncontacts+1)*pinpitch
- header_z=h*.28;header_h=min(3.1,h*.13)
- header=chamfer_box(header_w,2.5,header_h,header_z,corner=.4)
- header.translate(App.Vector(w*.13,l*.5+1.2,0));items.append((header,(.88,.88,.82)))
- for j in range(ncontacts):
-  x=w*.13-header_w/2+(j+1)*pinpitch
-  items.append((box(x-.19,l*.5+3.66,header_z+header_h*.3,.38,.08,header_h*.38),dark))
  shape,colours=compound(items)
  shape.rotate(App.Vector(),App.Vector(0,0,1),180)
  return shape,colours
@@ -609,7 +593,10 @@ def _placed_reference(p,role):
 
 def detailed_reference(p,role):
  shape,colours=_placed_reference(p,role)
- return shape.copy(),colours
+ return shape.copy(),reference_face_colours(colours,p.MotorReferenceColour) if role=='MotorEnvelopes' else colours
+
+def detailed_reference_shape(p,role):
+ return _placed_reference(p,role)[0].copy()
 
 def apply_reference_material(view,role,p):
  """Reset simple colours on disable, and apply cached per-face model colours."""
@@ -621,6 +608,9 @@ def apply_reference_material(view,role,p):
   trans=8 if role=='PropellerDiscs' else 0
   # Construction only happens during document updates, never live editor paint.
   if p.ShowReferences and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):_,colours=_placed_reference(p,role)
+  if role=='MotorEnvelopes':
+   base=motor_finish(p.MotorReferenceColour)
+   colours=reference_face_colours(colours,p.MotorReferenceColour)
   if role=='PropellerDiscs':
    # Face colours remain a presentation attribute, not a CAD-model input.
    # All hubs and blades receive the chosen moulded-polycarbonate finish.

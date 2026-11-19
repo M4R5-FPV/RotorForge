@@ -144,15 +144,27 @@ def guard_wire_openings(p,g):
   if name in ('Front','Combined'):
    transitions=[]
    if three_plate(p):transitions.append(mid_bounds(p)[1])
-   if p.FlexGuardCloseFront and p.FPVEnabled:transitions.append(g['front'])
+   if p.FlexGuardCloseFront and p.FPVEnabled:transitions.append(guard_closure_seam(p,g)[0])
    ends=sorted(set(ends+[v for v in transitions if ends[0]<v<ends[-1]]))
+  segments=[]
   for left,right in zip(ends,ends[1:]):
    if right-left<1e-5:continue
    centre=(left+right)/2;bottom=g['z'];original_bottom=g['inner_bottom']
    if three_plate(p) and centre>mid_bounds(p)[1]:bottom=original_bottom=g['inner_top']-10
-   if p.FlexGuardCloseFront and p.FPVEnabled and centre>=g['front']:
-    original_bottom=p.BottomThickness+guard_plate_gap(p);bottom=original_bottom if guard_between_plates(p) else 0.
-   items.append(dict(name=name,y=centre,bottom=bottom,width=right-left,height=p.FlexGuardWireHeight+original_bottom-bottom,source_width=w,source_y=y))
+   if p.FlexGuardCloseFront and p.FPVEnabled and centre>=guard_closure_seam(p,g)[0]:
+    carrier=p.BottomThickness+guard_plate_gap(p)
+    original_bottom=g['inner_bottom'] if three_plate(p) and centre<=mid_bounds(p)[1] else carrier
+    bottom=carrier if guard_between_plates(p) else 0.
+   top=original_bottom+p.FlexGuardWireHeight
+   # Same-height pieces are one notch. Cutting a tiny separately rounded
+   # piece at a seam introduces slits and unwanted cusps. Extend the united
+   # cutter below the lowest local wall edge; it removes no material in air.
+   if segments and abs(top-segments[-1][3])<1e-7:
+    prev_left,_,prev_bottom,_=segments.pop()
+    segments.append((prev_left,right,min(bottom,prev_bottom),top))
+   else:segments.append((left,right,bottom,top))
+  for left,right,bottom,top in segments:
+   items.append(dict(name=name,y=(left+right)/2,bottom=bottom,width=right-left,height=top-bottom,source_width=w,source_y=y))
  return tuple(items)
 
 
@@ -178,32 +190,170 @@ def grip_bridge(p,g,stand,station):
  return (sx,sy),(sign*max(sign*sx,sign*outer-radius),station[0]),radius
 
 
+def guard_closure_seam(p,g):
+ """Overlap the last supported main wall, not just the forward post."""
+ from .parameters import mid_bounds,three_plate
+ lo=g['rear']+p.FlexGuardRearInset
+ front=g['front']-p.FlexGuardFrontInset
+ overlap=max(1.5,p.FlexGuardWall)
+ anchor=min(front,mid_bounds(p)[1]) if three_plate(p) else front
+ join=max(lo+overlap*.5,anchor-overlap*.5)
+ join=min(front,join)
+ start=max(lo,join-overlap)
+ return round(start,4),round(join,4)
+
+
+def guard_station_at(stations,y):
+ """Interpolate the existing sampled wall; clamp outside its domain."""
+ if y<=stations[0][0]:return stations[0]
+ if y>=stations[-1][0]:return stations[-1]
+ for a,b in zip(stations,stations[1:]):
+  if a[0]<=y<=b[0]:
+   t=(y-a[0])/(b[0]-a[0])
+   return (y,*(u+(v-u)*t for u,v in zip(a[1:],b[1:])))
+ return stations[-1]
+
+
+def guard_main_wall_x(p,g,station,z):
+ """Same cross section as the main ruled wall, including the plate lips."""
+ _,xb,xt,low=station
+ if guard_between_plates(p):
+  lower,upper=low,g['top']
+ else:
+  lower=max(low+.01,g['inner_bottom'])
+  upper=g['inner_top']
+ fraction=max(0.,min(1.,(z-lower)/max(1e-6,upper-lower)))
+ return xb+(xt-xb)*fraction
+
+
+def _smoothstep(t):
+ t=max(0.,min(1.,t));return t*t*(3.-2.*t)
+
+
+def guard_closure_wall_bounds(p,g,closure,y,z,xb,xt,landing_x,main_x):
+ """Inner and outer X of the front panel, in the frame coordinate system.
+
+ In wrap mode each carbon lip must remain vertical through the plate thickness.
+ In combined mode the carbon edges are hard anchors, not blended toward the
+ camera. Only the free wall between those anchors is steered toward the cage.
+ A local inward landing can close a narrow gap to a recessed cage without
+ changing the outside plate-following contour. The seam remains identical to
+ the existing wall throughout its overlap.
+ """
+ sign=g['sign'];w=p.FlexGuardWall;join=closure['join'];end=closure['sections'][0][1]
+ if y<=join:return main_x,main_x+sign*w
+ low=closure['lower_shoulder'];high=closure['upper_shoulder']
+ t=max(0.,min(1.,(z-low)/max(1e-6,high-low)))
+ plate_x=guard_wall_inner_x(p,xb*(1-t)+xt*t,sign)
+ mode=closure['mode']
+ # Follow the cage only locally in the combined mode. Both plate edges
+ # remain fixed, even if their widths differ or the cage sits further inboard.
+ landing_run=min(max(3.,p.FlexGuardCameraOverlap+2*w),max(1e-6,end-join))
+ b=_smoothstep((y-(end-landing_run))/landing_run)
+ if mode=='Camera cage only':
+  x=main_x+(landing_x-main_x)*_smoothstep((y-join)/max(1e-6,end-join))
+ elif mode=='Plate outlines only':
+  x=plate_x
+ else:
+  weight=(1-t if mode=='Top plate and camera cage' else t if mode=='Bottom plate and camera cage' else 4*t*(1-t))
+  # In the combined mode the exposed skin should never be pulled outward
+  # by the landing. Only the inside face may return toward the cage.
+  x=plate_x if mode=='Plate outlines and camera cage' else plate_x+(landing_x-plate_x)*b*weight
+ # Only interpolate away from the original wall over a short join region.
+ a=_smoothstep((y-join)/min(max(2.,2*w),max(1e-6,end-join)))
+ # The main wall already follows the upper carrier exactly at the join.
+ # Keep that upper lip at the real contour immediately after the join;
+ # the bottom can need a short transition from the mid-plate carrier.
+ seam_weight=a+(1-a)*t if mode in ('Plate outlines and camera cage','Plate outlines only','Top plate and camera cage') else a
+ x=main_x+(x-main_x)*seam_weight
+ outer=x+sign*w
+ if mode=='Plate outlines and camera cage':
+  # A recessed cage needs an inward return, not an outward bulge. The return
+  # fades into the free wall and is absent on the plate-bearing lips.
+  gap=max(0.,sign*(x-landing_x))
+  # Full contact in the free wall, with a short taper adjacent to the lips.
+  lip_blend=min(1.5,max(.1,(high-low)/4))
+  contact=_smoothstep(min(z-low,high-z)/lip_blend)
+  x-=sign*gap*b*a*contact
+  # Keep the exterior exactly on the plate-following contour. An outboard
+  # cage overlaps that envelope and is cleared by the actual cage tool;
+  # an outward flare here leaves visible protrusions after that subtraction.
+ return x,outer
+
+
+def guard_closure_wall_x(p,g,closure,y,z,xb,xt,landing_x,main_x):
+ return guard_closure_wall_bounds(p,g,closure,y,z,xb,xt,landing_x,main_x)[0]
+
+
+def closure_stations(closure,main_stations=(),contours=()):
+ """Shared bounded sampling of the actual plate curves, including corners."""
+ start=closure['start'];join=closure['join'];end=closure['sections'][0][1]
+ n=max(1,math.ceil((end-join)/1.5))
+ ys={start,join,end,*[round(join+(end-join)*i/n,6) for i in range(1,n)],
+     *[y for y in main_stations if start<y<join]}
+ # Include genuine profile breakpoints between the regular samples, but avoid
+ # nearly duplicate stations that create fragile, microscopic CAD faces.
+ import bisect
+ stations=sorted(ys)
+ for y in sorted({round(y,6) for points in contours for _,y in points if join+.35<y<end-.35}):
+  i=bisect.bisect_left(stations,y)
+  if min(y-stations[i-1],stations[i]-y)>=.35:stations.insert(i,y)
+ return stations
+
+
 def closure_profile(p,g):
- """Rear edge of the actual camera wall, sampled at changes in its slope."""
+ """Full-height side enclosure reaching the camera cage without a Y/Z wedge.
+
+ A sloping camera cage can place its upper rear edge *behind* the front
+ standoff while its lower rear edge is far ahead.  Using that edge as the
+ side guard's forward Y coordinate at each height produces a large diagonal
+ triangular tip.  Instead, extend the guard to a *single*, stable forward
+ station which reaches the foremost camera landing across its height.
+
+ The 3D wall is still shaped from the actual upper/lower plate silhouettes
+ in protection_geometry.  Only its forward station is kept vertical; the
+ TPU/carbon camera side remains a separate part with its own clearances.
+ """
  if not (p.FlexGuardCloseFront and p.FPVEnabled):return None
  from .fpv import camera_mounts
  mount=next(m for m in camera_mounts(p) if m['role'].endswith('Left' if g['sign']<0 else 'Right'))
- low=p.BottomThickness+guard_plate_gap(p) if guard_between_plates(p) else 0.;high=g['top'];points=mount['wall_profile']
+ low=p.BottomThickness+guard_plate_gap(p) if guard_between_plates(p) else 0.
+ high=g['top'];points=mount['wall_profile']
  wall_low=min(z for y,z in points);wall_high=max(z for y,z in points)
  zs=sorted({low,high,*[z for y,z in points if low<z<high],(low+high)/2})
  if p.CameraCageStyle=='TPU cage':
   boss_ends=(mount['z0']+p.CameraTPUInsertDepth+1,mount['z1']-p.CameraTPUInsertDepth-1)
   zs=sorted(set(zs+[z+d for z in boss_ends for d in (-.25,.25) if low<z+d<high]))
  def rear(z):
-  # Outside the camera wall, continue its contact edge beside plate stock.
-  z=max(wall_low,min(wall_high,z))
-  hits=[]
+  z=max(wall_low,min(wall_high,z));hits=[]
   for (y0,z0),(y1,z1) in zip(points,points[1:]+points[:1]):
    if abs(z1-z0)<1e-8:
     if abs(z-z0)<1e-6:hits.extend((y0,y1))
-   elif min(z0,z1)-1e-7<=z<=max(z0,z1)+1e-7:hits.append(y0+(y1-y0)*(z-z0)/(z1-z0))
-  if not hits:raise ValueError('Camera side plates must span the bottom-to-top guard closure.')
+   elif min(z0,z1)-1e-7<=z<=max(z0,z1)+1e-7:
+    hits.append(y0+(y1-y0)*(z-z0)/(z1-z0))
+  if not hits:raise ValueError('Camera side plates must span the side guard closure.')
   return min(hits)+p.FlexGuardCameraOverlap
- sections=tuple((z,rear(z)) for z in zs)
- # Keep the lower skirt at the forward posts; taper only an upper contact
- # rearward if a shorter top plate brings the camera wall behind that row.
- starts=tuple(min(g['front'],end-4.) for z,end in sections)
- return dict(start=g['front'],starts=starts,sections=sections,x=max(mount['plate_x']) if g['sign']>0 else min(mount['plate_x']))
+ seam,join=guard_closure_seam(p,g)
+ # The matching closure needs the same vertical shoulders as the main wall.
+ lower_shoulder=p.BottomThickness+guard_plate_gap(p)
+ upper_shoulder=g['inner_top'] if not guard_between_plates(p) else high
+ lip_blend=min(1.5,max(.1,(upper_shoulder-lower_shoulder)/4))
+ zs=sorted(set(zs+[z for z in (g['z'],g['inner_bottom'],lower_shoulder,upper_shoulder,lower_shoulder+lip_blend,upper_shoulder-lip_blend,(lower_shoulder+upper_shoulder)/2) if low<z<high]))
+ # Extrema of a piecewise-linear camera profile occur at its vertices.
+ # Above/below the camera profile, the endpoint is clamped to the actual
+ # mounting height rather than extrapolated beyond the physical side plate.
+ camera_zs={wall_low,wall_high}
+ camera_zs.update(z for y,z in points if wall_low<=z<=wall_high)
+ camera_zs.update(max(wall_low,min(wall_high,z)) for z in zs)
+ camera_front=max(rear(z) for z in camera_zs)
+ # Maintain a real overlap with the forward post, even for short cages.
+ end=max(camera_front,g['front']+max(1.2,p.FlexGuardWall*.55))
+ sections=tuple((z,end) for z in zs)
+ return dict(start=seam,join=join,mode=p.FlexGuardClosureContour,
+             lower_shoulder=lower_shoulder,upper_shoulder=upper_shoulder,
+             starts=(seam,)*len(sections),sections=sections,
+             x=max(mount['plate_x']) if g['sign']>0 else min(mount['plate_x']))
+
 
 def guard_strap_windows(p,g):
  """Full-width edge notches. Y remains in the frame axes, not wall tangent."""

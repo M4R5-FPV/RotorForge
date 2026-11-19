@@ -18,7 +18,16 @@ def preview_mount(p,mount):
  from .cage_extensions import follow_target
  _,pts=outline(p);a,b=mount['plate_x'];return follow_target(mount,min(front(pts,a+(b-a)*i/4) for i in range(5)),p)
 
+from functools import lru_cache
+
+
 def front_band_path(p):
+ from .airflow_gui import QtGui
+ return QtGui.QPainterPath(_front_band_path_cached(p))
+
+
+@lru_cache(maxsize=12)
+def _front_band_path_cached(p):
  """Bottom-contact footprint matching the native rounded rear bridge.
 
  The front edge is the actual finished bottom-plate contour. The adjustable

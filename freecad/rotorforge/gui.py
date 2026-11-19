@@ -1,9 +1,11 @@
 """Qt editor with a fast top-view preview; imports only inside GUI FreeCAD."""
 from dataclasses import fields, replace
 from functools import lru_cache
+from collections import OrderedDict
 import math
 import os
 import re
+from time import perf_counter
 
 import FreeCAD as App
 import FreeCADGui as Gui
@@ -16,11 +18,13 @@ except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets
 
 from .battery import BATTERY_FIELDS,battery_point,groove_segments
-from .part_preview import preview_roles,draw_parts,pad_path
+from .part_preview import preview_roles,draw_parts,pad_path,pad_text_path
+from .pad_text import PAD_TEXT_FIELDS
 from .paths import help_path, icon_path
 from .motor_sizes import MOTOR_SIZES,apply_motor_size
 from .appearance import CARBON_HEX,CARBON_EDGE,PAD_HEX,printed_hex,PRINTED_COLOURS,design_signature,carbon_brush
 from .prop_palette import prop_swatch
+from .motor_palette import motor_swatch
 from . import __version__
 from .editor_sections import SECTIONS, FIELD_LOCATION, FIELD_ORDER, HIDDEN_FIELDS
 from .airflow_gui import arm_stack_access_path
@@ -76,11 +80,27 @@ LABELS = {
     'LiPoPadCornerRadius':'Pad corner radius',
     'LiPoPadFollowPlate':'Follow mounting plate',
     'LiPoPadCopyAirflow':'Copy airflow cuts to LiPo pad',
+    'LiPoPadCoverCountersunk':'Cover countersunk screws',
     'LiPoPadPattern':'Grip surface',
     'LiPoPadGrooveWidth':'Groove width',
     'LiPoPadGrooveDepth':'Groove depth',
     'LiPoPadGroovePitch':'Groove spacing',
     'LiPoPadDensity':'Pad material density',
+    'LiPoPadTextEnabled':'Add text to pad',
+    'LiPoPadText':'Text',
+    'LiPoPadTextPosition':'Fixed text position',
+    'LiPoPadTextFont':'Font design',
+    'LiPoPadTextStyle':'Font style',
+    'LiPoPadTextHeight':'Letter height',
+    'LiPoPadTextWidthScale':'Letter width scale',
+    'LiPoPadTextStroke':'Stroke width',
+    'LiPoPadTextSpacing':'Letter spacing',
+    'LiPoPadTextDepth':'Recess depth',
+    'LiPoPadTextMarginAlong':'Clear area along text (each end)',
+    'LiPoPadTextMarginAcross':'Clear area across text (each side)',
+    'LiPoPadTextInset':'Inset from front / rear edge',
+    'LiPoPadTextOffsetX':'Additional left / right offset',
+    'LiPoPadTextOffsetY':'Additional rear / front offset', 
     'StandoffDensity':'Standoff material density',
     'ShowFrameCG':'Show estimated CG marker',
 
@@ -159,6 +179,10 @@ LABELS = {
     "StandoffPair3Mount":"Pair 3 position mode", "StandoffPair4Mount":"Pair 4 position mode",
     "StandoffPair3Y": "Pair 3 position Y", "StandoffPair3Width": "Pair 3 left–right spacing",
     "StandoffPair4Y": "Pair 4 position Y", "StandoffPair4Width": "Pair 4 left–right spacing",
+    'StandoffTopHead':'Top plate structural screw heads',
+    'StandoffMidHead':'Mid / upper clamp screw heads',
+    'StandoffBottomHead':'Bottom / arm root screw heads',
+    'CameraCageScrewHead':'TPU cage mounting screw heads',
     "StandoffDiameter": "Standoff outside diameter", "StandoffHoleDiameter": "Standoff through-hole diameter",
     "StrapOffsetY": "Slot centre distance from centre", "StrapEdgeInset": "Slot inset from top plate edge",
     "CarbonDensity": "Carbon density estimate", "MinimumWeb": "Minimum material around holes",
@@ -174,9 +198,9 @@ TIPS = {
 
     'BatteryReferenceEnabled':'Show the selected LiPo pack reference when Show references is enabled. This is a visual fit reference, not a manufactured frame component.',
     'BatteryPreset':'Choose a typical 3S–8S pack to fill in nominal dimensions, mass and cell count. Select Custom dimensions to retain individual measurements. Published battery dimensions vary by manufacturer.',
-    'BatteryCells':'Actual number of cells in series (3–8). Controls the illustrated cell layers and balance connector contacts; does not change battery dimensions or mass automatically.',
+    'BatteryCells':'Actual number of cells in series (3–8). Controls the illustrated cell layers; does not change battery dimensions or mass automatically.',
     'BatteryWidth':'Measured pack width, including protective wrap. Changing this switches the preset to Custom dimensions while retaining the selected cell count.',
-    'BatteryLength':'Measured pack length along the local Y axis, before pack rotation. The visual power leads are decorative and not included in this measurement.',
+    'BatteryLength':'Measured pack length along the local Y axis, before pack rotation. External wires and connectors are not shown in the battery reference.',
     'BatteryHeight':'Measured total pack thickness. The reference sits on the selected mounting surface or LiPo pad; the detailed cell layers are scaled to this height.',
     'KeystoneShape':'Outline of the compact fitted-miter key and its matching arm pockets. Independent roots retain automatic arm seats; switch Root joints to Fitted miters to choose a compact outline.',
     'EstimateComponents':'Include editable nominal motors, props, FC, ESC, FPV camera/VTX and automatically counted steel screws. The CG marker uses the equipped estimate, plus battery when enabled.',
@@ -202,13 +226,29 @@ TIPS = {
     'LiPoPadLength':'Length of an independent pad before carrier clipping. With Mounting plate outline this is unused; use front/rear reaches. Grip patterns always cover the finished pad automatically.',
     'LiPoPadThickness':'Overall pad thickness. Grooves cut into the battery-facing surface and must leave a continuous backing. This height also lifts or lowers the battery reference away from the carbon face.',
     'LiPoPadShape':'Choose rounded rectangle, rectangle, capsule, ellipse, chamfered rectangle, tapered or hourglass. Mounting plate outline follows the top or bottom plate, retaining mandatory mounting/strap openings; the Copy airflow cuts option decides whether it also inherits airflow openings. Use Plate outline width scale and independent front/rear reaches from the stack. Ends are cut straight when shortened; all pads leave a 6 mm clear radius around standoff centres. Grip patterns cover the finished pad automatically; battery pose does not move a plate-following pad or its grip pattern.',
-    'LiPoPadCornerRadius':'Corner radius for Rounded rectangle. Zero makes square corners; positive values must be smaller than half the shorter pad dimension. Use Capsule for fully rounded ends.',
+    'LiPoPadCornerRadius':'Corner radius for Rounded rectangle and Mounting plate outline. For the plate outline, round the outside of the pad only, after width and reach adjustments; zero retains the original outline. The radius is reduced if needed to preserve the openings and a connected pad. For a rounded rectangle it must be less than half the shorter pad dimension.',
     'LiPoPadFollowPlate':'Clip an independent pad to the mounting plate. For an outline-following pad the carrier is always used. The separate airflow option controls whether the pad copies air openings. CAD rejects empty or disconnected pads.',
     'LiPoPadCopyAirflow':'When enabled, the LiPo pad inherits the mounting carbon plate’s airflow through-cuts and outline notches (where they intersect the pad). When disabled, the pad bridges these openings but retains mounting holes and strap access. Carbon additions remain in the pad boundary. With the option enabled, blind pocket outlines may also become through-holes in the pad, so inspect the finished solid. This changes the actual printable solid only on Create / Update, not the live 2-D editor. Existing designs default to enabled to preserve their shape.',
+    'LiPoPadCoverCountersunk':'Bridge isolated flush screw openings on the battery-facing plate. Round heads, nuts, and other openings stay clear. Disable to retain screw access. The carbon machining is unchanged.',
     'LiPoPadPattern':'Choose from 25 grip surfaces, including dots, staggered dots, dashes, basket weave, hexagon cells and waves as well as the existing groove layouts. Every non-solid pattern repeats over the entire finished pad and is clipped to its outline and clearance openings. Width, depth and spacing remain adjustable; the backing stays continuous.',
     'LiPoPadGrooveWidth':'Channel width, or dot diameter for the dimple patterns. All features are shallow recesses.',
     'LiPoPadGrooveDepth':'Depth into the battery-facing surface. Must be smaller than pad thickness so the backing stays continuous.',
     'LiPoPadGroovePitch':'Pattern spacing: row/grid pitch for grooves and dots, base pitch for weave (tile is twice this), hexagon radius for cells, ring inset for rectangular rings. Waves have this row spacing and a wavelength six times this value. Must exceed feature width. Increase it if the finished pattern exceeds 512 segments.',
+    'LiPoPadTextEnabled':'Recess lettering into the battery-facing TPU surface, preserving the pad backing. Grip grooves stop at the adjustable clear area; mounting openings are never filled.',
+    'LiPoPadText':'1–24 characters: A–Z, 0–9, spaces, hyphen, underscore or period. Lowercase input is rendered uppercase. Text is actual printable geometry.',
+    'LiPoPadTextPosition':'Across front/rear anchors the text to the actual finished pad ends. Rear to front and Front to rear place it longitudinally through the pad centre. Across centre is transverse. Front is frame +Y, regardless of battery rotation.',
+    'LiPoPadTextFont':'17 portable RotorForge lettering designs; no installed fonts required.',
+    'LiPoPadTextStyle':'Regular, bold, italic or bold italic can be applied to every font design.',
+    'LiPoPadTextHeight':'Nominal full-height letter size, including its stroke. Short punctuation can be smaller.',
+    'LiPoPadTextWidthScale':'Condense or widen the selected font, without scaling the stroke diameter.',
+    'LiPoPadTextStroke':'Base physical stroke diameter. Bold multiplies this value by 1.45. Use a printable stroke for your nozzle.',
+    'LiPoPadTextSpacing':'Clear gap between consecutive letters along the writing direction.',
+    'LiPoPadTextDepth':'Blind recess depth; must leave at least 0.3 mm of pad backing. No raised material touches the battery.',
+    'LiPoPadTextMarginAlong':'Additional smooth, groove-free area beyond each end of the text. Does not fill existing holes.',
+    'LiPoPadTextMarginAcross':'Additional smooth, groove-free area on each side of the text. Does not fill existing holes.',
+    'LiPoPadTextInset':'Gap from transverse lettering to the front or rear pad end. Used only for Across front and Across rear.',
+    'LiPoPadTextOffsetX':'Fine adjustment in frame coordinates; positive moves right.',
+    'LiPoPadTextOffsetY':'Fine adjustment in frame coordinates; positive moves forward.',
     'LiPoPadDensity':'Density used to convert exact pad volume into its mass estimate. Default 1.2 g/cm3 is a nominal solid TPU value. Enter the actual material/effective printed density; infill and adhesive are not modelled.',
     'StandoffDensity':'Density used for the modelled hollow standoff tubes. Default 2.7 g/cm3 is nominal aluminium. Screw/nut and strap masses are not included.',
     'ShowFrameCG':'Show a red CG cross when references are visible. Uses loaded CG when equipment and battery estimates are enabled, equipped CG without a battery, or bare-frame CG with equipment estimates off. Readouts are independent from marker visibility.',
@@ -277,7 +317,7 @@ TIPS = {
     "CameraPivotMode":'Centre the nominal body and mounting pattern halfway between bottom/top, or set a custom height. Fit camera height raises the standoffs when needed.',
     "CameraTabClearance":"Per-side clearance between the camera plate tongues and the matching rounded slots. The top plate captures the upper tongues when bolted down.",
     "CameraBodyDepth": "Housing depth (not including lens barrel). Real camera housing dimensions are used for collision checks; detailed visual appearance does not change mounting fit.",
-    "CameraSideBoltSpacing":'Vertical centre-to-centre spacing on one camera side. Foxeer T-Rex Mini uses 6.3 mm; Caddx Ratel Pro has one screw per side (0 mm spacing).',
+    "CameraSideBoltSpacing":'Vertical centre-to-centre spacing on one camera side. Walksnail Avatar HD Pro has a reported 6 mm M2 pair; Foxeer T-Rex Mini uses 6.3 mm; Caddx Ratel Pro has one screw per side (0 mm spacing).',
     "CameraSideScrewRearInset":'Custom camera: enter the measured M2 thread position from the REAR of the housing (not lens); positive mm. 0 keeps legacy centred mounting for existing presets. Hole position affects physical plate slots, TPU inserts, camera tilt and detailed thread markers. Unpublished positions in named presets are estimates.',
     "CameraLensProjection":'Length of lens assembly protruding beyond the camera housing front. Foxeer T-Rex Mini is approximately 10.5 mm; Caddx Ratel Pro approximately 14.3 mm based on the supplied drawing.',
     "CameraPhysicalProfile":'Select physical analog or digital camera dimensions (including DJI O4 Pro, Walksnail and HDZero). Generic camera sizes are estimates. Use Custom for your own measured rear-to-screw inset. Each model automatically selects its optical preview.',
@@ -409,10 +449,43 @@ def _top_preview_visual_signature(signature):
                  if index not in _PREVIEW_UNUSED_INDICES)
 
 
+# GUI-thread-only vector cache. The record contains all detail, including
+# textures, fillets and labels. Zoom and pan remain vector operations.
+_PREVIEW_PICTURES=OrderedDict()
+_PREVIEW_PICTURE_BYTES=48*1024*1024
+
+
+def _remember_preview_picture(key,picture):
+    size=int(picture.size())
+    if size>_PREVIEW_PICTURE_BYTES:return
+    _PREVIEW_PICTURES[key]=(picture,size)
+    _PREVIEW_PICTURES.move_to_end(key)
+    while len(_PREVIEW_PICTURES)>8 or sum(v[1] for v in _PREVIEW_PICTURES.values())>_PREVIEW_PICTURE_BYTES:
+        _PREVIEW_PICTURES.popitem(last=False)
+
+
+# At Fit view draw the same detailed primitives directly to a native-DPI
+# pixmap. QPicture serializes each textured brush (including its image) and
+# replays it on every paint; avoid that work on the usual opening path.
+# Zoom/pan still use the original vector pipeline, never an enlarged bitmap.
+_PREVIEW_FIT_PIXMAPS=OrderedDict()
+_PREVIEW_FIT_BYTES=32*1024*1024
+
+
+def _remember_fit_pixmap(key,pixmap):
+    size=int(pixmap.width())*int(pixmap.height())*4
+    if size>_PREVIEW_FIT_BYTES:return
+    _PREVIEW_FIT_PIXMAPS[key]=(pixmap,size)
+    _PREVIEW_FIT_PIXMAPS.move_to_end(key)
+    while len(_PREVIEW_FIT_PIXMAPS)>8 or sum(v[1] for v in _PREVIEW_FIT_PIXMAPS.values())>_PREVIEW_FIT_BYTES:
+        _PREVIEW_FIT_PIXMAPS.popitem(last=False)
+
+
 class TopPreview(QtWidgets.QWidget):
     def __init__(self):
         super().__init__()
         self.params = Parameters()
+        self.loading = False
         self.view_mode = 'Overall'
         self.mass_metrics = None
         self.last_error = None
@@ -463,31 +536,234 @@ class TopPreview(QtWidgets.QWidget):
         event.accept()
 
     def paintEvent(self, event):
-        # Record vector drawing only when the design, mode or viewport changes.
-        # QPicture retains vector detail at every zoom without rebuilding paths.
-        # Lens simulation settings do not affect this 2-D frame drawing.
-        # Avoid redrawing thousands of Qt paths when changing only optics.
+        if self.loading:
+            painter=QtGui.QPainter(self)
+            painter.fillRect(self.rect(),QtGui.QColor('#f3f6f8'))
+            painter.setPen(QtGui.QColor('#294554'))
+            painter.drawText(self.rect(),QtCore.Qt.AlignCenter,'Preparing frame preview…')
+            painter.end()
+            return
+        started=perf_counter()
         key = (_top_preview_visual_signature(self.params.signature()),
                self.view_mode, self.width(), self.height(),
-               repr(self.mass_metrics), self.font().toString())
-        if key != getattr(self, '_picture_key', None):
-            self._picture = QtGui.QPicture()
-            self._record_picture(self._picture)
-            self._picture_key = key
-        painter = QtGui.QPainter(self)
+               repr(self.mass_metrics), self.font().toString(),
+               self.logicalDpiX(),self.logicalDpiY(),self.devicePixelRatioF())
+        fitted=self.zoom==1.0 and self.pan.isNull()
+        pixmap=None
+        if fitted:
+            if key==getattr(self,'_fit_key',None):
+                pixmap=self._fit_pixmap;self.last_error=self._fit_error
+            else:
+                cached=_PREVIEW_FIT_PIXMAPS.get(key)
+                if cached is not None:
+                    _PREVIEW_FIT_PIXMAPS.move_to_end(key)
+                    pixmap=cached[0];self.last_error=None
+                else:
+                    dpr=self.devicePixelRatioF()
+                    pw,ph=max(1,math.ceil(self.width()*dpr)),max(1,math.ceil(self.height()*dpr))
+                    # A saved Fit preview is useful on the first opening after
+                    # restarting FreeCAD. Only an exact visual key is reused.
+                    directory=digest=None
+                    if self.view_mode=='Overall' and getattr(self,'_startup_callback',None) is not None:
+                        from .preview_acceleration import preview_cache_location,preview_cache_key,read_preview
+                        from .appearance import carbon_texture_path
+                        try:
+                            directory=preview_cache_location(App)
+                            asset=os.stat(carbon_texture_path())
+                            digest=preview_cache_key(key,__version__,QtCore.qVersion(),(asset.st_size,asset.st_mtime_ns))
+                            pixmap=read_preview(directory,digest,QtGui,pw,ph,dpr)
+                        except (OSError,ValueError,TypeError,RuntimeError,AttributeError):
+                            directory=digest=None
+                        if pixmap is not None:
+                            self.last_error=None
+                            self._overview_details={'disk preview hit':perf_counter()-started}
+                    if pixmap is None:
+                        pixmap=QtGui.QPixmap(pw,ph)
+                        if not pixmap.isNull():
+                            pixmap.setDevicePixelRatio(dpr)
+                            pixmap.fill(QtGui.QColor('#f3f6f8'))
+                            self._record_picture(pixmap)
+                            if not self.last_error and directory is not None and digest is not None:
+                                from .preview_acceleration import write_preview
+                                # Save after the initial paint, not on its critical path.
+                                saved=QtGui.QPixmap(pixmap)
+                                QtCore.QTimer.singleShot(0,lambda d=directory,k=digest,p=saved:write_preview(d,k,p))
+                        else:pixmap=None
+                    if pixmap is not None and not self.last_error:_remember_fit_pixmap(key,pixmap)
+                if pixmap is not None:
+                    # Keep one current image even if unusually high DPI makes
+                    # it too large for the shared bounded cache.
+                    self._fit_key=key;self._fit_pixmap=pixmap;self._fit_error=self.last_error
+        # Keep the original vector rendering for arbitrary zoom and pan,
+        # and as a fallback if a native pixmap cannot be allocated.
+        if pixmap is None:
+            if key != getattr(self,'_picture_key',None):
+                cached=_PREVIEW_PICTURES.get(key)
+                if cached is not None:
+                    _PREVIEW_PICTURES.move_to_end(key)
+                    self._picture=cached[0];self._picture_error=None
+                else:
+                    self._picture=QtGui.QPicture()
+                    self._record_picture(self._picture)
+                    self._picture_error=self.last_error
+                    if not self.last_error:_remember_preview_picture(key,self._picture)
+                self._picture_key=key
+            self.last_error=self._picture_error
+        build_time=perf_counter()-started
+        painter=QtGui.QPainter(self)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
-        painter.fillRect(self.rect(), QtGui.QColor("#f3f6f8"))
-        painter.translate(self.pan)
-        painter.scale(self.zoom, self.zoom)
-        painter.drawPicture(0, 0, self._picture)
+        painter.fillRect(self.rect(),QtGui.QColor('#f3f6f8'))
+        if pixmap is not None:
+            painter.drawPixmap(0,0,pixmap)
+        else:
+            painter.translate(self.pan)
+            painter.scale(self.zoom,self.zoom)
+            painter.drawPicture(0,0,self._picture)
+        if self.last_error:
+            painter.resetTransform();painter.setPen(QtGui.QColor('#b43737'))
+            painter.drawText(QtCore.QRectF(8,30,self.width()-16,40),QtCore.Qt.AlignCenter,'Preview unavailable: '+self.last_error)
         painter.end()
+        callback=getattr(self,'_startup_callback',None)
+        if callback is not None:
+            self._startup_callback=None
+            callback(build_time,perf_counter()-started-build_time)
+
+    def _record_fast_overview(self,painter,p):
+        """Interactive schematic; finished profiles remain one selection away.
+
+        Never invoke the precise Qt Boolean/fillet, texture or TPU preview
+        pipelines here. CAD generation and validation still use all settings.
+        """
+        motors= motor_centres(p)
+        arms=arm_layouts(p)
+        bottom_rear,bottom_front=bottom_bounds(p)
+        top_rear,top_front=top_bounds(p)
+        extent_x=max(max(abs(x) for x,y in motors)+p.PropDiameter/2,p.TopWidth/2)+15
+        extent_y=max(max(abs(y) for x,y in motors)+p.PropDiameter/2,abs(bottom_rear),abs(bottom_front),abs(top_rear),abs(top_front))+15
+        if p.BatteryReferenceEnabled and p.ShowReferences:
+            corners=[battery_point(p,x,y) for x in (-p.BatteryWidth/2,p.BatteryWidth/2) for y in (-p.BatteryLength/2,p.BatteryLength/2)]
+            extent_x=max(extent_x,max(abs(x) for x,y in corners)+10)
+            extent_y=max(extent_y,max(abs(y) for x,y in corners)+10)
+        scale=min((self.width()-20)/(2*extent_x),(self.height()-68)/(2*extent_y))
+        painter.save();painter.translate(self.width()/2,self.height()/2+3);painter.scale(scale,-scale)
+        def circle(point,r,fill,edge):
+            painter.setPen(QtGui.QPen(QtGui.QColor(edge),.45));painter.setBrush(QtGui.QColor(fill));painter.drawEllipse(QtCore.QPointF(*point),r,r)
+        from .plate_profiles import plate_base_polygon,centre_polygon
+        from .arm_roots import beam_profile_polygon,root_width
+        from .motor_pads import motor_pad_primitives,motor_pad_unit
+        def polygon(points):
+            painter.drawPolygon(QtGui.QPolygonF([QtCore.QPointF(*v) for v in points]))
+        def plate(role,width,rear,front,fill,edge,dashed=False):
+            pen=QtGui.QPen(QtGui.QColor(edge),.65)
+            if dashed:pen.setStyle(QtCore.Qt.DashLine)
+            painter.setPen(pen);painter.setBrush(QtCore.Qt.NoBrush if fill is None else QtGui.QColor(fill))
+            r=max(0.,min(p.CornerRadius,width/2,(front-rear)/2))
+            points=plate_base_polygon(p,role,width,rear,front,r)
+            if points:polygon(points)
+            else:painter.drawRoundedRect(QtCore.QRectF(-width/2,rear,width,front-rear),r,r)
+            centre=centre_polygon(p,role,width,rear,front)
+            if centre:polygon(centre)
+        prop_edge='#a52e36' if prop_gap(p)<0 else '#79b7c5'
+        for pt in motors:circle(pt,p.PropDiameter/2,'#dcecf1',prop_edge)
+        if arms_above_bottom(p):plate('BottomPlate',p.BodyWidth,bottom_rear,bottom_front,'#414448','#111315')
+        for arm in arms:
+            # The exact root/motor coordinates remain live. The fast view
+            # intentionally omits fine custom edge details and machining.
+            painter.setPen(QtGui.QPen(QtGui.QColor('#414448'),p.ArmWidth,QtCore.Qt.SolidLine,QtCore.Qt.RoundCap))
+            painter.drawLine(QtCore.QPointF(*arm['start']),QtCore.QPointF(*arm['motor']))
+            painter.setPen(QtCore.Qt.NoPen);painter.setBrush(QtGui.QColor('#414448'))
+            beam=beam_profile_polygon(p,arm)
+            if beam:polygon(beam)
+            if widened_roots(p):circle(arm['root'],root_width(p)/2,'#414448','#414448')
+            painter.save();painter.translate(*arm['motor'])
+            ux,uy=motor_pad_unit(p,arm);painter.rotate(math.degrees(math.atan2(uy,ux)))
+            for primitive in motor_pad_primitives(p,arm):
+                cut=primitive.get('operation')=='cut'
+                painter.setPen(QtCore.Qt.NoPen);painter.setBrush(QtGui.QColor('#dcecf1' if cut else '#414448'))
+                if primitive['kind']=='circle':painter.drawEllipse(QtCore.QPointF(*primitive['centre']),primitive['radius'],primitive['radius'])
+                elif primitive['kind']=='rounded':
+                    w=primitive['width'];r=primitive['radius'];painter.drawRoundedRect(QtCore.QRectF(-w/2,-w/2,w,w),r,r)
+                else:polygon(primitive['points'])
+            painter.restore()
+            if p.FlexMotorProtectors:
+                painter.setPen(QtGui.QPen(QtGui.QColor(printed_hex(p)),1.8));painter.setBrush(QtCore.Qt.NoBrush);painter.drawEllipse(QtCore.QPointF(*arm['motor']),p.MotorPadDiameter/2+1,p.MotorPadDiameter/2+1)
+            for pt in arm['bolts']:circle(pt,p.RootHoleDiameter/2,'#f3f6f8','#202b36')
+            for pt in arm['motor_holes']:circle(pt,p.MotorHoleDiameter/2,'#f3f6f8','#202b36')
+        if not arms_above_bottom(p):plate('BottomPlate',p.BodyWidth,bottom_rear,bottom_front,'#414448','#111315')
+        if three_plate(p):
+            rear,front=mid_bounds(p);plate('MidPlate',p.BodyWidth,rear,front,'#53585d','#17191b')
+        elif upper_clamp_active(p) or underside_clamp_active(p):
+            clamp=arm_brace_layouts(p)[0]
+            plate('ArmClampPlate',clamp['width'],clamp['rear'],clamp['front'],'#53585d','#17191b')
+        plate('TopPlate',p.TopWidth,top_rear,top_front,None,'#657d90',True)
+        if fitted_roots(p) and keystone_active(p):
+            from .arm_roots import compact_key_outline
+            painter.setPen(QtGui.QPen(QtGui.QColor('#17191b'),.5));painter.setBrush(QtGui.QColor('#35383b'))
+            polygon(compact_key_outline(p,arms,rounded=False))
+        for pt in stack_holes(p):circle(pt,p.StackHoleDiameter/2,'#b3e6c9','#158652')
+        for pt in standoff_holes(p):circle(pt,p.StandoffDiameter/2,'#efd09a','#b97d27')
+        for a,b,r in strap_slots(p):
+            painter.setPen(QtGui.QPen(QtGui.QColor('#f3f6f8'),2*r,QtCore.Qt.SolidLine,QtCore.Qt.RoundCap));painter.drawLine(QtCore.QPointF(*a),QtCore.QPointF(*b))
+        if p.FPVEnabled:
+            body_y=camera_body_centre(p)[0]
+            painter.setPen(QtGui.QPen(QtGui.QColor('#163e50'),.5));painter.setBrush(QtGui.QColor('#7ac4d8'))
+            painter.drawRect(QtCore.QRectF(-p.CameraWidth/2,body_y-p.CameraBodyDepth/2,p.CameraWidth,p.CameraBodyDepth))
+            painter.setPen(QtGui.QPen(QtGui.QColor('#854c9b'),.5));painter.setBrush(QtGui.QColor('#dfc6e6'))
+            painter.drawRect(QtCore.QRectF(-p.VTXWidth/2,p.VTXOffsetY-p.VTXLength/2,p.VTXWidth,p.VTXLength))
+        # Mark the positions of saved machining without high precision path
+        # unions. Deliberately bounded for the largest enabled pattern arrays.
+        count=0
+        painter.setPen(QtGui.QPen(QtGui.QColor('#178a96'),.5));painter.setBrush(QtCore.Qt.NoBrush)
+        for pattern in parse_patterns(p.CutoutPatterns):
+            if not pattern['enabled'] or pattern['role'].startswith('Camera'):continue
+            if pattern['role']=='MidPlate' and not three_plate(p):continue
+            if pattern['role']=='ArmClampPlate' and not upper_clamp_active(p):continue
+            if pattern['role']=='ArmLowerClampPlate' and not underside_clamp_active(p):continue
+            if pattern['role']=='ArmKeystone' and not keystone_active(p):continue
+            for inst in pattern_instances(pattern):
+                if count>=120:break
+                painter.save();painter.translate(inst['x'],inst['y']);painter.rotate(inst['rotation'])
+                w,l=inst['width'],inst['length']
+                if inst['shape']=='Circle':painter.drawEllipse(QtCore.QPointF(0,0),w/2,w/2)
+                else:painter.drawRect(QtCore.QRectF(-w/2,-l/2,w,l))
+                painter.restore();count+=1
+            if count>=120:break
+        if p.LiPoPadEnabled:
+            painter.setPen(QtGui.QPen(QtGui.QColor(printed_hex(p)),.8,QtCore.Qt.DashLine));painter.setBrush(QtCore.Qt.NoBrush)
+            if p.LiPoPadShape=='Mounting plate outline':
+                from .battery import pad_reach_bounds
+                rear,front=(top_rear,top_front) if p.BatteryMount=='Top plate' else (bottom_rear,bottom_front)
+                rear,front=pad_reach_bounds(p,rear,front)
+                w=(p.TopWidth if p.BatteryMount=='Top plate' else p.BodyWidth)*p.LiPoPadOutlineWidthScale/100
+                painter.drawRect(QtCore.QRectF(-w/2,rear,w,front-rear))
+            else:
+                points=[battery_point(p,x,y) for x,y in ((-p.LiPoPadWidth/2,-p.LiPoPadLength/2),(p.LiPoPadWidth/2,-p.LiPoPadLength/2),(p.LiPoPadWidth/2,p.LiPoPadLength/2),(-p.LiPoPadWidth/2,p.LiPoPadLength/2))]
+                polygon(points)
+        if p.BatteryReferenceEnabled and p.ShowReferences:
+            points=[battery_point(p,x,y) for x,y in ((-p.BatteryWidth/2,-p.BatteryLength/2),(p.BatteryWidth/2,-p.BatteryLength/2),(p.BatteryWidth/2,p.BatteryLength/2),(-p.BatteryWidth/2,p.BatteryLength/2))]
+            painter.setPen(QtGui.QPen(QtGui.QColor('#546a79'),.65));painter.setBrush(QtGui.QColor(85,107,124,75))
+            polygon(points)
+        if self.mass_metrics and p.ShowFrameCG and p.ShowReferences:
+            x,y,_=self.mass_metrics['display_cg_mm'];circle((x,y),2.5,'#d92332','#d92332')
+        painter.restore();painter.setPen(QtGui.QColor('#3b4c5b'))
+        painter.drawText(QtCore.QRectF(0,8,self.width(),24),QtCore.Qt.AlignCenter,'FRONT  +Y')
+        painter.drawText(QtCore.QRectF(0,self.height()-30,self.width(),25),QtCore.Qt.AlignCenter,'Fast schematic • select Detailed overview for finished profiles')
 
     def _record_picture(self, picture):
         painter = QtGui.QPainter(picture)
         painter.setRenderHint(QtGui.QPainter.Antialiasing)
         p = self.params
         self.last_error = None
+        timings={}
+        self._overview_details=timings
+        def timed(label,fn,*args,**kwargs):
+            t=perf_counter()
+            try:return fn(*args,**kwargs)
+            finally:timings[label]=timings.get(label,0.)+perf_counter()-t
         try:
+            if self.view_mode=='FastOverall':
+                self._record_fast_overview(painter,p)
+                painter.end();return
             if self.view_mode!='Overall':
                 draw_parts(painter,QtCore.QRectF(6,30,self.width()-12,self.height()-60),p,self.view_mode)
                 painter.resetTransform()
@@ -518,16 +794,17 @@ class TopPreview(QtWidgets.QWidget):
             prop_colour = "#a52e36" if prop_gap(p) < 0 else "#79b7c5"
             for pt in motors:
                 ellipse(pt, p.PropDiameter / 2, prop_colour, "#dcecf1")
-            bottom_path = bottom_plate_path(p,arms)
             def draw_bottom():
                 painter.setPen(QtGui.QPen(QtGui.QColor("#111315"), 0.5))
                 painter.setBrush(carbon_brush(p,QtGui,"#414448"))
-                painter.drawPath(finished_part_path(p,'BottomPlate') if p.BottomEdgeFillet or p.CutoutPatterns!='[]' else bottom_path)
+                painter.drawPath(timed('bottom carbon profile',finished_part_path,p,'BottomPlate') if p.BottomEdgeFillet or p.CutoutPatterns!='[]' else timed('bottom carbon profile',bottom_plate_path,p))
             if arms_above_bottom(p):
                 draw_bottom()
+            arm_paths={}
             for arm in arms:
                 painter.setPen(QtGui.QPen(QtGui.QColor('#384655'),.5));painter.setBrush(carbon_brush(p,QtGui,role='Arm'+arm['name']))
-                painter.drawPath(finished_part_path(p,'Arm'+arm['name']))
+                path=timed('arm carbon profiles',finished_part_path,p,'Arm'+arm['name']);arm_paths[arm['name']]=path
+                painter.drawPath(path)
                 for pt in arm["bolts"]:
                     ellipse(pt, p.RootHoleDiameter / 2, "#202b36")
                 for pt in arm["motor_holes"]:
@@ -535,14 +812,13 @@ class TopPreview(QtWidgets.QWidget):
                 for a,b,radius in motor_tip_slots(p,arm):capsule(a,b,2*radius,'#202b36')
                 ellipse(arm["motor"], p.MotorCenterDiameter / 2, "#202b36")
             if three_plate(p):
-                mid_path = mid_plate_path(p,arms)
                 painter.setPen(QtGui.QPen(QtGui.QColor("#17191b"), 0.6))
                 painter.setBrush(carbon_brush(p,QtGui,"#45484c"))
-                painter.drawPath(finished_part_path(p,'MidPlate') if p.MidEdgeFillet or p.CutoutPatterns!='[]' else mid_path)
+                painter.drawPath(timed('mid carbon profile',finished_part_path,p,'MidPlate') if p.MidEdgeFillet or p.CutoutPatterns!='[]' else timed('mid carbon profile',mid_plate_path,p))
             elif not arms_above_bottom(p):
                 draw_bottom()
             for clamp in arm_brace_layouts(p) if upper_clamp_active(p) else ():
-                path=finished_part_path(p,clamp['role'])
+                path=timed('clamp carbon profiles',finished_part_path,p,clamp['role'])
                 painter.setPen(QtGui.QPen(QtGui.QColor('#17191b'),.6))
                 painter.setBrush(carbon_brush(p,QtGui,'#3a3d40'))
                 painter.drawPath(path)
@@ -553,7 +829,7 @@ class TopPreview(QtWidgets.QWidget):
                 painter.setClipRect(QtCore.QRectF(-span,-span,2*span,2*span))
                 painter.setPen(QtGui.QPen(QtGui.QColor('#384655'),.55,QtCore.Qt.DashLine))
                 painter.setBrush(QtCore.Qt.NoBrush)
-                for arm in arms:painter.drawPath(finished_part_path(p,'Arm'+arm['name']))
+                for arm in arms:painter.drawPath(arm_paths[arm['name']])
                 if keystone_active(p):
                     painter.setPen(QtGui.QPen(QtGui.QColor('#17191b'),.6))
                     painter.setBrush(carbon_brush(p,QtGui,'#35383b'))
@@ -565,8 +841,7 @@ class TopPreview(QtWidgets.QWidget):
             painter.setBrush(QtCore.Qt.NoBrush)
             painter.setPen(QtGui.QPen(QtGui.QColor("#657d90"), 0.65, QtCore.Qt.DashLine))
             top_rear,top_front=top_bounds(p)
-            top_path=profile_path(p,'TopPlate',p.TopWidth,top_rear,top_front,p.CornerRadius)
-            painter.drawPath(finished_part_path(p,'TopPlate') if p.TopEdgeFillet or p.CutoutPatterns!='[]' or (p.StrapSlotsEnabled and p.StrapOpeningStyle=='Outline cutouts') else top_path)
+            painter.drawPath(timed('top carbon profile',finished_part_path,p,'TopPlate') if p.TopEdgeFillet or p.CutoutPatterns!='[]' or (p.StrapSlotsEnabled and p.StrapOpeningStyle=='Outline cutouts') else timed('top carbon profile',profile_path,p,'TopPlate',p.TopWidth,top_rear,top_front,p.CornerRadius))
             for pt in stack_holes(p):
                 if three_plate(p) or arm_braces(p):
                     ellipse(pt,bottom_stack_hole_diameter(p)/2,'#158652','#e3f5e9')
@@ -582,7 +857,7 @@ class TopPreview(QtWidgets.QWidget):
                     # The preview uses the single connected floor footprint;
                     # do not draw the retired two rectangular carbon-style cheeks.
                     from .cage_preview import front_band_path
-                    painter.drawPath(front_band_path(p))
+                    painter.drawPath(timed('TPU camera cage',front_band_path,p))
                 else:
                     for mount in camera_mounts(p):
                         xmin,xmax=mount['plate_x']
@@ -602,7 +877,7 @@ class TopPreview(QtWidgets.QWidget):
                 for point,radius,_ in vtx_holes(p): ellipse(point,radius,'#854c9b')
             if p.FlexFrontBumper:
                 from .bumper_preview import front_bumper_plan
-                painter.setPen(QtGui.QPen(QtGui.QColor('#0c0d0e'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(front_bumper_plan(p))
+                painter.setPen(QtGui.QPen(QtGui.QColor('#0c0d0e'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(timed('TPU front bumper',front_bumper_plan,p))
             patterns=parse_patterns(p.CutoutPatterns);drawn_roles=set()
             for pattern in patterns:
                 if not pattern['enabled'] or pattern['role'].startswith('Camera'):continue
@@ -612,22 +887,27 @@ class TopPreview(QtWidgets.QWidget):
                 if pattern['role']=='ArmLowerClampPlate' and not underside_clamp_active(p):continue
                 painter.setPen(QtGui.QPen(QtGui.QColor('#178a96'),.45));painter.setBrush(QtGui.QColor('#f3f6f8'))
                 if pattern['role'] not in drawn_roles:
-                    painter.drawPath(combined_cutout_path(patterns,pattern['role']));drawn_roles.add(pattern['role'])
+                    painter.drawPath(timed('airflow overlay',combined_cutout_path,patterns,pattern['role'],radius=p.CNCToolRadius));drawn_roles.add(pattern['role'])
             if p.LiPoPadEnabled:
-                painter.setPen(QtGui.QPen(QtGui.QColor('#222b30'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(pad_path(p))
+                painter.setPen(QtGui.QPen(QtGui.QColor('#222b30'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));pad=timed('LiPo pad outline',pad_path,p);painter.drawPath(pad)
+                if p.LiPoPadTextEnabled:
+                    try:
+                        from .appearance import printed_groove
+                        painter.fillPath(timed('LiPo pad lettering',pad_text_path,p,pad),QtGui.QColor(printed_groove(p)))
+                    except ValueError:pass
             from .flex_preview import flex_path
             if p.FlexMotorProtectors:
                 for a in arm_layouts(p):
-                    painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'MotorProtector'+a['name']))
+                    painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(timed('TPU motor protectors',flex_path,p,'MotorProtector'+a['name']))
             if p.FlexELRSEnabled:
-                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'ELRSAntennaMount'))
+                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(timed('ELRS mount',flex_path,p,'ELRSAntennaMount'))
             if p.FlexRearAntenna:
-                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(flex_path(p,'RearAntennaMount'))
+                painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(timed('rear antenna mount',flex_path,p,'RearAntennaMount'))
             if p.FlexSideGuards:
                 from .protection_layout import guard_layout
                 from .flex_preview import guard_plan_path
                 for g in guard_layout(p):
-                    painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(guard_plan_path(p,g))
+                    painter.setPen(QtGui.QPen(QtGui.QColor('#617c7c'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));painter.drawPath(timed('TPU side guards',guard_plan_path,p,g))
             if p.BatteryReferenceEnabled and p.ShowReferences:
                 outline=QtGui.QPainterPath();points=[battery_point(p,x,y) for x,y in ((-p.BatteryWidth/2,-p.BatteryLength/2),(p.BatteryWidth/2,-p.BatteryLength/2),(p.BatteryWidth/2,p.BatteryLength/2),(-p.BatteryWidth/2,p.BatteryLength/2))]
                 outline.moveTo(*points[0])
@@ -733,7 +1013,11 @@ class CameraWorkspace(QtWidgets.QWidget):
 
 class FrameDialog(QtWidgets.QDialog):
     def __init__(self, settings=None):
+        started = perf_counter()
         super().__init__(Gui.getMainWindow())
+        self._startup_started = started
+        self._startup_times = {}
+        self.airflow = None
         self.setWindowFlags(self.windowFlags() | QtCore.Qt.WindowMaximizeButtonHint)
         self.settings = settings
         self._loaded_hardware_preferences = None
@@ -756,6 +1040,9 @@ class FrameDialog(QtWidgets.QDialog):
         self.tabs = tabs
         tabs.setMinimumWidth(550)
         forms = {}; field_forms = {}; self.section_pages = {}; self.category_tabs = {}; self.cage_control_pages = {}; self.section_contents = {}
+        self._page_parking=QtWidgets.QWidget(self);self._page_parking.hide()
+        self._pending_pages={}
+        widget_started=perf_counter()
         for category, title, description, groups in SECTIONS:
             if category not in self.category_tabs:
                 from .editor_navigation import WrappingSections
@@ -768,7 +1055,7 @@ class FrameDialog(QtWidgets.QDialog):
                 tabs.setTabToolTip(index, category)
                 tabs.setTabWhatsThis(index, 'Open the ' + category + ' section.')
             section_tabs=self.category_tabs[category]
-            page=QtWidgets.QWidget();page_layout=QtWidgets.QVBoxLayout(page)
+            page=QtWidgets.QWidget(self._page_parking);page_layout=QtWidgets.QVBoxLayout(page)
             intro=QtWidgets.QLabel(description);intro.setWordWrap(True)
             page_layout.addWidget(intro)
             info=QtWidgets.QWidget();forms[title]=QtWidgets.QFormLayout(info)
@@ -800,8 +1087,9 @@ class FrameDialog(QtWidgets.QDialog):
             page_layout.addStretch()
             self.section_contents[title]=page_layout
             scroll=QtWidgets.QScrollArea();scroll.setWidgetResizable(True)
-            scroll.setFrameShape(QtWidgets.QFrame.NoFrame);scroll.setWidget(page)
+            scroll.setFrameShape(QtWidgets.QFrame.NoFrame);self._pending_pages[scroll]=page
             section_tabs.addTab(scroll,title.replace('&','&&'));self.section_pages[title]=(category,scroll)
+        self._startup_times['page shells']=perf_counter()-widget_started
         self.find_control=QtWidgets.QLineEdit()
         self.find_control.setPlaceholderText('Find a control… (e.g. keystone, strap, camera tilt)')
         self.find_control.setClearButtonEnabled(True)
@@ -825,6 +1113,7 @@ class FrameDialog(QtWidgets.QDialog):
         fit_mounts=QtWidgets.QPushButton('Fit top plate around shared arm mounts')
         fit_mounts.clicked.connect(self.fit_shared_mounts)
         field_forms['StandoffFrontMount'].addRow(fit_mounts)
+        controls_started=perf_counter()
         ordered_fields=sorted(fields(Parameters),key=lambda f:FIELD_ORDER.get(f.name,10000))
         for f in ordered_fields:
             name = f.name
@@ -840,14 +1129,15 @@ class FrameDialog(QtWidgets.QDialog):
                 if name=='CameraPhysicalProfile':
                     control.clear()
                     control.addItem('Custom measurements')
-                if name in ("PrintedPartColour","PropReferenceColour"):
+                if name in ("PrintedPartColour","PropReferenceColour","MotorReferenceColour"):
                     for i,text in enumerate(ENUMERATIONS[name]):
-                        swatch=PRINTED_COLOURS[text] if name=="PrintedPartColour" else prop_swatch(text)
+                        swatch=PRINTED_COLOURS[text] if name=="PrintedPartColour" else motor_swatch(text) if name=="MotorReferenceColour" else prop_swatch(text)
                         control.setItemData(i,QtGui.QColor(swatch),QtCore.Qt.DecorationRole)
                 control.currentIndexChanged.connect(self.queue_refresh)
             elif name in STRINGS:
                 control=QtWidgets.QLineEdit('[]')
                 if name=='CutoutPatterns':control.setMaxLength(1_000_000)
+                elif name=='LiPoPadText':control.setMaxLength(24);control.setPlaceholderText('FPV')
                 control.textChanged.connect(self.queue_refresh)
             elif name in BOOLEANS:
                 control = QtWidgets.QCheckBox()
@@ -861,8 +1151,16 @@ class FrameDialog(QtWidgets.QDialog):
                 control.setDecimals(3 if name in FLOATS else 2)
                 control.setRange(-300 if name in ROOT_BOLT_COORDINATES or name in ("StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY') else 0, 1000)
                 control.setSingleStep(0.05 if name in FLOATS else 0.5)
-                if name=='CarbonTextureOpacity':
+                if name=='CNCToolRadius':
+                    control.setRange(.5,3.);control.setDecimals(2);control.setSingleStep(.25);control.setSuffix(' mm')
+                elif name=='CarbonTextureOpacity':
                     control.setRange(0,100);control.setDecimals(0);control.setSingleStep(5);control.setSuffix(' %')
+                elif name=='ActionCamMountOffsetY':
+                    control.setRange(-12,12);control.setDecimals(1);control.setSuffix(' mm');control.setSingleStep(.5)
+                elif name=='ActionCamMountBaseThickness':
+                    control.setRange(2,6);control.setSuffix(' mm');control.setSingleStep(.5)
+                elif name=='ActionCamMountHingeHeight':
+                    control.setRange(10,30);control.setSuffix(' mm');control.setSingleStep(.5)
                 elif name=='FlexAntennaHolderOffset':
                     control.setRange(-80,100);control.setSuffix(' mm');control.setSingleStep(.5)
                 elif name=='FlexAntennaBulkheadThickness':
@@ -920,6 +1218,11 @@ class FrameDialog(QtWidgets.QDialog):
                     control.setRange(0,90);control.setSuffix(' %');control.setSingleStep(1)
                 elif name in ('PlateEndWidth','ArmProfileAmount'):
                     control.setRange(40 if name=='PlateEndWidth' else 0,100);control.setSuffix(' %');control.setSingleStep(1)
+                elif name.startswith('LiPoPadText'):
+                    ranges={'Height':(1,50),'WidthScale':(25,200),'Stroke':(.2,3),'Spacing':(.1,10),'Depth':(.1,10),
+                            'MarginAlong':(0,50),'MarginAcross':(0,50),'Inset':(0,100),'OffsetX':(-300,300),'OffsetY':(-300,300)}
+                    key=name[len('LiPoPadText'):];control.setRange(*ranges[key]);control.setSuffix(' %' if key=='WidthScale' else ' mm')
+                    control.setSingleStep(5 if key=='WidthScale' else .1 if key in ('Stroke','Spacing','Depth') else .5)
                 elif name.startswith('LiPoPadOutline'):
                     control.setRange(1,100);control.setSuffix(' %');control.setSingleStep(1)
                 elif name in ('MotorMass','PropMass','FCMass','ESCMass','VTXMass','CameraMass','OtherMass'):
@@ -976,10 +1279,11 @@ class FrameDialog(QtWidgets.QDialog):
                 self.standoff_info = QtWidgets.QLabel()
                 self.standoff_info.setWordWrap(True)
                 field_forms[name].addRow(self.standoff_info)
+        self._startup_times['field widgets']=perf_counter()-controls_started
         # Optical camera preview uses the *currently edited* parameter values,
         # not saved objects or the last generated model. Render on demand because
         # tessellation/ray tests are intentionally not part of every GUI refresh.
-        self._init_camera_view()
+        # The optical workspace is constructed on first visit, not on editor startup.
         # A saved design from older releases may still contain the former 4 mm
         # default cage web. Selecting O4 Pro should adopt the 2 mm interface
         # default before validation; a user can still choose a larger web.
@@ -993,18 +1297,11 @@ class FrameDialog(QtWidgets.QDialog):
         self.mid_plate_info=QtWidgets.QLabel();self.mid_plate_info.setWordWrap(True);forms['Mid plate'].insertRow(0,self.mid_plate_info)
         self.top_plate_info=QtWidgets.QLabel();self.top_plate_info.setWordWrap(True);forms['Top plate'].insertRow(0,self.top_plate_info)
         self.root_fit_info=QtWidgets.QLabel();self.root_fit_info.setWordWrap(True);forms['Roots'].insertRow(0,self.root_fit_info)
-        self.airflow=AirflowEditor(self.values)
-        self.airflow.changed.connect(self._airflow_geometry_changed)
-        self.airflow.metadataChanged.connect(self._airflow_metadata_changed)
-        # One setting, two convenient views. Both checkboxes stay in sync;
-        # only the standard parameter control owns the persisted value.
-        self.airflow.copy_to_pad.setChecked(self.controls['LiPoPadCopyAirflow'].isChecked())
-        self.airflow.copy_to_pad.toggled.connect(self.controls['LiPoPadCopyAirflow'].setChecked)
-        self.controls['LiPoPadCopyAirflow'].toggled.connect(self.airflow.copy_to_pad.setChecked)
-        airflow_scroll=QtWidgets.QScrollArea();airflow_scroll.setWidgetResizable(True);airflow_scroll.setWidget(self.airflow)
+        airflow_scroll=QtWidgets.QScrollArea();airflow_scroll.setWidgetResizable(True)
         airflow_scroll.setFrameShape(QtWidgets.QFrame.NoFrame)
         finishing=self.category_tabs['Finishing'];finishing.insertTab(0,airflow_scroll,'Airflow / outlines')
         self.section_pages['Airflow / outlines']=('Finishing',airflow_scroll)
+        self._airflow_scroll=airflow_scroll
         self.search_locations={}
         for name,(category,title,group) in FIELD_LOCATION.items():
             caption=f'{category} > {title} > {label(name)}'
@@ -1015,25 +1312,14 @@ class FrameDialog(QtWidgets.QDialog):
         self.search_locations['FPV > Camera view > Render camera view']='@camera_view_render'
         self.search_locations['FPV > Camera view > Check tilt range']='@camera_view_sweep'
         self.search_locations['Finishing > Airflow / outlines > Cutout type, outline notch, patterns']='@airflow'
-        self.extra_search_targets={'@camera_view_render':('Camera view',self.camera_view_render),
-                                   '@camera_view_sweep':('Camera view',self.camera_view_sweep)}
-        cuts=[('Part',self.airflow.role),('Cutout type',self.airflow.shape),
-              ('Cutting mode / outline notch',self.airflow.mode),('Enabled',self.airflow.enabled),
-              ('Saved patterns',self.airflow.pattern_list),('Find saved cutout',self.airflow.find_pattern),
-              ('Filter cutouts by part',self.airflow.filter_role),('Show pattern numbers',self.airflow.show_numbers),
-              ('Zoom to selected cutout',self.airflow.zoom_button),('Fit cutout plate preview',self.airflow.fit_button),
-              ('Add pattern',self.airflow.add_button),
-              ('Apply to pattern',self.airflow.apply_button),('Remove pattern',self.airflow.remove_button),
-              ('Discard unapplied changes',self.airflow.discard_button),
-              ('Copy to other camera side',self.airflow.copy_button),('Check plate cuts in CAD',self.airflow.check_button)]
-        cut_names={'width':'Width','length':'Length','x':'Centre U','y':'Centre V',
-                   'columns':'Columns','rows':'Rows','pitch_x':'Pitch U','pitch_y':'Pitch V','rotation':'Rotation',
-                   'depth':'Pocket depth'}
-        cuts.extend((cut_names.get(key,key.replace('_',' ').capitalize()),control) for key,control in self.airflow.inputs.items())
-        for title,control in cuts:
+        self.extra_search_targets={}
+        # Search captions must work even before either heavy workspace exists.
+        self._lazy_search_targets={'@camera_view_render':'Camera view','@camera_view_sweep':'Camera view','@airflow':'Airflow / outlines'}
+        from .airflow_gui import AIRFLOW_SEARCH_FIELDS
+        for title in AIRFLOW_SEARCH_FIELDS:
             key='@cut_'+title
             self.search_locations['Finishing > Airflow / outlines > '+title]=key
-            self.extra_search_targets[key]=('Airflow / outlines',control)
+            self._lazy_search_targets[key]='Airflow / outlines'
         for caption,key,title,control in [
             ('Use current spacing for custom bolts','@copy_bolts','Bolts',self.copy_bolt_spacing_button),
             ('Fit top plate around shared arm mounts','@fit_mounts','Standoffs',fit_mounts)]:
@@ -1050,7 +1336,7 @@ class FrameDialog(QtWidgets.QDialog):
         main.addWidget(tabs, 5)
         right = QtWidgets.QVBoxLayout()
         self.preview_mode=QtWidgets.QComboBox()
-        self.preview_mode.setToolTip('Inspect the assembled top view, all flat parts, all arms, or one complete part before creating the frame.')
+        self.preview_mode.setToolTip('Detailed overview is the default and shows finished profiles and full visual detail. Fast overview is an optional simplified schematic. CAD geometry is unchanged.')
         self.preview_mode.currentIndexChanged.connect(self.set_preview_mode)
         right.addWidget(self.preview_mode)
         self.preview = TopPreview()
@@ -1081,6 +1367,8 @@ class FrameDialog(QtWidgets.QDialog):
         self.preview_panel.setLayout(right)
         main.addWidget(self.preview_panel, 6)
         def workspace_changed(*_):
+            category=tabs.currentWidget()
+            if category is not None:self._attach_editor_page(category.currentWidget())
             airflow_active = (tabs.currentWidget() is finishing and
                               finishing.currentWidget() is airflow_scroll)
             # The optical camera-view tab has its own image renderer, just as
@@ -1088,9 +1376,11 @@ class FrameDialog(QtWidgets.QDialog):
             camera_view_active = (tabs.currentWidget() is self.category_tabs['FPV'] and
                                   self.category_tabs['FPV'].currentWidget() is self.section_pages['Camera view'][1])
             self.preview_panel.setVisible(not (airflow_active or camera_view_active))
+            if getattr(self,'_editor_ready',False):
+                if airflow_active:self._ensure_airflow()
+                if camera_view_active:self._ensure_camera_workspace()
         tabs.currentChanged.connect(workspace_changed)
-        finishing.currentChanged.connect(workspace_changed)
-        self.category_tabs['FPV'].currentChanged.connect(workspace_changed)
+        for category in self.category_tabs.values():category.currentChanged.connect(workspace_changed)
         workspace_changed()
         outer.addLayout(main, 1)
         self.note = QtWidgets.QLabel()
@@ -1111,39 +1401,120 @@ class FrameDialog(QtWidgets.QDialog):
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
         self.timer.setInterval(140)
-        self.timer.timeout.connect(self.refresh)
+        self.timer.timeout.connect(self._refresh_if_changed)
         load.clicked.connect(self.load)
         save.clicked.connect(self.save)
         # Restore the values while constructing the *hidden* editor. A complete
         # geometry validation/preview here blocks the command and encourages
         # a partially sized transient window on slower FreeCAD/Qt systems.
+        restore_started=perf_counter()
         self.set_values(read_parameters(settings) if settings else replace(Parameters(), StrapSlotsEnabled=False),
                         defer_refresh=True)
+        self._startup_times['parameter restore']=perf_counter()-restore_started
         sizing=QtWidgets.QComboBox();sizing.addItem('Apply motor / prop sizing…');sizing.addItems(tuple(MOTOR_SIZES))
         sizing.activated.connect(lambda i:self.set_values(apply_motor_size(self.values(),sizing.itemText(i))) if i else None)
         forms['Motors'].addRow('Motor / prop size',sizing)
         self.motor_sizing=sizing
-        # Finish validation and all widget sizing while the native window is
-        # still hidden. A zero-delay timer previously entered a full refresh
-        # while Qt was showing the dialog; Windows could display a small blank
-        # window before the layout settled and a correctly sized one appeared.
+        # Keep the native window at its final size before exposure, but defer
+        # geometry checks/preview recording until after the first paint.
         self.generate.setEnabled(False)
+        self.preview.loading=True
+        self._initial_pending=True
+        self._initial_timer=QtCore.QTimer(self)
+        self._initial_timer.setSingleShot(True)
+        self._initial_timer.timeout.connect(self._initial_refresh)
+        self._preview_ready_timer=QtCore.QTimer(self)
+        self._preview_ready_timer.setSingleShot(True)
+        self._preview_ready_timer.timeout.connect(self._finish_initial_preview)
         self.summary.setText('Preparing the selected frame…')
-        self._initial_refresh()
-        self.ensurePolished()
-        self.layout().activate()
         self.resize(max(1100,self.minimumWidth()), max(750,self.minimumHeight()))
+        self._editor_ready=True
+        self._startup_times['widget setup']=perf_counter()-started
+        self.preview._startup_callback=self._report_startup_preview
+
+    def _attach_editor_page(self,scroll):
+        # Only the active page participates in the visible stack's layout.
+        # All fields already exist, so validation, search and save still see
+        # the same values even before their pages have been visited.
+        page=self._pending_pages.pop(scroll,None)
+        if page is not None:scroll.setWidget(page)
+
+    def _report_startup_preview(self,elapsed,paint_elapsed):
+        self._startup_times['first overview build']=elapsed
+        self._startup_times['first overview paint']=paint_elapsed
+        elapsed_total=perf_counter()-self._startup_started
+        stages=', '.join(f'{name}: {seconds:.3f}s' for name,seconds in self._startup_times.items())
+        App.Console.PrintMessage(f'RotorForge editor startup: {stages}; total {elapsed_total:.3f}s\n')
+        details=getattr(self.preview,'_overview_details',{})
+        if details:
+            App.Console.PrintMessage('RotorForge overview detail: '+', '.join(f'{name}: {elapsed:.3f}s' for name,elapsed in details.items())+'\n')
+
+    def _ensure_camera_workspace(self):
+        if hasattr(self,'camera_view_workspace'):return
+        self._init_camera_view()
+        p=self.values()
+        self._camera_view_update_recording_modes(p)
+        self.camera_view_render.setEnabled(p.FPVEnabled)
+        self.camera_view_sweep.setEnabled(p.FPVEnabled)
+        self.camera_view_tilt.setValue(p.CameraTilt)
+        for key,control in (('@camera_view_render',self.camera_view_render),('@camera_view_sweep',self.camera_view_sweep)):
+            self.extra_search_targets[key]=('Camera view',control)
+            control.setAutoDefault(False)
+
+    def _ensure_airflow(self):
+        if self.airflow is not None:return
+        p=self.values()
+        # Avoid scraping and migrating hundreds of controls several times in
+        # the Airflow constructor. Use the current snapshot until it is wired.
+        editor=AirflowEditor(lambda:p)
+        editor.set_json(p.CutoutPatterns)
+        editor.preview.set_frame_parameters(p)
+        editor.get_parameters=self.values
+        self.airflow=editor
+        editor.copy_to_pad.setChecked(p.LiPoPadCopyAirflow)
+        editor.copy_to_pad.setEnabled(p.LiPoPadEnabled and (p.LiPoPadShape=='Mounting plate outline' or p.LiPoPadFollowPlate))
+        editor.copy_to_pad.toggled.connect(self.controls['LiPoPadCopyAirflow'].setChecked)
+        self.controls['LiPoPadCopyAirflow'].toggled.connect(editor.copy_to_pad.setChecked)
+        editor.changed.connect(self._airflow_geometry_changed)
+        editor.metadataChanged.connect(self._airflow_metadata_changed)
+        self._airflow_scroll.setWidget(editor)
+        for title,control in editor.search_controls():
+            self.extra_search_targets['@cut_'+title]=('Airflow / outlines',control)
+        for button in editor.findChildren(QtWidgets.QPushButton):
+            button.setAutoDefault(False);button.setDefault(False)
+
+    def showEvent(self,event):
+        super().showEvent(event)
+        if getattr(self,'_initial_pending',False) and not self._initial_timer.isActive():
+            self._initial_timer.start(60)
 
     def _initial_refresh(self):
         # Do not launch two competing refreshes when a native resize/focus
         # event reaches the editor during its first display.
+        started=perf_counter()
         self.timer.stop()
+        self._initial_pending=False
+        if not self.isVisible():
+            self._initial_pending=True
+            return
         try:
             self.refresh()
         except Exception as exc:
             self.generate.setEnabled(False)
             self.messages.setPlainText('Cannot initialise frame preview: ' + str(exc))
-            # Keep the editor visible so settings can be inspected or changed.
+        finally:
+            self._startup_times['initial validation / controls']=perf_counter()-started
+            # Complete the final layout before recording at its final size.
+            # Do not paint a second full vector picture at a transient size.
+            self._preview_ready_timer.start(0)
+
+    def _finish_initial_preview(self):
+        if not self.isVisible():return
+        layout_started=perf_counter()
+        if self.layout() is not None:self.layout().activate()
+        self._startup_times['final layout']=perf_counter()-layout_started
+        self.preview.loading=False
+        self.preview.update()
 
 
     def _init_camera_view(self):
@@ -1299,7 +1670,7 @@ class FrameDialog(QtWidgets.QDialog):
         self._camera_view_last_settings = None
         self._camera_view_last_result = None
         self._camera_view_mode_profile = None
-        self._camera_view_update_recording_modes(Parameters())
+        # Actual selected optics are populated by _ensure_camera_workspace.
 
     def _camera_view_update_recording_modes(self,p):
         from .camera_view import resolved_optics,recording_modes
@@ -1630,10 +2001,11 @@ class FrameDialog(QtWidgets.QDialog):
         # Avoid clearing/refilling the Qt model and invalidating the preview
         # on every debounced refresh (particularly costly with many controls).
         from .airflow_gui import ROLE_LABELS
-        options=[('Overall frame — top view','Overall'),
+        options=[('Detailed overview — top view','Overall'),
+                 ('Fast overview — schematic','FastOverall'),
                  ('All parts — flat profiles','AllParts'),
                  ('All four arms — flat profiles','Arms')]
-        options.extend((ROLE_LABELS.get(role,'LiPo pad'),role) for role in preview_roles(p))
+        options.extend((ROLE_LABELS.get(role,role),role) for role in preview_roles(p))
         if getattr(self,'_preview_mode_options',None)==options:
             return
         current=self.preview_mode.currentData()
@@ -1642,14 +2014,14 @@ class FrameDialog(QtWidgets.QDialog):
             self.preview_mode.clear()
             for caption,value in options:self.preview_mode.addItem(caption,value)
             index=self.preview_mode.findData(current)
-            self.preview_mode.setCurrentIndex(max(0,index))
+            self.preview_mode.setCurrentIndex(index if index>=0 else self.preview_mode.findData('Overall'))
         finally:
             self.preview_mode.blockSignals(False)
         self._preview_mode_options=options
         self.set_preview_mode()
 
     def calculate_mass(self):
-        if self.airflow.has_pending_changes():
+        if self.airflow is not None and self.airflow.has_pending_changes():
             self.mass_signature=None;self.preview.mass_metrics=None;self.preview.update()
             self.mass_result.setText('Apply or discard pending airflow/outline edits before calculating weight / CG.')
             return
@@ -1679,7 +2051,10 @@ class FrameDialog(QtWidgets.QDialog):
     def jump_to_control(self, caption):
         name=self.search_locations.get(caption)
         if name is None:return
-        special={'@front_height':('Standoffs',self.front_standoff_height),
+        lazy_title=self._lazy_search_targets.get(name)
+        if lazy_title=='Airflow / outlines':self._ensure_airflow()
+        if lazy_title=='Camera view' or (name in FIELD_LOCATION and tab_name(name)=='Camera view'):self._ensure_camera_workspace()
+        special={'@front_height' :('Standoffs',self.front_standoff_height),
                  '@fit_stack':('Stack',self.fit_stack_button),
                  '@fit_camera':('Camera cage',self.fit_camera_button),
                  '@airflow':('Airflow / outlines',self.airflow)}
@@ -1735,10 +2110,14 @@ class FrameDialog(QtWidgets.QDialog):
                             control.isChecked() if name in BOOLEANS else control.value())
         if getattr(self,'_bottom_body_reach_value',None) is not None:
             values['BottomBodyRearReach']=self._bottom_body_reach_value
-        return Parameters.from_dict(values)
+        if values==getattr(self,'_last_form_values',None):return self._last_form_parameters
+        p=Parameters.from_dict(values)
+        self._last_form_values=values;self._last_form_parameters=p
+        return p
 
     def set_values(self, p, defer_refresh=False):
-        p = Parameters.from_dict(p.to_dict())
+        if not defer_refresh:
+            p = Parameters.from_dict(p.to_dict())
         # Migrated arm-derived edges can contain more precision than the
         # displayed millimetres. Keep it until the user edits this dimension.
         self._bottom_body_reach_value=p.BottomBodyRearReach
@@ -1769,7 +2148,9 @@ class FrameDialog(QtWidgets.QDialog):
             shape.setCurrentText(p.FlexInterfaceShape)
             shape.blockSignals(False)
         self._populate_camera_profiles(p.VideoSystem, p.CameraPhysicalProfile)
-        self.airflow.set_json(p.CutoutPatterns)
+        if self.airflow is not None:
+            self.airflow.set_json(p.CutoutPatterns)
+            self.airflow.copy_to_pad.setChecked(p.LiPoPadCopyAirflow)
         self.timer.stop()
         if not defer_refresh:
             self.refresh()
@@ -1867,6 +2248,11 @@ class FrameDialog(QtWidgets.QDialog):
             # A single M2 side screw cannot form a two-point fixed tilt mount.
             updates.update(CameraMountMode='Variable',CameraTiltMin=0.,
                            CameraTiltMax=max(45.,tilt),CameraTiltMechanism='Upper pivot + lower arc')
+        elif profile=='Walksnail Avatar HD Pro':
+            # Selecting the Walksnail preset must show the advertised TWO M2
+            # circular mounting holes per side straight away. Variable tilt
+            # is still available afterwards as two slots / pivot-and-slot.
+            updates['CameraMountMode']='Fixed'
         for key,value in updates.items():
             ctrl=self.controls.get(key)
             if ctrl is None:continue
@@ -1938,7 +2324,7 @@ class FrameDialog(QtWidgets.QDialog):
         # No validation or redraw needed: the geometry is identical.
 
     def queue_refresh(self, *args):
-        if hasattr(self, "timer"):
+        if hasattr(self, "timer") and not getattr(self,"_initial_pending",False):
             self.timer.start()
 
     def custom_bolts_from_spacing(self,*args):
@@ -2061,6 +2447,16 @@ class FrameDialog(QtWidgets.QDialog):
         """
         self._enabled_targets[name] = bool(enabled)
 
+    def _refresh_if_changed(self):
+        # Spinboxes can emit signals during focus transitions. Skip a whole
+        # refresh if their canonical values are identical to the last pass.
+        try:
+            self._sync_interface_shape_choices()
+            if self.values()==getattr(self,'_last_refreshed_parameters',None):return
+        except Exception:
+            pass
+        self.refresh()
+
     def refresh(self):
         # A refresh toggles hundreds of controls and recomputes text, previews,
         # and section visibility. Batch painting to avoid showing half-updated
@@ -2068,8 +2464,10 @@ class FrameDialog(QtWidgets.QDialog):
         self.setUpdatesEnabled(False)
         self._enabled_targets = {}
         try:
-            return self._refresh_impl()
+            self._refresh_impl()
+            self._last_refreshed_parameters=self.preview.params
         except Exception as exc:
+            self._last_refreshed_parameters=None
             # A Qt timer callback has no caller to display its exception.
             # Report it and prevent creating a frame from a stale preview.
             import traceback
@@ -2090,8 +2488,8 @@ class FrameDialog(QtWidgets.QDialog):
     def _refresh_impl(self):
         self._sync_interface_shape_choices()
         p = self.values()
-        for name in ('StackSpacing','StackHoleDiameter','StackHeight','StackMountHeight'):self.field_labels[name].setText(label(name))
-        if p.StackPressNuts:self.field_labels['StackMountHeight'].setText(f'Stack support (automatic; actual {stack_reference_z(p)-plate_levels(p)["stack_deck_z"]:.2f} mm)')
+        stack_caption=(f'Stack support (automatic; actual {stack_reference_z(p)-plate_levels(p)["stack_deck_z"]:.2f} mm)' if p.StackPressNuts else label('StackMountHeight'))
+        if self.field_labels['StackMountHeight'].text()!=stack_caption:self.field_labels['StackMountHeight'].setText(stack_caption)
         self._mark_control_enabled("StackMountHeight",not p.StackPressNuts)
         ratio = self.controls["LengthToWidth"]
         ratio.blockSignals(True)
@@ -2142,8 +2540,11 @@ class FrameDialog(QtWidgets.QDialog):
         self._mark_control_enabled('MotorPadReliefLength',new_pad and p.MotorPadRelief in ('Neck slot','Twin neck slots'))
         for name in ('MotorTipLength','MotorTipSlotEnabled'):self._mark_control_enabled(name,extended_motor_pad(p) and (name=='MotorTipLength' or not new_pad))
         for name in ('MotorTipSlotWidth','MotorTipSlotLength'):self._mark_control_enabled(name,extended_motor_pad(p) and p.MotorTipSlotEnabled and not new_pad)
+        bounds_started=perf_counter()
         bottom_rect=bottom_plate_path(p).boundingRect()
         mid_rect=mid_plate_path(p).boundingRect() if three_plate(p) else None
+        if getattr(self.preview,'_startup_callback',None) is not None:
+            self._startup_times['plate bounds']=perf_counter()-bounds_started
         self.plate_info.setText(f'Actual bottom bounds (rear → front Y): {bottom_rect.top():g} → {bottom_rect.bottom():g} mm. '+
                                (f'Body rear Y = {bottom_body_bounds(p)[0]:g} mm (stack − reach). Rear tabs follow the arms.' if three_plate(p) else 'Custom reaches cap the outline.'))
         self.mid_plate_info.setText((f'Actual mid bounds (rear → front Y): {mid_rect.top():g} → {mid_rect.bottom():g} mm. Front tabs follow the arms.' if mid_rect else 'The mid plate is used only in three-plate designs. Choose Plate design on Frame > Layout.'))
@@ -2229,6 +2630,10 @@ class FrameDialog(QtWidgets.QDialog):
         for name in ('DetailedMotorReferences','DetailedPropReferences','DetailedStackReference','DetailedCameraReference','DetailedVTXReference','DetailedBatteryReference'):
             self._mark_control_enabled(name,p.ShowReferences and (name not in ('DetailedCameraReference','DetailedVTXReference') or p.FPVEnabled) and (name!='DetailedBatteryReference' or p.BatteryReferenceEnabled))
         self._mark_control_enabled('CameraReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedCameraReference and p.FPVSystemProfile!='DJI O4 Air Unit Pro')
+        tpu_action_cam=p.FPVEnabled and p.CameraCageStyle=='TPU cage'
+        self._mark_control_enabled('ActionCamMountEnabled',tpu_action_cam)
+        for name in ('ActionCamMountNutRecess','ActionCamMountBaseThickness','ActionCamMountHingeHeight','ActionCamMountOffsetY'):
+            self._mark_control_enabled(name,tpu_action_cam and p.ActionCamMountEnabled)
         from .camera_cages import screw_cage
         cage=p.FPVEnabled
         for name in ('CameraCageFrontShape','CameraCageRearShape','CameraCageProfileDepth','CameraCageFrontReach','CameraCageRearReach'):
@@ -2246,6 +2651,7 @@ class FrameDialog(QtWidgets.QDialog):
             self._mark_control_enabled(name,full_bumper)
         self._mark_control_enabled('FlexProtectorBumperSleeve',p.ArmTipBumperStyle!='Disabled' and p.FlexMotorProtectors)
         self._mark_control_enabled('PropReferenceColour',p.ShowReferences and p.DetailedPropReferences)
+        self._mark_control_enabled('MotorReferenceColour',p.ShowReferences and p.DetailedMotorReferences)
         self._mark_control_enabled('VTXReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
         self._mark_control_enabled('PropReferenceHeight',not p.DetailedPropReferences)
         self._mark_control_enabled('ShowVTXAntennaReference',p.ShowReferences and p.FlexRearAntenna)
@@ -2265,6 +2671,8 @@ class FrameDialog(QtWidgets.QDialog):
         self._mark_control_enabled('FlexPadWidth',soft_camera(p) and p.FlexCameraMode=='Compression pads')
         self._mark_control_enabled('FlexPadHeight',soft_camera(p) and p.FlexCameraMode=='Compression pads')
         tpu_cage=p.FPVEnabled and p.CameraCageStyle=='TPU cage'
+        self._mark_control_enabled('CameraCageScrewHead',tpu_cage)
+        self._mark_control_enabled('StandoffMidHead',three_plate(p) or upper_clamp_active(p))
         for name in ('CameraTPUScrewBore','CameraTPUInsertDepth','CameraTPUBossWall','CameraTPUScrewClearance','CameraTPUBridge'):
             self._mark_control_enabled(name,tpu_cage)
         for name in ('CameraTabLength','CameraTabClearance','CameraTabReliefs','CameraTabCutterDiameter'):
@@ -2292,10 +2700,10 @@ class FrameDialog(QtWidgets.QDialog):
             self._mark_control_enabled(name,tpu_cage and p.CameraTPUBumper and p.CameraTPUClampBottom)
         if o4:
             for name in ('CameraWidth','CameraHeight','CameraBodyDepth','CameraSideBoltSpacing','CameraSideHoleDiameter','CameraSideScrewRearInset','CameraLensProjection','VTXWidth','VTXLength','VTXHeight','VTX25HoleDiameter','VTX20HoleDiameter'):
-                control=self.controls[name];control.blockSignals(True);control.setValue(getattr(p,name));control.blockSignals(False);control.setEnabled(False)
+                control=self.controls[name];control.blockSignals(True);control.setValue(getattr(p,name));control.blockSignals(False);self._mark_control_enabled(name,False)
             self.controls['DetailedCameraReference'].blockSignals(True);self.controls['DetailedCameraReference'].setChecked(True);self.controls['DetailedCameraReference'].blockSignals(False);self._mark_control_enabled('DetailedCameraReference',False)
             for name in ('VideoSystem','VTXPattern'):
-                control=self.controls[name];control.blockSignals(True);control.setCurrentText(getattr(p,name));control.blockSignals(False);control.setEnabled(False)
+                control=self.controls[name];control.blockSignals(True);control.setCurrentText(getattr(p,name));control.blockSignals(False);self._mark_control_enabled(name,False)
             for name in ('FlexInsertWidth','FlexInsertHeight','FlexInsertCornerRadius','FlexInterfaceShape','FlexPadWidth','FlexPadHeight'):
                 self._mark_control_enabled(name,False)
 
@@ -2313,6 +2721,7 @@ class FrameDialog(QtWidgets.QDialog):
             self._mark_control_enabled(name,p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening)
         self._mark_control_enabled('FlexGuardVTXClearance',p.FlexSideGuards and p.FPVEnabled and p.FlexGuardVTXOpening and (not p.FlexGuardVTXLength or not p.FlexGuardVTXHeight))
         self._mark_control_enabled('FlexGuardCloseFront',p.FlexSideGuards and p.FPVEnabled)
+        self._mark_control_enabled('FlexGuardClosureContour',p.FlexSideGuards and p.FPVEnabled and p.FlexGuardCloseFront)
         self._mark_control_enabled('FlexGuardCameraOverlap',p.FlexSideGuards and p.FPVEnabled and p.FlexGuardCloseFront)
         self._mark_control_enabled('FlexGuardUSBEnabled',p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront))
         for name in ('FlexGuardUSBSide','FlexGuardUSBY','FlexGuardUSBZ','FlexGuardUSBWidth','FlexGuardUSBHeight'):self._mark_control_enabled(name,p.FlexSideGuards and (p.FlexGuardExtendFront or p.FlexGuardCloseFront) and p.FlexGuardUSBEnabled)
@@ -2335,7 +2744,9 @@ class FrameDialog(QtWidgets.QDialog):
             f'{"M3 heat-set insert bosses attach the TPU cage to both plates" if tpu_cage else "Side plates use captured tabs"}. Cage gap {camera_cage_height(p):g} mm; '
             f'camera datum Y {camera_position_y(p):g} mm; height {camera_pivot_height(p):g} mm above bottom. '
             f'Lower contact {camera_attachment_lengths(p)[0]:g} mm; upper contact {camera_attachment_lengths(p)[1]:g} mm. '
-            + ('Single-screw cameras have one pivot per side and rotate about that M2 location. ' if p.CameraSideBoltSpacing<=0 else 'Dual upper/lower slots keep the body centred; upper-pivot mounting fixes the upper screw. ') +
+            + ('Single-screw cameras have one pivot per side and rotate about that M2 location. '
+               if p.CameraSideBoltSpacing<=0 else
+               'Two M2 positions per side: Fixed makes two round holes; Variable makes two arc slots or one round pivot plus an arc. ') +
             'Width shortcuts fit the standoff height.' if p.FPVEnabled else
             'Enable FPV camera drone on Frame > Layout to add tabbed camera side plates.')
         self.vtx_info.setText(
@@ -2381,10 +2792,15 @@ class FrameDialog(QtWidgets.QDialog):
             try:
                 seat=elrs_seat(p);self.note.setText(self.note.text()+f" ELRS grip: {seat['height']:.2f} mm / {seat['available']:.2f} mm available below the guards.")
             except (ValueError,IndexError):pass
+        validation_started=perf_counter()
         errors, warnings = validate(p)
+        if getattr(self.preview,'_startup_callback',None) is not None:
+            self._startup_times['validation only']=perf_counter()-validation_started
         for name in BATTERY_FIELDS:
             if name.startswith('LiPoPad') and name!='LiPoPadEnabled':self._mark_control_enabled(name,p.LiPoPadEnabled and (not name.startswith('LiPoPadGroove') or p.LiPoPadPattern!='Solid'))
-        self._mark_control_enabled('LiPoPadCornerRadius',p.LiPoPadEnabled and p.LiPoPadShape=='Rounded rectangle')
+        for name in PAD_TEXT_FIELDS-{'LiPoPadTextEnabled'}:
+            self._mark_control_enabled(name,p.LiPoPadEnabled and p.LiPoPadTextEnabled and (name!='LiPoPadTextInset' or p.LiPoPadTextPosition in ('Across front','Across rear')))
+        self._mark_control_enabled('LiPoPadCornerRadius',p.LiPoPadEnabled and p.LiPoPadShape in ('Rounded rectangle','Mounting plate outline'))
         outline=p.LiPoPadShape=='Mounting plate outline'
         for key,axis in (('LiPoPadWidth','width'),('LiPoPadLength','length')):
             self.field_labels[key].setText('Pad '+axis)
@@ -2392,7 +2808,8 @@ class FrameDialog(QtWidgets.QDialog):
         for name in ('LiPoPadOutlineWidthScale','LiPoPadFrontReach','LiPoPadRearReach'):self._mark_control_enabled(name,p.LiPoPadEnabled and p.LiPoPadShape=='Mounting plate outline')
         self._mark_control_enabled('LiPoPadFollowPlate',p.LiPoPadEnabled and p.LiPoPadShape!='Mounting plate outline')
         self._mark_control_enabled('LiPoPadCopyAirflow',p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
-        self.airflow.copy_to_pad.setEnabled(p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
+        self._mark_control_enabled('LiPoPadCoverCountersunk',p.LiPoPadEnabled)
+        if self.airflow is not None:self.airflow.copy_to_pad.setEnabled(p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
         from .equipment_mass import MASS_FIELDS
         for name in MASS_FIELDS:self._mark_control_enabled(name,p.EstimateComponents and (name not in ('VTXMass','CameraMass') or p.FPVEnabled))
         self.update_preview_modes(p)
@@ -2409,11 +2826,11 @@ class FrameDialog(QtWidgets.QDialog):
             self.mass_result.setText('Weight / CG needs calculation for the current settings. Bare frame and editable equipment estimates are reported separately.')
         self.mass_button.setEnabled(not errors)
         self.preview.params = p
-        self.preview.update()
+        if self.preview.isVisible():self.preview.update()
         # Reuse the parameter snapshot built at the start of refresh. Moving
         # the pointer over the Airflow preview must not scrape/validate every
         # main-dialog control on every mouse move.
-        self.airflow.preview.set_frame_parameters(p)
+        if self.airflow is not None:self.airflow.preview.set_frame_parameters(p)
         self.generate.setEnabled(not errors)
         gap = prop_gap(p)
         motors=motor_centres(p)
@@ -2456,8 +2873,10 @@ class FrameDialog(QtWidgets.QDialog):
                 QtWidgets.QMessageBox.warning(self, "Cannot load settings", str(exc))
 
     def save(self):
-        if not self.airflow.require_applied():return
-        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save RotorForge frame settings", "frame.json", "RotorForge settings (*.json)")
+        if self.airflow is not None and not self.airflow.require_applied():return
+        from .export_naming import settings_name
+        doc = self.settings.Document if self.settings is not None else App.ActiveDocument
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save RotorForge frame settings", settings_name(doc), "RotorForge settings (*.json)")
         if path:
             try:
                 from .hardware_refs import saved_preferences
@@ -2468,7 +2887,7 @@ class FrameDialog(QtWidgets.QDialog):
                 QtWidgets.QMessageBox.warning(self, "Cannot save settings", str(exc))
 
     def apply(self):
-        if not self.airflow.require_applied():return
+        if self.airflow is not None and not self.airflow.require_applied():return
         QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
         try:
             p = self.values()
@@ -2504,6 +2923,7 @@ def show_editor(settings=None):
         _ACTIVE_FRAME_EDITOR.activateWindow()
         return None
     _EDITOR_OPENING = True
+    dialog = None
     try:
         dialog = FrameDialog(settings)
         _ACTIVE_FRAME_EDITOR = dialog
@@ -2512,6 +2932,14 @@ def show_editor(settings=None):
     finally:
         _ACTIVE_FRAME_EDITOR = None
         _EDITOR_OPENING = False
+        # QDialog has FreeCAD's main window as parent. Without explicit
+        # disposal every closed editor can retain hundreds of native widgets,
+        # Qt paths, signal connections and an entire vector preview.
+        if dialog is not None:
+            for timer in (dialog.timer,dialog._initial_timer,dialog._preview_ready_timer):
+                timer.stop()
+            dialog.preview._startup_callback=None
+            dialog.deleteLater()
 
 
 def report_error(exc):
@@ -2548,13 +2976,26 @@ class ExportCommand(EditCommand):
     def Activated(self):
         try:
             settings = find_parameters(Gui.Selection.getSelection())
+            from .export_gui import ExportSelectionDialog
+            dialog=ExportSelectionDialog(Gui.getMainWindow())
+            accepted=dialog.exec() if hasattr(dialog,'exec') else dialog.exec_()
+            if not accepted:return
+            selections=dialog.choices()
+            if selections['remove_existing_cam_layout']:
+                confirmation=QtWidgets.QMessageBox.question(
+                    Gui.getMainWindow(),'Remove CAM cutting solids?',
+                    'This removes the existing RotorForge-generated CAM solids from the project. '
+                    'If you have CAM Jobs linked to these solids, those links may break. Continue?',
+                    QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+                    QtWidgets.QMessageBox.No)
+                if confirmation != QtWidgets.QMessageBox.Yes:return
             destination = QtWidgets.QFileDialog.getExistingDirectory(Gui.getMainWindow(), "Choose a folder for the frame export")
             if not destination:
                 return
             from .exporters import export_package
             QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             try:
-                folder = export_package(settings, destination)
+                folder = export_package(settings, destination, selections)
             finally:
                 QtWidgets.QApplication.restoreOverrideCursor()
             QtWidgets.QMessageBox.information(Gui.getMainWindow(), "Frame exported", "Export saved to:\n" + str(folder))
@@ -2594,8 +3035,9 @@ class HelpCommand:
 
 def register_commands():
     from .hardware_gui import HardwareCommand
+    from .render_studio import RenderCommand
     commands = (("RotorForge_NewFrame", NewCommand()), ("RotorForge_EditFrame", EditCommand()),
-                ("RotorForge_ExportFrame", ExportCommand()), ("RotorForge_References", ReferencesCommand()),
+                ("RotorForge_ExportFrame", ExportCommand()), ("RotorForge_RenderStudio", RenderCommand()), ("RotorForge_References", ReferencesCommand()),
                 ("RotorForge_HardwareReferences", HardwareCommand()), ("RotorForge_FrontView", FrontViewCommand()), ("RotorForge_Help", HelpCommand()))
     for name, command in commands:
         Gui.addCommand(name, command)

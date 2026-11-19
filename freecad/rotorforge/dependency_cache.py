@@ -59,17 +59,20 @@ class ComponentCache:
  def clear(self):self.entries.clear();self._by_key.clear();self.bytes=0;self.latest.clear();self.events=[];self.last_entry=None
  def begin(self):self.events=[]
  def get(self,key,p,inputs,builder):
-  start=time.perf_counter();values=inputs or {}
+  start=time.perf_counter();values=inputs or {};tokens={}
+  def input_token(name):
+   if name not in tokens:tokens[name]=shape_token(values.get(name))
+   return tokens[name]
   # Entries are keyed by role, so retain only that role's candidates. Avoid
   # allocating a full reversed snapshot of every BRep entry on every lookup.
   for serial in reversed(self._by_key.get(key,())):
    entry=self.entries.get(serial)
    if entry is None:continue
    if any(getattr(p,n)!=v for n,v in entry['parameters'].items()):continue
-   if any(shape_token(values.get(n))!=token for n,token in entry['inputs'].items()):continue
+   if any(input_token(n)!=token for n,token in entry['inputs'].items()):continue
    self.entries.move_to_end(serial);self.latest[key]=entry;self.last_entry=entry
    self.events.append(dict(role=key,action='reused',seconds=time.perf_counter()-start));return copy_entry(entry)
-  traced=TrackedParameters(*p.signature());object.__setattr__(traced,'_reads',set())
+  signature=p.signature();traced=TrackedParameters(*signature);object.__setattr__(traced,'_reads',set());object.__setattr__(traced,'_parameter_signature',signature)
   upstream=ShapeInputs(values);shape=builder(traced,upstream)
   entry=self._put(dict(key=key,parameters={n:getattr(p,n) for n in sorted(traced._reads)},inputs=dict(upstream.reads),shape=shape.copy()))
   self.events.append(dict(role=key,action='rebuilt',seconds=time.perf_counter()-start));return copy_entry(entry)
@@ -144,6 +147,70 @@ def cached_overlap(a,b):
  value=a.common(b).Volume;_INTERSECTIONS[key]=value
  while len(_INTERSECTIONS)>2048:_INTERSECTIONS.popitem(last=False)
  return value
+
+class NativeStageCache:
+ """Small, memory-only cache of drilled structural blanks.
+
+ These stages have no upstream shapes. Store an independent native copy,
+ without serialising intermediate BReps or adding disk-cache records.
+ """
+ def __init__(self,max_entries=14):
+  self.max_entries=max_entries;self.entries=OrderedDict();self.serial=0
+  self.hits=0;self.misses=0
+ def clear(self):self.entries.clear();self.hits=self.misses=0
+ def get(self,key,p,builder):
+  from .parameter_memo import parameter_signature
+  for serial in reversed(self.entries):
+   role,values,shape=self.entries[serial]
+   if role==key and all(object.__getattribute__(p,n)==v for n,v in values.items()):
+    self.entries.move_to_end(serial);self.hits+=1
+    if hasattr(p,'_reads'):p._reads.update(values)
+    return shape.copy()
+  signature=parameter_signature(p);traced=TrackedParameters(*signature);object.__setattr__(traced,'_reads',set());object.__setattr__(traced,'_parameter_signature',signature)
+  shape=builder(traced)
+  values={n:object.__getattribute__(p,n) for n in traced._reads}
+  if hasattr(p,'_reads'):p._reads.update(values)
+  self.serial+=1;self.entries[self.serial]=(key,values,shape.copy());self.misses+=1
+  while len(self.entries)>self.max_entries:self.entries.popitem(last=False)
+  return shape
+
+class BuildCollisions:
+ """Short-lived exact broad phase for immutable solids in assembly validation."""
+ def __init__(self):self._bounds={};self._overlaps={};self._solid_bounds={};self._exact=0;self._skipped=0;self._elapsed=0.
+ def bounds(self,shape):
+  key=id(shape)
+  if key not in self._bounds:
+   self._bounds[key]=(shape,None if shape.isNull() else shape.BoundBox)
+  return self._bounds[key][1]
+ def solid_bounds(self,shape):
+  key=id(shape)
+  if key not in self._solid_bounds:
+   # Only compound/multi-solid shapes benefit. A single solid uses its
+   # existing full bounding box; never decompose curved faces or mesh them.
+   # Preserve fallback for non-solid shapes and unsupported CAD wrappers.
+   try:
+    solids=shape.Solids
+    self._solid_bounds[key]=tuple(s.BoundBox for s in solids) if len(solids)>1 else (self.bounds(shape),) if len(solids)==1 else ()
+   except (AttributeError,RuntimeError):self._solid_bounds[key]=()
+  return self._solid_bounds[key]
+ def report(self):
+  return dict(exact_check_requests=self._exact,compound_skips=self._skipped,seconds=self._elapsed)
+ def overlap(self,a,b):
+  aa,bb=self.bounds(a),self.bounds(b)
+  if aa is None or bb is None:return 0.
+  if (min(aa.XMax,bb.XMax)<=max(aa.XMin,bb.XMin) or
+      min(aa.YMax,bb.YMax)<=max(aa.YMin,bb.YMin) or
+      min(aa.ZMax,bb.ZMax)<=max(aa.ZMin,bb.ZMin)):return 0.
+  key=tuple(sorted((id(a),id(b))))
+  if key not in self._overlaps:
+   from .geometry_bounds import disjoint_groups
+   first,second=self.solid_bounds(a),self.solid_bounds(b)
+   if (len(first)>1 or len(second)>1) and disjoint_groups(first,second):
+    self._overlaps[key]=0.;self._skipped+=1
+   else:
+    start=time.perf_counter();self._overlaps[key]=cached_overlap(a,b)
+    self._elapsed+=time.perf_counter()-start;self._exact+=1
+  return self._overlaps[key]
 
 def clear_geometry_caches():
  COMPONENTS.clear();_INTERSECTIONS.clear();_IDENTITIES.clear()

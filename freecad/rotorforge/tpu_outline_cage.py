@@ -162,6 +162,54 @@ def _side_wall(p,mount,bottom_front,top_front):
 
 
 
+def _x_bounded_front_curve(points):
+    """One smooth front edge whose X extent cannot overshoot its endpoints.
+
+    OCC's chord-length B-spline interpolation can overshoot a sharply curved
+    plate nose in X even when every sampled point is inside the fixed cage
+    wall.  This creates a false wall-width failure for wider cameras. Build a
+    piecewise cubic Hermite spline instead, parameterized by X: every Bezier
+    control point lies within its segment's X interval. A single B-spline
+    edge results, with the original front-edge samples as exact endpoints.
+
+    This is intentionally a fallback for the normal interpolated contact,
+    not a change to the nominal cage surface for all camera sizes.
+    """
+    if len(points) < 2:
+        raise ValueError('TPU cage front contact needs at least two samples.')
+    dx = [b.x-a.x for a,b in zip(points,points[1:])]
+    if (not all(abs(h) > 1.e-8 for h in dx) or
+            not all(h*dx[0] > 0 for h in dx)):
+        raise ValueError('TPU cage front samples must advance monotonically in X.')
+    slopes = [(b.y-a.y)/h for a,b,h in zip(points,points[1:],dx)]
+    # Shape-preserving derivatives avoid front-nose scallops as well as X
+    # overshoot; neighboring sections share identical endpoint tangents.
+    tangents = [slopes[0]]
+    for a,b in zip(slopes,slopes[1:]):
+        if a*b <= 0:
+            tangents.append(0.)
+        else:
+            tangents.append(2.*a*b/(a+b))
+    tangents.append(slopes[-1])
+    poles = [points[0]]
+    for i,(a,b,h) in enumerate(zip(points,points[1:],dx)):
+        poles.extend((App.Vector(a.x+h/3., a.y+tangents[i]*h/3., a.z),
+                      App.Vector(b.x-h/3., b.y-tangents[i+1]*h/3., b.z),
+                      b))
+    count=len(points)-1
+    curve=Part.BSplineCurve()
+    # Degree-three Bezier spans joined into ONE edge. Interior knots of
+    # multiplicity three preserve each sample exactly; continuous analytic
+    # derivatives keep the outer surface visually smooth.
+    curve.buildFromPolesMultsKnots(poles, [4]+[3]*(count-1)+[4],
+                                   list(range(count+1)), False, 3)
+    edge=curve.toShape()
+    xlo,xhi=sorted((points[0].x,points[-1].x))
+    if edge.BoundBox.XMin < xlo-1.e-5 or edge.BoundBox.XMax > xhi+1.e-5:
+        raise ValueError('Bounded TPU cage contact curve escaped its fixed X interval.')
+    return edge
+
+
 def _hard_wall_sections(p, mount, bottom_front, top_front):
     """A straight, ruled inner cheek for all TPU camera isolation methods.
 
@@ -195,7 +243,7 @@ def _hard_wall_sections(p, mount, bottom_front, top_front):
     # Both profiles sample the plate's front edge at its original wall X
     # range; this preserves the shape even when the inner X face is relocated.
     xcentre = (xmin+xmax)*.5
-    def contact(z, front_sampler, rear_reach):
+    def contact(z, front_sampler, rear_reach, bounded=False):
         rear = front_sampler(xcentre) - float(rear_reach)
         samples = []
         for i in range(13):
@@ -209,20 +257,44 @@ def _hard_wall_sections(p, mount, bottom_front, top_front):
                 raise ValueError('Insufficient TPU front-to-rear reach for the hard-mount wall.')
             samples.append(App.Vector(x,front_y,z))
         a, b = App.Vector(lo,rear,z), App.Vector(hi,rear,z)
+        front_edge=(_x_bounded_front_curve(list(reversed(samples))) if bounded
+                    else _spline(list(reversed(samples))))
         wire = Part.Wire([Part.makeLine(a,b),Part.makeLine(b,samples[-1]),
-                          _spline(list(reversed(samples))),Part.makeLine(samples[0],a)])
+                          front_edge,Part.makeLine(samples[0],a)])
         if not wire.isClosed() or not wire.isValid():
             raise ValueError('The TPU hard-mount contact profile is invalid.')
         return wire
 
-    bottom = contact(z0,bottom_front,p.CameraTPUBottomRearReach)
-    top = contact(z1,top_front,p.CameraTPUTopRearReach)
-    wall = Part.makeLoft([bottom,top],True,True)
-    if wall.isNull() or not wall.isValid() or len(wall.Solids)!=1:
+    def loft(bounded=False):
+        bottom=contact(z0,bottom_front,p.CameraTPUBottomRearReach,bounded)
+        top=contact(z1,top_front,p.CameraTPUTopRearReach,bounded)
+        return Part.makeLoft([bottom,top],True,True)
+
+    def valid(wall):
+        return not wall.isNull() and wall.isValid() and len(wall.Solids)==1
+
+    wall=loft()
+    if not valid(wall):
         raise ValueError('Straight TPU hard-mount side wall did not form one valid solid.')
-    bb = wall.BoundBox
+    bb=wall.BoundBox
     if bb.XMin < lo-.10 or bb.XMax > hi+.10:
-        raise ValueError('Straight TPU hard-mount wall exceeded its fixed outside/inside limits.')
+        # Only retry the actual, specific X-overshoot failure. Do not change
+        # the plate outline, move M3 fasteners, expand the cage outside, or
+        # suppress an insufficient-material error from fit_check().
+        wall=loft(bounded=True)
+        if not valid(wall):
+            raise ValueError('TPU camera wall could not form a valid solid after bounded-front repair.')
+        bb=wall.BoundBox
+        if bb.XMin < lo-.10 or bb.XMax > hi+.10:
+            raise ValueError('TPU camera wall exceeds fixed X bounds '
+                             '(%.2f to %.2f mm, actual %.2f to %.2f mm). '
+                             'Increase the front plate width or reduce camera clearance.'
+                             % (lo,hi,bb.XMin,bb.XMax))
+        try:
+            App.Console.PrintMessage('[RotorForge TPU cage] bounded front-contact spline '
+                                     'removed a wall X-overshoot without moving the mounting outline.\n')
+        except Exception:
+            pass
     return wall
 
 

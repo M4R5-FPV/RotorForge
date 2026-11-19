@@ -92,9 +92,6 @@ class WrappingSections(QtWidgets.QWidget):
             self._layout_signature = None
             return
         width = max(100, self.width())
-        key = (width, tuple(id(button) for button in self.buttons))
-        if key == self._layout_signature:
-            return
         rows = [[]]
         used = 0
         for button in self.buttons:
@@ -104,6 +101,9 @@ class WrappingSections(QtWidgets.QWidget):
                 used = 0
             rows[-1].append(button)
             used += size + 3
+        # Width can change repeatedly as the native dialog lays itself out.
+        # Only rebuild layout rows when their actual membership changes.
+        key=tuple(tuple(id(button) for button in row) for row in rows)
         self._pack_rows(rows, key)
 
     def resizeEvent(self, event):

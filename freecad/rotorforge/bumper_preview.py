@@ -33,7 +33,16 @@ def front_bumper_path(p):
  return outer.united(camera_cover_plan(p,front,outer))
 
 
+from functools import lru_cache
+
+
 def front_bumper_plan(p):
+ # Cache is GUI-only.
+ return QtGui.QPainterPath(_front_bumper_plan_cached(p))
+
+
+@lru_cache(maxsize=12)
+def _front_bumper_plan_cached(p):
  """Upper wall/lip view: keep the carbon visible inside the shoe."""
  outer=front_bumper_path(p)
  if outer.isEmpty():return outer

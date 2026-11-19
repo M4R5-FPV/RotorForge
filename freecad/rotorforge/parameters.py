@@ -3,7 +3,7 @@
 This module deliberately has no FreeCAD or Qt imports. X is right, +Y is front.
 Wheelbase sets the base motor diagonal. Optional Deadcat rear extensions add to it.
 """
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import dataclass, fields, replace
 from itertools import combinations
 import json
 import math
@@ -17,6 +17,7 @@ from .arm_roots import (ARM_ROOT_FITS, ROOT_BOLT_LAYOUTS, ROOT_PROFILE_FIELDS, R
                         beam_profile_polygon, stem_interior_distance)
 
 from .battery import BATTERY_FIELDS,validate_battery,GRIP_PATTERNS
+from .pad_text import PAD_TEXT_FONTS,PAD_TEXT_STYLES,PAD_TEXT_POSITIONS
 from .lipo_profiles import LIPO_CHOICES
 from .camera_view import CAMERA_VIEW_PROFILES, CAMERA_VIEW_ASPECTS
 
@@ -74,9 +75,11 @@ ENUMERATIONS = {
                 'TopReachMode':('Automatic', 'Custom'), 'MotorPadShape':MOTOR_PAD_SHAPES, 'ArmRootFit':ARM_ROOT_FITS,
                 'RootBoltLayout':ROOT_BOLT_LAYOUTS,
                 'ArmRootReliefShape':('Round hole','Slot toward stack centre')}
+ENUMERATIONS.update({name:('Round head','Countersunk') for name in ('StandoffTopHead','StandoffMidHead','StandoffBottomHead','CameraCageScrewHead')})
 ENUMERATIONS.update({k:v[3] for k,v in DESIGN_OPTIONS.items() if len(v)>3})
-STRINGS = {'CutoutPatterns'}
-BOOLEANS = {"CarbonTextureEnabled"} | {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadFollowPlate','LiPoPadCopyAirflow','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled', 'CameraCageSharedDimensions','CameraTPURevisedMounts'}
+ENUMERATIONS.update({'LiPoPadTextFont':PAD_TEXT_FONTS,'LiPoPadTextStyle':PAD_TEXT_STYLES,'LiPoPadTextPosition':PAD_TEXT_POSITIONS})
+STRINGS = {'CutoutPatterns','LiPoPadText'}
+BOOLEANS = {"CarbonTextureEnabled"} | {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadTextEnabled','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled', 'CameraCageSharedDimensions','CameraTPURevisedMounts'}
 ARM_NAMES = ("FrontRight", "FrontLeft", "RearLeft", "RearRight")
 COMMON_STANDOFF_HEIGHTS = (22.0, 25.0, 30.0, 32.0, 35.0, 40.0)
 ALIGNMENT_TOL = 1e-6
@@ -107,6 +110,11 @@ class Parameters:
     CameraTPUBumperWidth: float = 1.5
     CameraTPUBumperToe: float = 4.0
     CameraCageStyle: str = 'Carbon side plates'
+    ActionCamMountEnabled: bool = False
+    ActionCamMountNutRecess: bool = False
+    ActionCamMountBaseThickness: float = 3.0
+    ActionCamMountHingeHeight: float = 12.0
+    ActionCamMountOffsetY: float = 0.0
     CameraTPULength: float = 28.0
     CameraAluminiumLength: float = 28.0
     CameraTPUWall: float = 4.0
@@ -166,6 +174,7 @@ class Parameters:
     FlexProtectorLanding: float = 3.0
     FlexProtectorRetention: str = 'Motor screws'
     FlexGuardCloseFront: bool = False
+    FlexGuardClosureContour: str = "Plate outlines and camera cage"
     FlexGuardFitMode: str = 'Plate-edge wrap'
     FlexGuardVTXOpening: bool = False
     FlexGuardVTXSide: str = 'Both'
@@ -365,12 +374,28 @@ class Parameters:
     LiPoPadShape: str = 'Rounded rectangle'
     LiPoPadCornerRadius: float = 3.0
     LiPoPadFollowPlate: bool = True
+    LiPoPadCoverCountersunk: bool = False
     LiPoPadCopyAirflow: bool = True  # Backward compatible: copy through-cuts into the grip pad
     LiPoPadPattern: str = 'Solid'
     LiPoPadGrooveWidth: float = 1.2
     LiPoPadGrooveDepth: float = 0.6
     LiPoPadGroovePitch: float = 6.0
     LiPoPadDensity: float = 1.2
+    LiPoPadTextEnabled: bool = False
+    LiPoPadText: str = 'FPV'
+    LiPoPadTextFont: str = 'Technical'
+    LiPoPadTextStyle: str = 'Regular'
+    LiPoPadTextPosition: str = 'Across front'
+    LiPoPadTextHeight: float = 5.0
+    LiPoPadTextWidthScale: float = 100.0
+    LiPoPadTextStroke: float = 0.6
+    LiPoPadTextSpacing: float = 0.6
+    LiPoPadTextDepth: float = 0.4
+    LiPoPadTextMarginAlong: float = 1.5
+    LiPoPadTextMarginAcross: float = 1.5
+    LiPoPadTextInset: float = 4.0
+    LiPoPadTextOffsetX: float = 0.0
+    LiPoPadTextOffsetY: float = 0.0
     StandoffDensity: float = 2.7
     ShowFrameCG: bool = True
     MotorHoleLayout: str = '4-hole bolt circle'
@@ -381,6 +406,7 @@ class Parameters:
     DetailedMotorReferences: bool = False
     DetailedPropReferences: bool = False
     PropReferenceColour: str = 'Smoke grey'
+    MotorReferenceColour: str = 'Black'
     DetailedStackReference: bool = False
     DetailedVTXReference: bool = False
     VTXReferenceStyle: str = "Automatic"
@@ -435,6 +461,10 @@ class Parameters:
     StandoffHeight: float = 25.0
     StandoffDiameter: float = 5.5
     StandoffHoleDiameter: float = 3.2
+    StandoffTopHead: str = 'Round head'
+    StandoffMidHead: str = 'Round head'
+    StandoffBottomHead: str = 'Round head'
+    CameraCageScrewHead: str = 'Round head'
     StrapCount: str = "2 straps"
     StrapSingleY: float = 0.0
     StrapOpeningStyle: str = "Slots"
@@ -446,6 +476,7 @@ class Parameters:
     StrapOffsetY: float = 18.0
     StrapEdgeInset: float = 6.0
     MinimumWeb: float = 1.5
+    CNCToolRadius: float = 0.5
     CarbonDensity: float = 1.60  # g/cm^3, an estimate
     ShowReferences: bool = True
     PlateDesign: str = "3 plates"
@@ -558,7 +589,19 @@ class Parameters:
     RootBolt2X: float = 0.0
 
     def to_dict(self):
-        return asdict(self)
+        # Schema fields are scalar immutable values (including encoded JSON).
+        # asdict recursively deep-copies every scalar on each editor validation.
+        return {name:getattr(self,name) for name in self.__dataclass_fields__}
+
+    def __hash__(self):
+        # Qt path caches hash the same large frozen snapshot repeatedly.
+        # Calling signature also retains dependency tracking for traced inputs.
+        signature=self.signature()
+        try:return object.__getattribute__(self,'_signature_hash')
+        except AttributeError:
+            value=hash(signature)
+            object.__setattr__(self,'_signature_hash',value)
+            return value
 
     def signature(self):
         from .parameter_memo import parameter_signature
@@ -606,6 +649,23 @@ class Parameters:
         elif data.get('FlexInterfaceShape') not in ('Rounded rectangle','Side plate outline'):
             # TPU-only shapes cannot leak into the carbon camera interface.
             data['FlexInterfaceShape']='Rounded rectangle'
+        # Earlier Walksnail HD Pro designs could retain the old single-screw
+        # setting even after the physical profile was corrected. All ordinary
+        # construction paths read CameraSideBoltSpacing, not CameraSpec, so
+        # simply fixing the camera library never repaired those saved frames.
+        # A named Walksnail HD Pro profile has two real side threads. Preserve
+        # positive user-measured spacings; leave Custom measurements untouched.
+        if (data.get('CameraPhysicalProfile')=='Walksnail Avatar HD Pro'
+                and data.get('FPVSystemProfile')!='DJI O4 Air Unit Pro'
+                and data.get('CameraSideBoltSpacing', 0)==0):
+            from .camera_profiles import CAMERAS
+            data['CameraSideBoltSpacing']=CAMERAS['Walksnail Avatar HD Pro'].screw_spacing
+            # The previously single-screw design represented a one-hole pivot.
+            # Make its *first* corrected build show two ordinary M2 holes per
+            # side. Users may explicitly select variable tilt (two slots, or
+            # a pivot plus one slot) afterwards if they require it.
+            if data.get('CameraMountMode','Variable')=='Variable':
+                data['CameraMountMode']='Fixed'
         if data.get('FPVSystemProfile')=='DJI O4 Air Unit Pro':
             data.update(FPVEnabled=True,VideoSystem='Digital',DetailedCameraReference=True,CameraWidth=20.,CameraHeight=23.3,CameraBodyDepth=19.45,
                         CameraSideBoltSpacing=16.,CameraSideHoleDiameter=2.2,CameraSideScrewRearInset=16.,
@@ -716,7 +776,8 @@ class Parameters:
                 if not isinstance(value, str) or value not in ENUMERATIONS[f.name]:
                     raise ValueError(f"{f.name} must be one of: " + ", ".join(ENUMERATIONS[f.name]))
             elif f.name in STRINGS:
-                parse_patterns(value)
+                if f.name=='CutoutPatterns':parse_patterns(value)
+                elif not isinstance(value,str):raise ValueError(f"{f.name} must be text.")
             elif f.name in BOOLEANS:
                 if not isinstance(value, bool):
                     raise ValueError(f"{f.name} must be true or false.")
@@ -776,6 +837,9 @@ class Parameters:
         return result
 
 
+from .parameter_memo import parameter_cache as _layout_cache
+
+
 def motor_hole_offsets(p):
     """Fixing coordinates in pad axes; whole-pad orientation is per arm."""
     count=3 if p.MotorHoleLayout.startswith('3') else 4
@@ -783,6 +847,7 @@ def motor_hole_offsets(p):
     return tuple((p.MotorBoltCircle/2*math.cos(phase+2*math.pi*i/count),p.MotorBoltCircle/2*math.sin(phase+2*math.pi*i/count)) for i in range(count))
 
 
+@_layout_cache(maxsize=96)
 def nominal_motor_centres(p):
     if p.Layout == "True X":
         ratio = 1.0
@@ -814,6 +879,7 @@ def nominal_motor_centres(p):
     return ((front_x, front_y), (-front_x, front_y), (-rear_x, -rear_y), (rear_x, -rear_y))
 
 
+@_layout_cache(maxsize=96)
 def motor_centres(p):
     centres=[]
     for mx,my in nominal_motor_centres(p):
@@ -829,8 +895,6 @@ def arm_root_x(p,front):
     width=centre_width_at(p,'BottomPlate',p.ArmRootY if front else -p.ArmRootY,p.BodyWidth) if p.ArmRootsFollowCentre else p.BodyWidth
     return width/2-p.RootInset
 
-
-from .parameter_memo import parameter_cache as _layout_cache
 
 def arm_layouts(p):
     # Preserve caller ownership of dictionaries while reusing pure calculations.
@@ -886,6 +950,11 @@ def standoff_pair_count(p):
 
 
 def standoff_pairs(p):
+    return [dict(pair) for pair in _standoff_pairs_cached(p)]
+
+
+@_layout_cache(maxsize=96)
+def _standoff_pairs_cached(p):
     """Mirror each pair across X; retain the original two outer pairs."""
     pairs = [dict(position="Rear", y=-p.StandoffLength / 2, width=p.StandoffWidth),
              dict(position="Front", y=p.StandoffLength / 2, width=p.StandoffWidth)]
@@ -904,6 +973,7 @@ def standoff_pairs(p):
     return sorted(pairs, key=lambda pair: pair["y"])
 
 
+@_layout_cache(maxsize=96)
 def standoff_holes(p):
     return tuple((x, pair["y"]) for pair in standoff_pairs(p)
                  for x in (-pair["width"] / 2, pair["width"] / 2))
@@ -1011,6 +1081,7 @@ def stack_reference_z(p):
     return levels['stack_deck_z']+clearance
 
 
+@_layout_cache(maxsize=96)
 def bottom_bounds(p,include_body=True):
     if p.BottomReachMode=='Custom':
         return -p.BottomRearReach, p.BottomFrontReach
@@ -1040,6 +1111,7 @@ def bottom_bounds(p,include_body=True):
     return rear, front
 
 
+@_layout_cache(maxsize=96)
 def top_bounds(p):
     if p.TopReachMode=='Custom':
         return -p.TopRearReach, p.TopFrontReach
@@ -1048,6 +1120,7 @@ def top_bounds(p):
     return -p.TopLength/2,p.TopLength/2
 
 
+@_layout_cache(maxsize=96)
 def mid_bounds(p):
     rear = p.StackOffsetY - p.MidRearReach
     if p.FPVEnabled and p.MidReachMode=='Automatic':
@@ -1061,6 +1134,7 @@ def mid_tabs(p):
                  for arm in arm_layouts(p) if arm["root"][1] > 0)
 
 
+@_layout_cache(maxsize=96)
 def bottom_body_bounds(p):
     """Three-plate body ends at an explicit distance behind the stack."""
     rear,front=bottom_bounds(p)
@@ -1093,6 +1167,11 @@ def bottom_tabs(p):
 
 
 def plate_levels(p):
+    return dict(_plate_levels_cached(p))
+
+
+@_layout_cache(maxsize=96)
+def _plate_levels_cached(p):
     arm_z = p.BottomThickness if arms_above_bottom(p) else -p.ArmThickness
     mid_z = p.BottomThickness + p.ArmThickness
     deck_z = mid_z + p.ClampThickness if three_plate(p) else p.BottomThickness
@@ -1113,6 +1192,13 @@ def plate_levels(p):
 
 
 def standoff_layouts(p):
+    # Shared-arm dictionaries are themselves mutable. Retain caller ownership.
+    return [dict(stand,shared_arm=dict(stand["shared_arm"]) if stand["shared_arm"] is not None else None)
+            for stand in _standoff_layouts_cached(p)]
+
+
+@_layout_cache(maxsize=96)
+def _standoff_layouts_cached(p):
     levels = plate_levels(p)
     result = []
     for pair in standoff_pairs(p):
@@ -1294,9 +1380,13 @@ def _validation_result(p):
     from .flex import validate_flex
     flex_errors,flex_warnings=validate_flex(p)
     errors, warnings = validate_battery(p)+flex_errors, flex_warnings
+    if not math.isfinite(p.CNCToolRadius) or not .5<=p.CNCToolRadius<=3.:
+        return errors+["CNC cutter radius must be 0.5–3 mm."],warnings
     from .nut_seats import validate_seats
     from .mount_support import standoff_stock_radius
     errors.extend(validate_seats(p))
+    from .screw_heads import validate_heads
+    errors.extend(validate_heads(p))
     if p.StackSpacing not in (20.,30.5):errors.append("FC stack pattern must be 20 x 20 mm or 30.5 x 30.5 mm.")
     if (p.MotorHoleLayout=='4-hole bolt circle' and not math.isclose(p.MotorSpacingX,p.MotorSpacingY)
         and math.isclose(p.MotorBoltCircle,math.hypot(p.MotorSpacingX,p.MotorSpacingY))
@@ -1654,7 +1744,8 @@ def _validation_result(p):
     return tuple(dict.fromkeys(errors)), tuple(warnings)
 
 
-def validate(p):
+@parameter_cache(maxsize=32)
+def _complete_validation(p):
     antenna_errors=[]
     if p.ArmTipBumperStyle!='Disabled':
         if not math.isfinite(p.ArmTipBumperCutoutWall) or not 1<=p.ArmTipBumperCutoutWall<=8:antenna_errors.append('Bumper cutout wall must be 1–8 mm.')
@@ -1675,7 +1766,27 @@ def validate(p):
     from .camera_cages import validate_cage
     antenna_errors.extend(validate_cage(p))
     errors,warnings=_validation_result(p)
-    return list(errors)+antenna_errors,list(warnings)
+    from .stencil_text import check_text_web
+    from .cutouts import check_cnc_shape
+    try:lettering_patterns=parse_patterns(p.CutoutPatterns)
+    except ValueError:lettering_patterns=() # already reported by _validation_result
+    for pattern in lettering_patterns:
+        if pattern['enabled']:
+            try:check_cnc_shape(pattern,p.CNCToolRadius)
+            except ValueError as exc:antenna_errors.append(f"{pattern['role']}: {exc}")
+        if pattern['enabled'] and pattern['shape']=='Text':
+            try:
+                if pattern['role'] in ('CameraMountLeft','CameraMountRight') and p.CameraCageStyle!='Carbon side plates':
+                    raise ValueError('CNC text requires carbon camera side plates.')
+                check_text_web(pattern,0. if pattern['mode']=='Pocket' else max(p.MinimumWeb,pattern.get('auto_web',0.)))
+            except ValueError as exc:antenna_errors.append(str(exc))
+    return tuple(errors)+tuple(antenna_errors),tuple(warnings)
+
+
+def validate(p):
+    try:errors,warnings=_complete_validation(p)
+    except ValueError as exc:return [str(exc)],[]
+    return list(errors),list(warnings)
 
 
 from functools import lru_cache as _validation_cache

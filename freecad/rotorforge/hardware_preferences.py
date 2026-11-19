@@ -3,7 +3,7 @@ import math
 
 
 def validate_preferences(value):
-    from .hardware_layout import HARDWARE_GROUPS, DEFAULT_OPTIONS
+    from .hardware_layout import HARDWARE_GROUPS, DEFAULT_OPTIONS, normalize_options
     if not isinstance(value, dict) or value.get('version') != 1:
         raise ValueError('Unsupported hardware reference preferences.')
     for key in ('created', 'visible'):
@@ -15,6 +15,9 @@ def validate_preferences(value):
     groups = options.get('groups', DEFAULT_OPTIONS['groups'])
     if not isinstance(groups, list) or any(g not in HARDWARE_GROUPS for g in groups):
         raise ValueError('Unknown hardware reference group.')
+    schema = options.get('group_schema', 1)
+    if type(schema) is not int or schema not in (1, 2):
+        raise ValueError('Unsupported hardware reference group schema.')
     nuts = options.get('nuts', DEFAULT_OPTIONS['nuts'])
     engagement = options.get('engagement', DEFAULT_OPTIONS['engagement'])
     if type(nuts) is not bool:
@@ -24,9 +27,10 @@ def validate_preferences(value):
     hidden = value.get('hidden_roles', [])
     if not isinstance(hidden, list) or any(not isinstance(role, str) for role in hidden):
         raise ValueError('Hidden hardware roles must be a list of names.')
+    normalized=normalize_options(dict(groups=list(dict.fromkeys(groups)), nuts=nuts,
+                                      engagement=float(engagement), group_schema=schema))
     return dict(version=1, created=value['created'], visible=value['visible'],
-                options=dict(groups=list(dict.fromkeys(groups)), nuts=nuts, engagement=float(engagement)),
-                hidden_roles=list(dict.fromkeys(hidden)))
+                options=normalized, hidden_roles=list(dict.fromkeys(hidden)))
 
 
 def from_settings(data):

@@ -42,14 +42,17 @@ def read_archive(directory,key,skip=None):
 def write_archive(directory,key,records):
  path=Path(directory);temporary=None
  try:
-  if sum(len(payload.encode()) for role,manifest,payload in records)>MAX_UNPACKED or len(records)>160:return False
+  if len(records)>160:return False
+  # Convert once: size checking, hashing and zip writing all use UTF-8 bytes.
+  encoded=[(role,manifest,payload.encode('utf-8')) for role,manifest,payload in records]
+  if sum(len(payload) for role,manifest,payload in encoded)>MAX_UNPACKED:return False
   path.mkdir(parents=True,exist_ok=True)
   with tempfile.NamedTemporaryFile(dir=path,suffix='.tmp',delete=False) as stream:temporary=Path(stream.name)
   index=dict(format=FORMAT,key=key,components=[])
   with zipfile.ZipFile(temporary,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=1) as archive:
-   for i,(role,manifest,payload) in enumerate(records):
+   for i,(role,manifest,payload) in enumerate(encoded):
     name=str(i)+'.brep';archive.writestr(name,payload)
-    index['components'].append(dict(role=role,manifest=manifest,file=name,digest=hashlib.sha256(payload.encode()).hexdigest()))
+    index['components'].append(dict(role=role,manifest=manifest,file=name,digest=hashlib.sha256(payload).hexdigest()))
    archive.writestr('index.json',json.dumps(index,sort_keys=True,separators=(',',':')))
   os.replace(temporary,path/(key+'.zip'));temporary=None
   size=0

@@ -7,7 +7,7 @@ CUTOUT_ROLES = ('BottomPlate', 'MidPlate', 'TopPlate', 'ArmClampPlate', 'ArmKeys
                 'CameraMountLeft', 'CameraMountRight', 'ArmFrontRight', 'ArmFrontLeft',
                 'ArmRearLeft', 'ArmRearRight', 'ArmLowerClampPlate')
 LEGACY_CUTOUT_TYPES = ('Circle', 'Slot', 'Arc slot', 'Rounded rectangle', 'Hexagon',
-                'Ellipse', 'Rectangle', 'Triangle', 'Diamond', 'Trapezoid', 'Pentagon', 'Octagon', 'Chevron', 'Heptagon', 'Dodecagon', 'Parallelogram', 'Kite', 'Hourglass', 'Cross', 'Crescent', 'Leaf', 'Shield', 'Swept fin', 'Aero spear', 'Split bridge', 'Web cell')
+                'Ellipse', 'Rectangle', 'Triangle', 'Diamond', 'Trapezoid', 'Pentagon', 'Octagon', 'Chevron', 'Heptagon', 'Dodecagon', 'Parallelogram', 'Kite', 'Hourglass', 'Cross', 'Crescent', 'Leaf', 'Shield', 'Swept fin', 'Aero spear', 'Split bridge', 'Web cell', 'Text')
 # New cutouts use only smooth profiles that meet the R0.5 milling rule.
 # Legacy polygon profiles remain parseable so older saved frames can be opened.
 # Every newly selectable polygon is generated with genuine >= R0.5 circular
@@ -17,16 +17,34 @@ CUTOUT_TYPES = ('Circle', 'Slot', 'Arc slot', 'Rounded rectangle', 'Ellipse',
                 'Triangle', 'Diamond', 'Trapezoid', 'Hexagon', 'Pentagon',
                 'Octagon', 'Heptagon', 'Dodecagon', 'Chevron',
                 'Parallelogram', 'Kite', 'Hourglass', 'Cross', 'Shield', 'Swept fin',
-                'Aero spear', 'Split bridge')
+                'Aero spear', 'Split bridge', 'Text')
 CNC_POLYGON_TYPES = ('Web cell',) + tuple(t for t in CUTOUT_TYPES if t not in
-                          ('Circle', 'Slot', 'Rounded rectangle', 'Ellipse'))
+                          ('Circle', 'Slot', 'Rounded rectangle', 'Ellipse', 'Text'))
 MIN_INTERNAL_RADIUS = .5
 OUTLINE_ROLES = ('BottomPlate', 'MidPlate', 'TopPlate', 'ArmClampPlate', 'ArmLowerClampPlate')
 CUTOUT_MODES = ('Interior', 'Pocket', 'Outline notch', 'Add material')
 MAX_PATTERNS = 200
 MAX_ENABLED_CUTOUTS = 200
 PATTERN_DEFAULTS = dict(mode='Interior', role='TopPlate', shape='Slot', width=4., length=12., x=0., y=0.,
-                        rotation=0., columns=1, rows=1, pitch_x=10., pitch_y=16., depth=0.5, arc_angle=75., enabled=True, auto_web=0., auto_keep=False, auto_group='', vertices=[])
+                        rotation=0., mirror_u=False, mirror_v=False, columns=1, rows=1, pitch_x=10., pitch_y=16., depth=0.5, arc_angle=75., enabled=True, auto_web=0., auto_keep=False, auto_group='', vertices=[], text='FPV', text_font='Block stencil', text_dot=1.2)
+
+
+def mirrored_points(points, pattern):
+    """Reflect local U/V coordinates before applying the user's rotation."""
+    u=-1 if pattern.get('mirror_u',False) else 1
+    v=-1 if pattern.get('mirror_v',False) else 1
+    result=tuple((u*x,v*y) for x,y in points)
+    return tuple(reversed(result)) if u*v<0 else result
+
+
+def mirrored_segments(segments, pattern):
+    """Preserve closed-wire orientation after an odd number of reflections."""
+    u=-1 if pattern.get('mirror_u',False) else 1
+    v=-1 if pattern.get('mirror_v',False) else 1
+    if u==v==1:return segments
+    result=tuple((segment[0],*((u*x,v*y) for x,y in segment[1:])) for segment in segments)
+    if u*v<0:return tuple((seg[0],*reversed(seg[1:])) for seg in reversed(result))
+    return result
 
 
 def cutout_polygon(pattern):
@@ -123,7 +141,7 @@ def rounded_polygon_segments(points, radius=MIN_INTERNAL_RADIUS):
         prev=pts[i-1];cur=pts[i]
         segment=math.dist(prev,cur)
         if t+corners[i-1][3]>segment-1e-5:
-            raise ValueError('This profile is too narrow for R0.5. Increase its width/length.')
+            raise ValueError(f'This profile is too narrow for R{radius:g}. Increase its width/length.')
     segments=[]
     for i,c in enumerate(corners):
         previous=corners[i-1]
@@ -135,7 +153,7 @@ def rounded_polygon_segments(points, radius=MIN_INTERNAL_RADIUS):
     return segments
 
 
-def arc_slot_profile_segments(width, length, arc_angle):
+def arc_slot_profile_segments(width, length, arc_angle, radius_min=MIN_INTERNAL_RADIUS):
     """Analytic, round-ended curved channel, centred on the local Y axis.
 
     ``length`` is the chord between end-cap *centres* (not the arc length).
@@ -151,8 +169,8 @@ def arc_slot_profile_segments(width, length, arc_angle):
     w, chord, angle = float(width), float(length), float(arc_angle)
     if not all(math.isfinite(v) for v in (w, chord, angle)):
         raise ValueError('Arc slot dimensions and bend must be finite.')
-    if w < 1.0 or chord < w + .5:
-        raise ValueError('Arc slot requires width ≥1 mm and a chord at least 0.5 mm longer than its width.')
+    if w < 2*radius_min or chord < w + .5:
+        raise ValueError(f'Arc slot requires width ≥{2*radius_min:g} mm and a chord at least 0.5 mm longer than its width.')
     if abs(angle) > 170.0 + 1e-8:
         raise ValueError('Arc slot bend must be between -170° and +170°.')
     # Tiny nonzero sweeps require very large circle centres and can suffer
@@ -174,8 +192,8 @@ def arc_slot_profile_segments(width, length, arc_angle):
     radius = chord / (2.0 * math.sin(half_sweep))
     # The inside curvature is concave for one side of the channel. Never
     # silently violate the R0.5 mm minimum CNC cutter radius.
-    if radius-half_width < MIN_INTERNAL_RADIUS - 1e-8:
-        raise ValueError('Arc slot inside radius is below R0.5 mm; increase chord or reduce width/bend.')
+    if radius-half_width < radius_min - 1e-8:
+        raise ValueError(f'Arc slot inside radius is below R{radius_min:g} mm; increase chord or reduce width/bend.')
     cx = -sign * radius * math.cos(half_sweep)
     def polar(r, t):
         alpha = t if sign > 0 else math.pi - t
@@ -201,7 +219,7 @@ def arc_slot_profile_segments(width, length, arc_angle):
 
 
 @lru_cache(maxsize=512)
-def _cached_profile_segments(shape, width, length, vertices, arc_angle):
+def _cached_profile_segments(shape, width, length, vertices, arc_angle, radius):
     """Immutable local CNC profile shared by validation, Qt and FreeCAD.
 
     Translation and rotation are deliberately excluded: they are applied by
@@ -212,16 +230,16 @@ def _cached_profile_segments(shape, width, length, vertices, arc_angle):
     if shape == 'Web cell':
         pattern['vertices'] = vertices
     if shape == 'Arc slot':
-        return tuple(arc_slot_profile_segments(width, length, arc_angle))
-    return tuple(rounded_polygon_segments(cutout_polygon(pattern)))
+        return tuple(arc_slot_profile_segments(width, length, arc_angle, radius))
+    return tuple(rounded_polygon_segments(cutout_polygon(pattern),radius))
 
 
-def cutout_profile_segments(pattern):
+def cutout_profile_segments(pattern, radius=None):
     """Return immutable analytic R0.5 line/arc segments for a local cutout."""
     vertices = (tuple(tuple(v) for v in (pattern.get('vertices') or ()))
                 if pattern['shape'] == 'Web cell' else ())
     return _cached_profile_segments(pattern['shape'], pattern['width'],
-                                    pattern['length'], vertices, pattern.get('arc_angle',75.))
+                                    pattern['length'], vertices, pattern.get('arc_angle',75.), pattern.get('_cnc_radius',MIN_INTERNAL_RADIUS) if radius is None else radius)
 
 
 def _check_web_vertices(vertices):
@@ -251,24 +269,39 @@ def _check_web_vertices(vertices):
     return points
 
 
-def check_cnc_shape(pattern):
+def check_cnc_shape(pattern, radius=MIN_INTERNAL_RADIUS):
     """Validate the machining curvature of a new/editable shape."""
     w,l=pattern['width'],pattern['length']
     name=pattern['shape']
+    if name=='Text':
+        if pattern.get('text_dot',1.)<2*radius-1e-8:raise ValueError(f'CNC lettering stroke/dot diameter must be at least {2*radius:g} mm.')
+        from .stencil_text import text_profiles
+        text_profiles(pattern)
+        return
     if name=='Web cell':
         _check_web_vertices(pattern.get('vertices') or [(-.5,-.5),(.5,-.5),(.5,.5),(-.5,.5)])
     if name in CNC_POLYGON_TYPES:
-        cutout_profile_segments(pattern)
-    elif name=='Ellipse' and min(w,l)**2 < max(w,l)-1e-8:
-        raise ValueError('Ellipse curvature is tighter than R0.5; widen its short axis.')
-    elif name=='Circle' and w < 1:
-        raise ValueError('Circle diameter must be at least 1 mm.')
-    elif name=='Slot' and min(w,l)<1:
-        raise ValueError('Slot width must be at least 1 mm.')
+        cutout_profile_segments(pattern,radius)
+    elif name=='Ellipse' and min(w,l)**2 < 2*radius*max(w,l)-1e-8:
+        raise ValueError(f'Ellipse curvature is tighter than R{radius:g}; widen its short axis.')
+    elif name=='Circle' and w < 2*radius:
+        raise ValueError(f'Circle diameter must be at least {2*radius:g} mm.')
+    elif name=='Slot' and min(w,l)<2*radius:
+        raise ValueError(f'Slot width must be at least {2*radius:g} mm.')
     elif name=='Arc slot':
-        arc_slot_profile_segments(w,l,pattern.get('arc_angle',75.))
-    elif name=='Rounded rectangle' and min(w,l)<2:
-        raise ValueError('Rounded rectangle requires at least 2 mm on each axis.')
+        arc_slot_profile_segments(w,l,pattern.get('arc_angle',75.),radius)
+    elif name=='Rounded rectangle' and min(w,l)<max(2.,2*radius):
+        raise ValueError(f'Rounded rectangle requires at least {max(2.,2*radius):g} mm on each axis.')
+
+
+def pattern_cut_count(pattern):
+    count=pattern['columns']*pattern['rows']
+    if pattern['shape']=='Text':
+        from .stencil_text import text_profiles, ENGRAVING_FONTS, engraving_groups
+        if pattern['text_font'] in ENGRAVING_FONTS:
+            count*=len(engraving_groups(pattern['text'],pattern['text_font'],pattern['width'],pattern['length'],pattern.get('text_dot',1.)))
+        else:count*=len(text_profiles(pattern))
+    return count
 
 
 def _parse_patterns_uncached(value):
@@ -291,10 +324,31 @@ def _parse_patterns_uncached(value):
             raise ValueError(f'Cutout pattern {index}: unknown cutting mode.')
         if pattern['mode'] in ('Outline notch','Add material') and pattern['role'] not in OUTLINE_ROLES:
             raise ValueError(f'Cutout pattern {index}: outline notches and additions are available on the main and clamp plates only.')
+        if pattern['shape']=='Text':
+            from .stencil_text import TEXT_FONTS, LEGACY_STENCIL_FONTS
+            # Existing through-stencils are intentionally migrated to blind
+            # pockets; newly generated engraving must never cut through.
+            if pattern['mode']=='Interior':
+                pattern['mode']='Pocket'
+            if pattern['mode']!='Pocket':
+                raise ValueError(f'Airflow pattern {index}: text is available as blind pockets only.')
+            if isinstance(pattern['text_font'],str) and pattern['text_font'] in LEGACY_STENCIL_FONTS:
+                pattern['text_font']=LEGACY_STENCIL_FONTS[pattern['text_font']]
+                pattern['text_dot']=1.  # The old block/compact fonts ignored this field.
+            if not isinstance(pattern['text'],str) or pattern['text_font'] not in TEXT_FONTS:
+                raise ValueError(f'Airflow pattern {index}: invalid CNC text/font.')
+            pattern['text']=pattern['text'].upper()
+            dot=pattern['text_dot']
+            if isinstance(dot,bool) or not isinstance(dot,(int,float)) or not math.isfinite(dot) or not 1.<=dot<=10.:
+                raise ValueError(f'Airflow pattern {index}: text dot diameter must be 1–10 mm.')
+        else:
+            pattern['text']=PATTERN_DEFAULTS['text'];pattern['text_font']=PATTERN_DEFAULTS['text_font'];pattern['text_dot']=PATTERN_DEFAULTS['text_dot']
         if pattern['shape']=='Web cell':
             _check_web_vertices(pattern['vertices'] or [(-.5,-.5),(.5,-.5),(.5,.5),(-.5,.5)])
         elif pattern['vertices']:
             raise ValueError(f'Airflow pattern {index}: custom vertices are only valid on web cells.')
+        if any(not isinstance(pattern[key], bool) for key in ('mirror_u','mirror_v')):
+            raise ValueError(f'Airflow pattern {index}: mirror controls must be true or false.')
         if not isinstance(pattern['enabled'], bool):
             raise ValueError(f'Airflow pattern {index}: enabled must be true or false.')
         if not isinstance(pattern['auto_keep'], bool):
@@ -332,7 +386,7 @@ def _parse_patterns_uncached(value):
             raise ValueError(f'Airflow pattern {index}: position or rotation is out of range.')
         if not 0 < pattern['pitch_x'] <= 500 or not 0 < pattern['pitch_y'] <= 500:
             raise ValueError(f'Airflow pattern {index}: pitches must be greater than zero and at most 500 mm.')
-        count += pattern['columns'] * pattern['rows'] if pattern['enabled'] else 0
+        count += pattern_cut_count(pattern) if pattern['enabled'] else 0
         result.append(pattern)
     if count > MAX_ENABLED_CUTOUTS:
         raise ValueError(f'Use at most {MAX_ENABLED_CUTOUTS} enabled cutouts per frame, including grid instances. Disable or remove a pattern, or reduce its rows / columns.')
@@ -370,5 +424,5 @@ def pattern_instances(pattern):
 
 
 def cutouts_for(p, role):
-    return tuple(instance for pattern in parse_patterns(p.CutoutPatterns)
+    return tuple(dict(instance,_cnc_radius=p.CNCToolRadius) for pattern in parse_patterns(p.CutoutPatterns)
                  if pattern['enabled'] and pattern['role'] == role for instance in pattern_instances(pattern))

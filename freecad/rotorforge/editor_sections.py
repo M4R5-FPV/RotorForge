@@ -5,6 +5,7 @@ SECTIONS=(('Frame',
   (('Frame type', ('PlateDesign', 'FPVEnabled')),
    ('Motor positions', ('Layout', 'Wheelbase', 'LengthToWidth', 'FrontSpread', 'RearArmExtension')),
    ('Propellers', ('PropDiameter', 'RequiredPropGap')),
+   ('CNC machining', ('CNCToolRadius',)),
    ('Common plate corners', ('CornerRadius',)))),
  ('Frame',
   'Bottom plate',
@@ -80,13 +81,15 @@ SECTIONS=(('Frame',
  ('Arms',
   'Motor references',
   'Approximate motor and prop clearance bodies. Independent from stator size and mounting pitch.',
-  (('Reference dimensions', ('MotorReferenceDiameter', 'MotorReferenceHeight', 'PropReferenceHeight')),)),
+  (('Reference dimensions', ('MotorReferenceDiameter', 'MotorReferenceHeight', 'PropReferenceHeight')),
+   ('Motor finish', ('MotorReferenceColour',)))),
  ('Hardware','Nut retention','Machine nut seats in the receiving plate; FC stack nuts are unchanged.',
   (('Receiving joints',('ArmNutMount','StackPressNuts')),('Hex pockets',('NutRecessDepth','NutRecessClearance')),('M3 press nuts',('PressNutBore','PressNutFlangeDiameter','PressNutFlangeHeight','PressNutShankDiameter','PressNutShankDepth','PressNutFlangeRecess','PressNutMinThickness')))),
  ('Hardware',
   'Standoffs',
   'Set the pair count, mounting positions and linked front/rear heights.',
   (('Count and hardware', ('StandoffCount', 'StandoffDiameter', 'StandoffHoleDiameter')),
+   ('Screw heads', ('StandoffTopHead','StandoffMidHead','StandoffBottomHead')),
    ('Outer pairs', ('StandoffFrontMount', 'StandoffRearMount', 'StandoffWidth', 'StandoffLength')),
    ('Third pair', ('StandoffPair3Mount', 'StandoffPair3Y', 'StandoffPair3Width')),
    ('Fourth pair', ('StandoffPair4Mount', 'StandoffPair4Y', 'StandoffPair4Width')),
@@ -122,9 +125,10 @@ SECTIONS=(('Frame',
      'LiPoPadThickness',
      'LiPoPadCornerRadius',
      'LiPoPadFollowPlate',
-     'LiPoPadCopyAirflow')),
+     'LiPoPadCopyAirflow','LiPoPadCoverCountersunk')),
    ('Plate outline size', ('LiPoPadOutlineWidthScale', 'LiPoPadFrontReach', 'LiPoPadRearReach')),
    ('Grip surface', ('LiPoPadPattern', 'LiPoPadGrooveWidth', 'LiPoPadGrooveDepth', 'LiPoPadGroovePitch')),
+   ('Text / lettering', ('LiPoPadTextEnabled','LiPoPadText','LiPoPadTextPosition','LiPoPadTextFont','LiPoPadTextStyle','LiPoPadTextHeight','LiPoPadTextWidthScale','LiPoPadTextStroke','LiPoPadTextSpacing','LiPoPadTextDepth','LiPoPadTextMarginAlong','LiPoPadTextMarginAcross','LiPoPadTextInset','LiPoPadTextOffsetX','LiPoPadTextOffsetY')),
    ('Material', ('LiPoPadDensity',)))),
  ('FPV',
   'Camera',
@@ -204,7 +208,7 @@ SECTIONS=(('Frame',
      'FlexGuardStyle',
      'FlexGuardFrontInset',
      'FlexGuardRearInset')),
-   ('Forward coverage', ('FlexGuardExtendFront','FlexGuardCloseFront','FlexGuardCameraOverlap')),
+   ('Forward coverage', ('FlexGuardExtendFront','FlexGuardCloseFront','FlexGuardClosureContour','FlexGuardCameraOverlap')),
    ('Motor-wire access', ('FlexGuardWireEnabled','FlexGuardWireSide','FlexGuardWirePairs','FlexGuardWireFrontY','FlexGuardWireRearY','FlexGuardWireWidth','FlexGuardWireHeight')),
    ('VTX clearance', ('FlexGuardVTXOpening','FlexGuardVTXSide','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXLength','FlexGuardVTXHeight','FlexGuardVTXClearance')),
    ('USB access',
@@ -216,6 +220,10 @@ SECTIONS=(('Frame',
   ('FC section vents',('FlexGuardFCVents','FlexGuardFCVentShape','FlexGuardFCVentWidth','FlexGuardFCSlotHeight','FlexGuardFCSlotCount','FlexGuardFCVentWeb','FlexGuardFCVentRearInset','FlexGuardFCVentFrontInset','FlexGuardFCVentZOffset')))))
 SECTIONS=SECTIONS+(('TPU','Rear antenna','Rear grips share a support seat. Tilt is adjustable from level to upright; dual antennas retain outward yaw.',(('Mount',('FlexRearAntenna', 'FlexAntennaConnector', 'FlexAntennaTilt', 'FlexAntennaCount', 'FlexAntennaBarShape', 'FlexAntennaReach')),('Standoff grips',('FlexAntennaTopGap','FlexAntennaGuardGap','FlexAntennaGripHeight', 'FlexAntennaGripWall', 'FlexAntennaStandoffBore', 'FlexAntennaFit')),('Bar and holders',('FlexAntennaBarWidth', 'FlexAntennaBore', 'FlexAntennaSocketWall', 'FlexAntennaSocketLength','FlexAntennaHolderStyle','FlexAntennaRetainingLip','FlexAntennaBulkheadThickness', 'FlexAntennaHolderOffset', 'FlexAntennaSpacing')))),)
 SECTIONS=SECTIONS+(('TPU','ELRS antenna','Two open hooks hold a horizontal T-antenna below the side-guard grips. Measure the antenna housing before printing.',(('Mount',('FlexELRSEnabled','FlexELRSBarShape','FlexELRSReach','FlexELRSHookReach','FlexELRSHeightOffset')),('Standoff grips',('FlexELRSGuardGap','FlexELRSGripHeight','FlexELRSGripWall','FlexELRSStandoffBore','FlexELRSFit')),('Bar and hooks',('FlexELRSBarWidth','FlexELRSPassThroughDiameter','FlexELRSHookSpacing','FlexELRSAntennaDiameter','FlexELRSHookWidth','FlexELRSHookWall','FlexELRSRetainingLip')))),)
+SECTIONS=SECTIONS+(('TPU','HD action camera',
+ 'Attach a separate three-finger action-camera hinge to the four top M3 TPU cage screws. Requires the unified TPU camera cage; the printed base is removable and exported separately.',
+ (('Action-camera mount',('ActionCamMountEnabled','ActionCamMountNutRecess','ActionCamMountBaseThickness',
+                             'ActionCamMountHingeHeight','ActionCamMountOffsetY')),)),)
 HIDDEN_FIELDS=frozenset(('CameraMountHoleDiameter', 'CutoutPatterns', 'KeystoneRetainerDiameter', 'KeystoneRetainerHeadDiameter', 'KeystoneRetainerSpacing', 'LiPoPadOutlineLengthScale', 'MotorSpacingX', 'MotorSpacingY', 'ELRSTReferenceFeedPreset', 'ELRSTReferenceStemLength'))
 # Shared cage controls, material selector first.
 _cage_groups=(('Construction',('CameraCageStyle',)),
@@ -226,13 +234,13 @@ _cage_groups=(('Construction',('CameraCageStyle',)),
  ('Upper attachment',('CameraTopRearOffset',)),('Lower contact',('CameraBaseMode','CameraBaseFrontExtension','CameraBaseRearExtension')),
  ('Captured tabs',('CameraTabLength','CameraTabClearance','CameraTabReliefs','CameraTabCutterDiameter')),
  ('Mounting positions',('CameraTabBottomRearOffset','CameraTabBottomFrontOffset','CameraTabTopRearOffset','CameraTabTopFrontOffset')),
- ('TPU attachment',('CameraTPUScrewBore','CameraTPUInsertDepth','CameraTPUBossWall','CameraTPUBridge','CameraTPUHardClearance','CameraTPUBottomRearReach','CameraTPUTopRearReach','CameraTPUFrontBridgeRearReach','CameraTPUFrontBridgeHeight','CameraTPUFrontBridgeBlend')),
+ ('TPU attachment',('CameraCageScrewHead','CameraTPUScrewBore','CameraTPUInsertDepth','CameraTPUBossWall','CameraTPUBridge','CameraTPUHardClearance','CameraTPUBottomRearReach','CameraTPUTopRearReach','CameraTPUFrontBridgeRearReach','CameraTPUFrontBridgeHeight','CameraTPUFrontBridgeBlend')),
  ('Integrated bumper',('CameraTPUBumperReach','CameraTPUBumperWidth','CameraTPUBumperToe','CameraTPUClampBottom','CameraTPUClampFit','CameraTPUClampWall')),
  )
 SECTIONS=tuple(('FPV','Camera cage','Choose carbon-style flat camera side plates (for carbon fibre or aluminium fabrication) or a unified printable TPU cage. The dimensions and camera positioning remain editable.',_cage_groups) if title=='Side plates' else (category,title,description,groups) for category,title,description,groups in SECTIONS if title!='Tilt & position')
 SECTIONS=SECTIONS+(('Arms','Arm tip bumpers','Protective extensions with independent tip orientation and matching outline openings.',(('Bumper',('ArmTipBumperStyle','ArmTipBumperDirection','ArmTipBumperReach','ArmTipBumperWidth')),('Outline opening',('ArmTipBumperCutout','ArmTipBumperCutoutWall')),('TPU sleeve',('FlexProtectorBumperSleeve',)))),)
 HIDDEN_FIELDS=HIDDEN_FIELDS|frozenset(('CameraTPUConstruction','CameraTPUBumper','CameraTPUInnerReach','CameraTPUClampBottom','CameraTPUClampFit','CameraTPUClampWall','CameraTPUBumperReach','CameraTPUBumperWidth','CameraTPUBumperToe','FPVSystemProfile','FlexBumperCameraCover','CameraTPULength','CameraAluminiumLength','CameraTPUWall','CameraAluminiumWall','CameraCageSharedDimensions','CameraTPUAttachment','CameraTPUScrewClearance','CameraTPURevisedMounts','CameraAluminiumDensity'))
-_tpu_order={name:i for i,name in enumerate(('Appearance','Camera isolation','Front bumper','Motor protectors','Side guards','Side guard straps','Side guard vents','Rear antenna','ELRS antenna'))}
+_tpu_order={name:i for i,name in enumerate(('Appearance','Camera isolation','HD action camera','Front bumper','Motor protectors','Side guards','Side guard straps','Side guard vents','Rear antenna','ELRS antenna'))}
 _tpu=sorted((s for s in SECTIONS if s[0]=='TPU'),key=lambda s:_tpu_order.get(s[1],3));_it=iter(_tpu)
 SECTIONS=tuple(next(_it) if s[0]=='TPU' else s for s in SECTIONS)
 FIELD_LOCATION={n:(c,p,g) for c,p,d,groups in SECTIONS for g,names in groups for n in names}

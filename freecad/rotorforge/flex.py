@@ -29,7 +29,7 @@ def tpu_hard_bearing(p):
 
 
 def flex_roles(p):
- return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper and p.CameraCageStyle!='TPU cage' else ())+(('RearAntennaMount',) if p.FlexRearAntenna else ())+(('ELRSAntennaMount',) if p.FlexELRSEnabled else ())
+ return (FLEX_ROLES[:2] if soft_camera(p) else ())+tuple('MotorProtector'+n for n in ('FrontRight','FrontLeft','RearLeft','RearRight') if p.FlexMotorProtectors)+tuple('ElectronicsGuard'+n for n in ('Left','Right') if p.FlexSideGuards)+(('FrontBumper',) if p.FlexFrontBumper and p.CameraCageStyle!='TPU cage' else ())+(('RearAntennaMount',) if p.FlexRearAntenna else ())+(('ELRSAntennaMount',) if p.FlexELRSEnabled else ())+(('ActionCameraMount',) if p.FPVEnabled and p.CameraCageStyle=='TPU cage' and p.ActionCamMountEnabled else ())
 
 def insert_rect(p):
  from .fpv import camera_position_y,camera_pivot_height
@@ -37,6 +37,13 @@ def insert_rect(p):
 
 def validate_flex(p):
  errors=[];warnings=[]
+ if p.ActionCamMountEnabled and p.FPVEnabled and p.CameraCageStyle=='TPU cage':
+  if not 2.0<=p.ActionCamMountBaseThickness<=6.0:
+   errors.append('HD action-camera mount base thickness must be 2–6 mm.')
+  if not 10.0<=p.ActionCamMountHingeHeight<=30.0:
+   errors.append('HD action-camera hinge height must be 10–30 mm above the base.')
+  if not -12.0<=p.ActionCamMountOffsetY<=12.0:
+   errors.append('HD action-camera hinge offset must be between -12 and +12 mm.')
  if p.FlexELRSEnabled:
   from .elrs_layout import validate_elrs
   errors.extend(validate_elrs(p))

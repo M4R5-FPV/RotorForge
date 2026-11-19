@@ -43,6 +43,9 @@ def physical_roles(p):
 
 def flat_plate_shape(shape,role,p=None,through_only=False):
     flat=shape.copy()
+    if through_only and p is not None:
+        from .screw_heads import restore_countersinks
+        flat=restore_countersinks(flat,p,role)
     if through_only and p is not None and role in CAMERA_ROLES:
         from .carbon_insert_recess import carbon_flush_enabled
         if carbon_flush_enabled(p):
@@ -184,6 +187,22 @@ def capsule(a, b, radius, z, height):
     nx, ny = -dy * radius / length, dx * radius / length
     points = [App.Vector(a[0] + nx, a[1] + ny, z), App.Vector(b[0] + nx, b[1] + ny, z),
               App.Vector(b[0] - nx, b[1] - ny, z), App.Vector(a[0] - nx, a[1] - ny, z)]
+    # Construct the same analytic capsule as a single wire and extrusion.
+    # No cylinder/rectangle Boolean union is needed for a straight slot.
+    if radius>0 and height>0:
+        try:
+            ux,uy=dx*radius/length,dy*radius/length
+            wire=Part.Wire([Part.makeLine(points[0],points[1]),
+                Part.Arc(points[1],App.Vector(b[0]+ux,b[1]+uy,z),points[2]).toShape(),
+                Part.makeLine(points[2],points[3]),
+                Part.Arc(points[3],App.Vector(a[0]-ux,a[1]-uy,z),points[0]).toShape()])
+            solid=Part.Face(wire).extrude(App.Vector(0,0,height))
+            if not solid.isNull() and solid.isValid() and len(solid.Solids)==1:
+                return solid
+        except (RuntimeError,ValueError):pass
+        except Exception as exc:
+            if isinstance(exc,MemoryError):raise
+    # Original exact Boolean construction remains the compatibility fallback.
     middle = Part.Face(Part.makePolygon(points + [points[0]])).extrude(App.Vector(0, 0, height))
     return fuse([middle, cylinder(*a, radius, z, height), cylinder(*b, radius, z, height)])
 
@@ -617,6 +636,10 @@ def _build(signature):
     restored=disk_cache.restore(signature,COMPONENTS);COMPONENTS.begin()
     mark_stage('Disk cache lookup')
     result={};arms=arm_layouts(p);levels=plate_levels(p);arm_z=levels['arm_z']
+    active_physical=physical_roles(p);active_carbon=carbon_roles(p);active_flex=flex_roles(p)
+    from .dependency_cache import BuildCollisions
+    collision=BuildCollisions()
+    overlap=collision.overlap
     for role in CARBON_ROLES:
         if role=='ArmKeystone':continue
         q=_canonical_component_parameters(p,role)
@@ -627,17 +650,20 @@ def _build(signature):
     result['Standoffs']=COMPONENTS.get('Standoffs',p,{},lambda t,i:_component_standoffs(t,'Standoffs',i))
     mark_stage('Carbon and hardware geometry')
     carbon=dict(result)
+    from .protection_geometry import GuardBuildWork
+    guard_work=GuardBuildWork()
     for role in FLEX_ROLES:
-        result[role]=COMPONENTS.get(role,p,result if role in ('FrontBumper','RearAntennaMount','ELRSAntennaMount') else carbon,lambda t,i,r=role:_component_flex(t,r,i))
+        result[role]=COMPONENTS.get(role,p,result if role in ('FrontBumper','RearAntennaMount','ELRSAntennaMount','ActionCameraMount') else carbon,lambda t,i,r=role:_component_flex(t,r,i,guard_work))
     mark_stage('TPU and protective geometry')
     checked_pairs=set()
-    for role in flex_roles(p):
-        for other in physical_roles(p):
+    for role in active_flex:
+        for other in active_physical:
             pair=tuple(sorted((role,other)))
             if pair in checked_pairs:continue
             checked_pairs.add(pair)
-            if other!=role and overlap_volume(result[role],result.get(other,Part.Shape()))>1e-6:
+            if other!=role and other in result and overlap(result[role],result[other])>1e-6:
                 raise ValueError(role+' intersects '+other+'; adjust flexible-part dimensions or placement.')
+    mark_stage('TPU intersections')
     from .battery import make_pad,mounting_role,battery_envelope,pad_parameters_without_airflow
     def build_pad(t,inputs):
         if not t.LiPoPadEnabled:return Part.Shape()
@@ -648,7 +674,7 @@ def _build(signature):
                        if pad_source is not None else None)
         return make_pad(t,finished_carrier,carrier_without_airflow=uncut_carrier)
     result['LiPoPad']=COMPONENTS.get('LiPoPad',p,result,build_pad)
-    mark_stage('TPU intersections and battery pad')
+    mark_stage('Battery pad geometry')
     if p.FPVEnabled and p.FlexCameraMode=='Captured inserts' and not joined_cage(p):
         # This check belongs to through-openings in flat carbon side plates.
         # A TPU cage retains its insert in a blind pocket and has no such
@@ -671,47 +697,54 @@ def _build(signature):
     if three_plate(p) or arm_braces(p):
         from .parameters import stack_mounting_role
         carrier=stack_mounting_role(p)
-        z=result[carrier].BoundBox.ZMin;low=min(result[r].BoundBox.ZMin for r in carbon_roles(p))
+        z=result[carrier].BoundBox.ZMin;low=min(result[r].BoundBox.ZMin for r in active_carbon)
         for point in stack_holes(p):
             passage=cylinder(*point,p.StackAccessDiameter/2,low-.1,z-low+.1)
-            for role in carbon_roles(p):
-                if role!=carrier and overlap_volume(result[role],passage)>1e-6:
+            for role in active_carbon:
+                if role!=carrier and overlap(result[role],passage)>1e-6:
                     raise ValueError('Stack screw access is blocked by '+role+'; enable arm-root reliefs or change the mounting positions.')
-    for role in carbon_roles(p):
+    for role in active_carbon:
         shape = result[role]
         if shape.isNull() or len(shape.Solids) != 1 or shape.Volume <= 0:
             raise ValueError(f"{role} did not produce one valid solid. Adjust the dimensions.")
     if p.LiPoPadEnabled:
-        for role in physical_roles(p):
-            if role not in ('LiPoPad',mounting_role(p)) and overlap_volume(result['LiPoPad'],result[role])>1e-6:
+        for role in active_physical:
+            if role not in ('LiPoPad',mounting_role(p)) and overlap(result['LiPoPad'],result[role])>1e-6:
                 raise ValueError('LiPo pad intersects '+role+'; move/resize it or choose the other battery mounting face.')
     if fitted_roots(p) or widened_roots(p) or p.ArmBeamShape!='Straight':
         for a,b in combinations(arms,2):
             first,second=result['Arm'+a['name']],result['Arm'+b['name']]
-            if overlap_volume(first,second)>1e-6:
+            if overlap(first,second)>1e-6:
                 raise ValueError('Arm roots overlap; select Fitted miters or move the roots apart.')
             if not fitted_roots(p) and first.distToShape(second)[0]<.25-1e-6:
                 raise ValueError('Independent arm roots need at least 0.25 mm separation; select Fitted miters or move the roots apart.')
         for arm in arms:
-            if overlap_volume(result['Arm'+arm['name']],result['Standoffs'])>1e-6:
+            if overlap(result['Arm'+arm['name']],result['Standoffs'])>1e-6:
                 raise ValueError('An arm intersects a standoff; move the support or use an aligned arm-hole mount.')
     for role in ARM_LOCK_ROLES:
         if result[role].isNull():
             continue
-        for other in physical_roles(p):
-            if other!=role and overlap_volume(result[role],result[other])>1e-6:
+        for other in active_physical:
+            if other!=role and overlap(result[role],result[other])>1e-6:
                 raise ValueError(role+' intersects '+other+'; adjust the arm or standoff mounting positions.')
+    prop_probes=None
     if p.FPVEnabled:
         for role in active_camera_roles(p):
             if not result[role].isValid() or len(result[role].Solids)!=1:
                 raise ValueError(role+' did not produce one connected camera side plate.')
-            for other in physical_roles(p):
-                if other!=role and overlap_volume(result[role],result[other])>1e-6:
+            for other in active_physical:
+                if other!=role and overlap(result[role],result[other])>1e-6:
                     raise ValueError(role+' intersects '+other+'; adjust the camera position, height, or bracket dimensions.')
-        camera=COMPONENTS.get('_camera_probe',p,{},lambda q,i:camera_envelope(q))
+        # Shared exact local housing across all sampled poses. The native
+        # cache propagates all prototype parameter reads to EACH component.
+        camera_prototypes=NativeStageCache(max_entries=1)
+        def posed_camera(q,angle=None):
+            prototype=camera_prototypes.get('local_camera',q,_camera_envelope_local)
+            return camera_envelope(q,angle,_prototype=prototype)
+        camera=COMPONENTS.get('_camera_probe',p,{},lambda q,i:posed_camera(q))
         vtx=COMPONENTS.get('_vtx_probe',p,{},lambda q,i:_vtx_probe(q))
         for name,envelope in (('Camera',camera),('VTX',vtx)):
-            for role in physical_roles(p):
+            for role in active_physical:
                 if name=='Camera' and role in FLEX_ROLES[:2]:continue
                 # The unified TPU cage has its own selected-tilt collision
                 # validation in tpu_outline_cage.tpu_cage(), against the
@@ -719,7 +752,7 @@ def _build(signature):
                 # check its fused CameraMountLeft a second time here: OCC
                 # common() can disagree with the component-level check.
                 if name=='Camera' and joined_cage(p) and role=='CameraMountLeft':continue
-                if overlap_volume(envelope,result[role])>1e-6:
+                if overlap(envelope,result[role])>1e-6:
                     if name=='Camera' and p.FPVSystemProfile=='DJI O4 Air Unit Pro':
                         from .fpv import camera_cage_height
                         raise ValueError(
@@ -738,53 +771,56 @@ def _build(signature):
             prop_bounds=prop_model(p.PropDiameter)[0].BoundBox
             prop_low=p.MotorReferenceHeight+prop_bounds.ZMin
             prop_thickness=prop_bounds.ZLength
-        for i,point in enumerate(motor_centres(p)):
-            blade_disc=cylinder(*point,p.PropDiameter/2,arm_z+p.ArmThickness+prop_low,prop_thickness)
-            if overlap_volume(vtx,blade_disc)>1e-6:
+        prop_probes=[cylinder(*point,p.PropDiameter/2,arm_z+p.ArmThickness+prop_low,prop_thickness) for point in motor_centres(p)]
+        for i,blade_disc in enumerate(prop_probes):
+            if overlap(vtx,blade_disc)>1e-6:
                 raise ValueError(f'VTX housing overlaps propeller {i+1}; reduce its footprint, change its position, or increase propeller clearance.')
         if p.CameraMountMode=='Variable':
             for angle in camera_angles(p):
                 if abs(angle-p.CameraTilt)<1e-8:continue
-                swept=COMPONENTS.get('_camera_sweep:'+str(angle),p,{},lambda q,i:camera_envelope(q,angle))
-                for role in physical_roles(p):
+                swept=COMPONENTS.get('_camera_sweep:'+str(angle),p,{},lambda q,i:posed_camera(q,angle))
+                for role in active_physical:
                     if role in FLEX_ROLES[:2]:continue
                     # The TPU cage checks the currently selected tilt and
                     # warns about inaccessible angles across the variable
                     # range in its dedicated generator. The legacy generic
                     # test must not reject the whole frame at another tilt.
                     if joined_cage(p) and role=='CameraMountLeft':continue
-                    b=result[role].BoundBox
-                    if b.XMin>=p.CameraWidth/2 or b.XMax<=-p.CameraWidth/2:continue
-                    if overlap_volume(swept,result[role])>1e-6:
+                    b=collision.bounds(result[role])
+                    if b is None or b.XMin>=p.CameraWidth/2 or b.XMax<=-p.CameraWidth/2:continue
+                    if overlap(swept,result[role])>1e-6:
                         raise ValueError(f'Camera at {angle:g}° intersects {role}; the selected adjustable mount must clear '
                                          'every angle in its range. Reduce the range or change the camera position; no carbon plate is cut automatically.')
     stack=COMPONENTS.get('_stack_probe',p,{},lambda q,i:_stack_probe(q))
     if not three_plate(p) and arms_above_bottom(p) and not arm_braces(p):
-        if any(overlap_volume(stack,result['Arm'+a['name']])>1e-6 for a in arms):
+        if any(overlap(stack,result['Arm'+a['name']])>1e-6 for a in arms):
             raise ValueError('The stack on the bottom intersects an arm. Set an explicit stack spacer height, use below-bottom arms, or add the combined clamp.')
-    if flex_roles(p):
+    if active_flex:
         probes=[('FC/ESC stack',stack)]
         if p.BatteryReferenceEnabled:probes.append(('LiPo reference',battery_envelope(p)))
-        prop_low=p.PropReferenceHeight;prop_thickness=.25
-        if p.DetailedPropReferences:
-            from .detailed_references import prop_model
-            bounds=prop_model(p.PropDiameter)[0].BoundBox
-            prop_low=p.MotorReferenceHeight+bounds.ZMin;prop_thickness=bounds.ZLength
+        if prop_probes is None:
+            prop_low=p.PropReferenceHeight;prop_thickness=.25
+            if p.DetailedPropReferences:
+                from .detailed_references import prop_model
+                bounds=prop_model(p.PropDiameter)[0].BoundBox
+                prop_low=p.MotorReferenceHeight+bounds.ZMin;prop_thickness=bounds.ZLength
+            prop_probes=[cylinder(*point,p.PropDiameter/2,arm_z+p.ArmThickness+prop_low,prop_thickness) for point in motor_centres(p)]
         for i,point in enumerate(motor_centres(p)):
             probes.append(('motor '+str(i+1),cylinder(*point,p.MotorReferenceDiameter/2,arm_z+p.ArmThickness,p.MotorReferenceHeight)))
-            probes.append(('propeller '+str(i+1),cylinder(*point,p.PropDiameter/2,arm_z+p.ArmThickness+prop_low,prop_thickness)))
-        for role in flex_roles(p):
+            probes.append(('propeller '+str(i+1),prop_probes[i]))
+        for role in active_flex:
             for name,probe in probes:
-                if overlap_volume(result[role],probe)>1e-6:raise ValueError(role+' intersects '+name+'; adjust the module placement/size, antenna layout or reference dimensions.')
+                if overlap(result[role],probe)>1e-6:raise ValueError(role+' intersects '+name+'; adjust the module placement/size, antenna layout or reference dimensions.')
 
     mark_stage('Assembly and camera clearance checks')
     for role in REFERENCE_ROLES:
         result[role]=COMPONENTS.get(role,p,result,lambda t,i,r=role:_component_reference(t,r,i))
-    for role in ALL_ROLES:result.setdefault(role,Part.Shape())
+    for role in ALL_ROLES:
+        if role not in result:result[role]=Part.Shape()
     mark_stage('Reference geometry')
     disk_cache.save(signature,COMPONENTS)
     mark_stage('Disk cache save')
-    report=dict(seconds=time.perf_counter()-started,disk_restored=restored,stages=stages,rebuilt=[e['role'] for e in COMPONENTS.events if e['action']=='rebuilt' and not e['role'].startswith('_')],reused=[e['role'] for e in COMPONENTS.events if e['action']=='reused' and not e['role'].startswith('_')],events=list(COMPONENTS.events))
+    report=dict(seconds=time.perf_counter()-started,disk_restored=restored,stages=stages,rebuilt=[e['role'] for e in COMPONENTS.events if e['action']=='rebuilt' and not e['role'].startswith('_')],reused=[e['role'] for e in COMPONENTS.events if e['action']=='reused' and not e['role'].startswith('_')],events=list(COMPONENTS.events), collision_detail=collision.report())
     _BUILD_PAYLOADS[signature]={role:entry['payload'] for role in ALL_ROLES if (entry:=COMPONENTS.latest.get(role)) is not None}
     while len(_BUILD_PAYLOADS)>5:_BUILD_PAYLOADS.pop(next(iter(_BUILD_PAYLOADS)))
     _BUILD_MANIFESTS[signature]={role:COMPONENTS.manifest(role) for role in ALL_ROLES}
@@ -867,6 +903,12 @@ def build_shape(p,role,validated=False):
     if not validated:
         require_valid(p)
     return _resolved_build(_geometry_signature(p))[role].copy()
+
+
+def _document_source_shape(p,role,validated=False):
+    """Internal read-only source, never assign or transform this cached solid."""
+    if not validated:require_valid(p)
+    return _resolved_build(_geometry_signature(p))[role]
 
 
 def build_mass_report(p):
@@ -1066,7 +1108,10 @@ def _component_standoffs(p,role,inputs):
 
     return result["Standoffs"]
 
-def _component_carbon(p,role,inputs,include_strap_notches=True):
+from .dependency_cache import NativeStageCache
+_CARBON_BASES=NativeStageCache(max_entries=14)
+
+def _component_carbon_base(p,role,inputs,include_strap_notches=True):
     factories={'BottomPlate':_component_bottom,'MidPlate':_component_mid,'TopPlate':_component_top,
                'ArmClampPlate':_component_clamp,'ArmLowerClampPlate':_component_lower,'ArmKeystone':_component_key}
     if role in CAMERA_ROLES:
@@ -1076,6 +1121,24 @@ def _component_carbon(p,role,inputs,include_strap_notches=True):
         else:shape=camera_bracket(p,next(m for m in camera_mounts(p) if m['role']==role)) if p.FPVEnabled else Part.Shape()
     elif role=='TopPlate':shape=_component_top(p,role,inputs,include_strap_notches)
     else:shape=factories.get(role,_component_arm)(p,role,inputs)
+    return shape
+
+
+def _component_carbon(p,role,inputs,include_strap_notches=True):
+    import time
+    started=time.perf_counter();stages=[]
+    def mark(label):
+        nonlocal started
+        now=time.perf_counter();stages.append((label,now-started));started=now
+    # Reuse the drilled structural blank when only airflow, engraving,
+    # fillet or finish machining changes. Camera cage and key construction
+    # require upstream finished solids; their ordinary component cache remains.
+    if role in MAIN_CARBON_ROLES:
+        shape=_CARBON_BASES.get((role,include_strap_notches),p,
+            lambda t:_component_carbon_base(t,role,{},include_strap_notches))
+    else:
+        shape=_component_carbon_base(p,role,inputs,include_strap_notches)
+    mark("blank and holes")
     if not shape.isNull():
         from .airflow_geometry import apply_cutouts
         from .plate_fillets import apply_plate_fillet
@@ -1090,7 +1153,9 @@ def _component_carbon(p,role,inputs,include_strap_notches=True):
         pockets=tuple(item for item in cutouts if item['mode']=='Pocket')
         if through:
             shape=apply_cutouts(p,role,shape,patterns=through)
+        mark("through cutouts")
         shape=apply_plate_fillet(p,role,shape)
+        mark("CNC fillets")
         # Apply actual blind machining LAST, after the full-thickness contour
         # is final. Each cutter starts at the selected face and stops at its
         # depth; it may exit the edge or pass into a pre-existing through-hole.
@@ -1099,13 +1164,22 @@ def _component_carbon(p,role,inputs,include_strap_notches=True):
             shape=apply_cutouts(p,role,shape,patterns=pockets)
         from .nut_geometry import apply_seats
         shape=apply_seats(shape,p,role)
+        from .screw_heads import apply_countersinks
+        shape=apply_countersinks(shape,p,role)
         if not shape.isValid() or len(shape.Solids)!=1 or shape.Volume<=0:
             raise ValueError(role+' did not produce one valid solid. Adjust the dimensions.')
+        mark("pockets and final validation")
+    if role in ('TopPlate','MidPlate','BottomPlate'):
+        suffix='' if include_strap_notches else ' (unnotched auxiliary)'
+        App.Console.PrintMessage('RotorForge carbon detail '+role+suffix+': '+', '.join(f'{k}: {v:.3f}s' for k,v in stages)+'\n')
     return shape
 
-def _component_flex(p,role,inputs):
+def _component_flex(p,role,inputs,guard_work=None):
     from .flex_geometry import camera_pads
     from .protection_geometry import motor_protectors,side_guards
+    if role=='ActionCameraMount':
+        from .action_camera_mount import make_action_camera_mount
+        return make_action_camera_mount(p,inputs)
     if role=='ELRSAntennaMount':
         from .elrs_geometry import elrs_mount
         return elrs_mount(p,inputs)
@@ -1124,7 +1198,7 @@ def _component_flex(p,role,inputs):
         fixed={'FlexGuardStyle':'Solid','FlexGuardWireEnabled':False,'FlexGuardUSBEnabled':False,'FlexGuardStraps':False,'FlexGuardVTXOpening':False}
         values={n:object.__getattribute__(p,n) for n in p.__dataclass_fields__};values.update(fixed)
         base_p=Parameters(**values);key='_guard_base:'+role
-        body=COMPONENTS.get(key,base_p,inputs,lambda t,i:side_guards(t,i,roles=(role,),include_strap_passages=False).get(role,Part.Shape()))
+        body=COMPONENTS.get(key,base_p,inputs,lambda t,i:side_guards(t,i,roles=(role,),include_strap_passages=False,work=guard_work).get(role,Part.Shape()))
         entry=COMPONENTS.latest.get(key) or COMPONENTS.last_entry
         if hasattr(p,'_reads'):p._reads.update(set(entry['parameters'])-set(fixed))
         for upstream in entry['inputs']:inputs.get(upstream)
@@ -1141,8 +1215,8 @@ def _component_reference(p,role,inputs):
         return antenna_reference(p,role)[0]
     from .battery import battery_envelope
     if not p.ShowReferences:return Part.Shape()
-    from .detailed_references import enabled,detailed_reference
-    if enabled(p,role) and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):return detailed_reference(p,role)[0]
+    from .detailed_references import enabled,detailed_reference_shape
+    if enabled(p,role) and (role not in ('CameraEnvelope','VTXEnvelope') or p.FPVEnabled) and (role!='BatteryEnvelope' or p.BatteryReferenceEnabled):return detailed_reference_shape(p,role)
     arm_z=p.BottomThickness if arms_above_bottom(p) else -p.ArmThickness
     if role=='PropellerDiscs':return Part.makeCompound([cylinder(*pt,p.PropDiameter/2,arm_z+p.ArmThickness+p.PropReferenceHeight,.25) for pt in motor_centres(p)])
     if role=='MotorEnvelopes':return Part.makeCompound([cylinder(*pt,p.MotorReferenceDiameter/2,arm_z+p.ArmThickness,p.MotorReferenceHeight) for pt in motor_centres(p)])
@@ -1163,13 +1237,19 @@ def _vtx_probe(p):
     z=vtx_deck_z(p)
     return cut_holes(Part.makeBox(p.VTXWidth,p.VTXLength,p.VTXHeight,App.Vector(-p.VTXWidth/2,p.VTXOffsetY-p.VTXLength/2,z)),[(pt,r) for pt,r,_ in vtx_holes(p)],z,p.VTXHeight)
 
+@lru_cache(maxsize=64)
+def _component_cutout_json(encoded,role):
+    from .cutouts import parse_patterns
+    import json
+    patterns=[{k:value for k,value in v.items() if k not in ('auto_keep','auto_group')}
+              for v in parse_patterns(encoded) if v['role']==role and v['enabled']]
+    return json.dumps(patterns,sort_keys=True,separators=(',',':'))
+
 def _canonical_component_parameters(p,role):
     # A cut on another plate does not alter this carbon part's geometry.
     from dataclasses import replace
-    from .cutouts import parse_patterns
-    import json
-    patterns=[v for v in parse_patterns(p.CutoutPatterns) if v['role']==role and v['enabled']]
-    return replace(p,CutoutPatterns=json.dumps(patterns,sort_keys=True,separators=(',',':')))
+    encoded=_component_cutout_json(p.CutoutPatterns,role)
+    return p if encoded==p.CutoutPatterns else replace(p,CutoutPatterns=encoded)
 
 _BUILD_REPORTS={}
 _BUILD_MANIFESTS={}
@@ -1184,12 +1264,12 @@ def _canonical_geometry_signature(signature):
     Normalization is independent of the native CAD shapes and stays bounded.
     """
     p=Parameters(*signature)
-    if (p.PrintedPartColour!='Black' or p.VTXAntennaHeadColour!='Matte black' or p.PropReferenceColour!='Smoke grey'
+    if (p.PrintedPartColour!='Black' or p.VTXAntennaHeadColour!='Matte black' or p.PropReferenceColour!='Smoke grey' or p.MotorReferenceColour!='Black'
         or p.CameraViewProfile!='Follow selected camera' or p.CameraViewAspect!='Camera default'
         or p.CameraViewFOV!=0 or p.CameraViewPupilOffset!=0
         or p.CarbonTextureEnabled or p.CarbonTextureTile!=64. or p.CarbonTextureOpacity!=30.):
         from dataclasses import replace
-        p=replace(p,PrintedPartColour='Black',VTXAntennaHeadColour='Matte black',PropReferenceColour='Smoke grey',
+        p=replace(p,PrintedPartColour='Black',VTXAntennaHeadColour='Matte black',PropReferenceColour='Smoke grey',MotorReferenceColour='Black',
                   CameraViewProfile='Follow selected camera',CameraViewAspect='Camera default',
                   CameraViewFOV=0.,CameraViewPupilOffset=0.,
                   CarbonTextureEnabled=False,CarbonTextureTile=64.,CarbonTextureOpacity=30.)
@@ -1214,18 +1294,23 @@ def prime_document_cache(settings):
     for obj in component_objects(settings).values():
         if not all(n in obj.PropertiesList for n in ('ComponentCache','ComponentBRep','ComponentDocumentDigest')):continue
         import hashlib,json
-        manifest=str(obj.ComponentCache);payload=str(obj.ComponentBRep);role=normalise_role(obj.FrameRole)
+        manifest=str(obj.ComponentCache);role=normalise_role(obj.FrameRole)
         from .version import __version__
         try:
             if json.loads(manifest).get('version')!=__version__:continue
         except (ValueError,TypeError,AttributeError):continue
-        if (str(obj.ComponentDocumentDigest) and
-            COMPONENTS.native_manifest_match(role,manifest,obj.Shape)):
+        digest=str(obj.ComponentDocumentDigest)
+        matches=getattr(obj.Proxy,'_document_matches',None)
+        if (matches is not None and matches(obj,manifest,digest) and
+            COMPONENTS.has_manifest(role,manifest)):
+            continue
+        if digest and COMPONENTS.native_manifest_match(role,manifest,obj.Shape):
             continue
         current=hashlib.sha256(obj.Shape.exportBrepToString().encode()).hexdigest()
         if str(obj.ComponentDocumentDigest)==current and COMPONENTS.has_manifest(role,manifest):continue
         raw=Part.Shape()
         try:
+            payload=str(obj.ComponentBRep)
             raw.importBrepFromString(payload)
             if not raw.isNull() and not raw.isValid():continue
             same=str(obj.ComponentDocumentDigest)==current
@@ -1247,4 +1332,5 @@ def clear_build_caches():
     from .dependency_cache import clear_geometry_caches
     from .detailed_references import _placed_reference
     _placed_reference.cache_clear()
+    _CARBON_BASES.clear();_component_cutout_json.cache_clear()
     _build.cache_clear();_canonical_geometry_signature.cache_clear();_FAILED_BUILDS.clear();_BUILD_REPORTS.clear();_BUILD_MANIFESTS.clear();_BUILD_PAYLOADS.clear();clear_geometry_caches()

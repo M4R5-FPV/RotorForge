@@ -1,4 +1,4 @@
-"""Finish unresolved R0.5 machining corners using a real 1 mm rolling disk.
+"""Finish unresolved machining corners using the selected rolling cutter radius.
 
 2D closing adds ONLY missing cutter-radius material at concave outer corners.
 The opposite opening operation rounds tiny inside corners in non-circular
@@ -27,7 +27,7 @@ def _holes(face):
     return [Part.Face(w) for w in face.Wires if not w.isSame(outer)]
 
 
-def finish_cnc_face(face,role,arm=None,joint_cell=None):
+def finish_cnc_face(face,role,arm=None,joint_cell=None,minimum=.5):
     """Attempt exact rolling-cutter repairs, preserving the original bores.
 
     Do not reject a CAD build because a *single-edge* fillet lacks tangency
@@ -40,14 +40,14 @@ def finish_cnc_face(face,role,arm=None,joint_cell=None):
     from .plate_fillets import (_unmachinable_arcs,_unmachinable_corners)
     working=face
     fixed=0
-    for radius in (TOOL_RADIUS,.56,.65):
+    for radius in (minimum+.02,minimum+.06,minimum+.15):
         bad=_unmachinable_corners(working)
-        arcs=_unmachinable_arcs(working)
+        arcs=_unmachinable_arcs(working,minimum)
         if not bad and not arcs:
             break
         before=working
         # The same rolling-radius operation applies to neighboring sharp
-        # corners, under-R0.5 arc blends and features too short to fillet.
+        # corners, undersized arc blends and features too short to fillet.
         # No arbitrary small-patch radius-reduction is permitted.
         try:
             outside=Part.Face(working.OuterWire)
@@ -84,14 +84,16 @@ def finish_cnc_face(face,role,arm=None,joint_cell=None):
                     working=trial;fixed+=1
                 except Exception:
                     continue
-        # Cutout corners also need 0.5 mm tool radius. The hole is the air
+        # Cutout corners also need the selected tool radius. The hole is the air
         # region; round its SHARP convex corners by slightly shrinking the
         # hole (never move or shrink circular mounting bores).
+        locations=None
         for hole in _holes(working):
             # Inspect ONLY defect coordinates on this inner contour. Normal
             # round M2/M3 mounting bores must remain completely untouched.
-            locations=_unmachinable_corners(working)
-            locations.extend((x,y) for x,y,r in _unmachinable_arcs(working))
+            if locations is None:
+                locations=_unmachinable_corners(working)
+                locations.extend((x,y) for x,y,r in _unmachinable_arcs(working,minimum))
             if not any(hole.distToShape(Part.Vertex(App.Vector(x,y,0)))[0]<1e-5
                        for x,y in locations):
                 continue
@@ -110,11 +112,11 @@ def finish_cnc_face(face,role,arm=None,joint_cell=None):
                     trial=trial.Faces[0]
                     if len(trial.Wires)!=len(working.Wires):continue
                     if working.cut(trial).Area>1e-7:continue
-                    working=trial;fixed+=1
+                    working=trial;fixed+=1;locations=None
                 except Exception:continue
         if (working.cut(before).Area<1e-7):
             # No safe addition at this radius; try the next rolling radius.
             continue
     if fixed:
-        App.Console.PrintMessage('%s: automatic R0.5 cutter rolling repaired %d local transition(s).\n' %(role,fixed))
+        App.Console.PrintMessage('%s: automatic R%g cutter rolling repaired %d local transition(s).\n' %(role,minimum,fixed))
     return working

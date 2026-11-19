@@ -12,7 +12,8 @@ This is manufacturing cleanup, NOT another bolt reinforcement pass.
 import math
 
 CLEAN_ROLES = frozenset(('BottomPlate', 'MidPlate'))
-TOOL_RADIUS_MM = 1.0  # 2 mm nominal minimum tool for these accidental details
+# These are conservative removal caps, not a second tooling specification.
+# A larger cutter must not authorize removal of an intentional plate feature.
 TINY_EDGE_MM = 1.45
 KINK_DEGREES = 10.0
 MAX_TRIM_AREA_MM2 = 1.8
@@ -27,11 +28,17 @@ def _distance_bbox(point, bounds):
     return math.hypot(max(left-x,0.,x-right),max(bottom-y,0.,y-top))
 
 
-def _small_patch(area,bounds,junctions):
-    if area <= 1e-7 or area > MAX_TRIM_AREA_MM2:return False
+def _cleanup_scale(radius):
+    """Tighten accident-detection caps for small cutters; never enlarge them."""
+    return min(1., radius)
+
+
+def _small_patch(area,bounds,junctions,radius):
+    scale=_cleanup_scale(radius)
+    if area <= 1e-7 or area > MAX_TRIM_AREA_MM2*scale**2:return False
     left,bottom,right,top=bounds
-    if math.hypot(right-left,top-bottom) > MAX_TRIM_DIAGONAL_MM:return False
-    return any(_distance_bbox(p,bounds) <= JUNCTION_REACH_MM for p in junctions)
+    if math.hypot(right-left,top-bottom) > MAX_TRIM_DIAGONAL_MM*scale:return False
+    return any(_distance_bbox(p,bounds) <= JUNCTION_REACH_MM*scale for p in junctions)
 
 
 def required_bearing_discs(p,role):
@@ -60,7 +67,7 @@ def required_bearing_discs(p,role):
     return unique
 
 
-def _cad_junctions(outer):
+def _cad_junctions(outer,radius):
     """Detect a short edge with at least one abrupt tangent junction.
 
     This leaves normal large corners, smooth fillet arcs and intentional plate
@@ -68,8 +75,9 @@ def _cad_junctions(outer):
     """
     from .plate_fillets import _away
     edges=list(outer.Edges);result=[]
+    max_edge=TINY_EDGE_MM*_cleanup_scale(radius)
     for edge in edges:
-        if edge.Length>TINY_EDGE_MM or edge.Length<1e-6:continue
+        if edge.Length>max_edge or edge.Length<1e-6:continue
         for vertex in edge.Vertexes:
             point=vertex.Point
             others=[e for e in edges if not e.isSame(edge) and
@@ -96,9 +104,9 @@ def _as_single_face(shape):
     return face
 
 
-def _cad_opened(face):
-    inset=_as_single_face(face.makeOffset2D(-TOOL_RADIUS_MM,join=0))
-    return _as_single_face(inset.makeOffset2D(TOOL_RADIUS_MM,join=0))
+def _cad_opened(face,radius):
+    inset=_as_single_face(face.makeOffset2D(-radius,join=0))
+    return _as_single_face(inset.makeOffset2D(radius,join=0))
 
 
 def clean_blank_shape(p,role,shape):
@@ -109,6 +117,7 @@ def clean_blank_shape(p,role,shape):
     before machining holes, to avoid offsetting their internal perimeters.
     """
     if role not in CLEAN_ROLES or shape.isNull():return shape
+    radius=p.CNCToolRadius
     try:
         import FreeCAD as App
         import Part
@@ -118,9 +127,9 @@ def clean_blank_shape(p,role,shape):
         if not horizontal:return shape
         cap=max(horizontal,key=lambda f:f.Area)
         outside=Part.Face(cap.OuterWire)
-        junctions=_cad_junctions(cap.OuterWire)
+        junctions=_cad_junctions(cap.OuterWire,radius)
         if not junctions:return shape
-        opened=_cad_opened(outside)
+        opened=_cad_opened(outside,radius)
         candidates=outside.cut(opened)
         if candidates.isNull() or candidates.Area<1e-8:return shape
         protections=required_bearing_discs(p,role)
@@ -131,7 +140,7 @@ def clean_blank_shape(p,role,shape):
         for patch in candidates.Faces:
             box=patch.BoundBox
             bounds=(box.XMin,box.YMin,box.XMax,box.YMax)
-            if not _small_patch(patch.Area,bounds,junctions):continue
+            if not _small_patch(patch.Area,bounds,junctions,radius):continue
             forbidden=False
             for pt,r in protections:
                 if _distance_bbox(pt,bounds)>r+1e-5:continue
@@ -154,20 +163,21 @@ def clean_blank_shape(p,role,shape):
                 continue
             result=trial;count+=1
         if count:
-            App.Console.PrintMessage('%s: removed %d sub-tool-size perimeter spur(s) (2 mm cutter reference).\n' % (role,count))
+            App.Console.PrintMessage('%s: removed %d sub-tool-size perimeter spur(s) using CNC R%.4g (%.4g mm cutter).\n' % (role,count,radius,2*radius))
         return result
     except Exception as err:
         # Cosmetic cleanup may never make a frame unbuildable.
         try:
             import FreeCAD as App
-            App.Console.PrintWarning('%s: conservative CNC perimeter cleanup skipped (%s).\n' % (role,err))
+            App.Console.PrintWarning('%s: optional CNC perimeter cleanup at R%.4g could not complete; original blank retained. Normal CNC fillets still run. (%s)\n' % (role,radius,err))
         except Exception:pass
         return shape
 
 
-def _path_junctions(path):
+def _path_junctions(path,radius):
     """Detect the equivalent non-tangent short runs in Qt's 2D perimeter."""
     points=[]
+    max_edge=TINY_EDGE_MM*_cleanup_scale(radius)
     for poly in path.toSubpathPolygons():
         coords=[(pt.x(),pt.y()) for pt in poly]
         if len(coords)>1 and math.dist(coords[0],coords[-1])<1e-6:coords.pop()
@@ -176,7 +186,7 @@ def _path_junctions(path):
         for i in range(n):
             a=coords[i-1];b=coords[i];c=coords[(i+1)%n];d=coords[(i+2)%n]
             small=math.dist(b,c)
-            if not (1e-5<small<=TINY_EDGE_MM):continue
+            if not (1e-5<small<=max_edge):continue
             def corner(u,v,w):
                 dx1,dy1=v[0]-u[0],v[1]-u[1]
                 dx2,dy2=w[0]-v[0],w[1]-v[1]
@@ -191,12 +201,13 @@ def _path_junctions(path):
 def clean_blank_path(p,role,path):
     """The 2D editor reflects the same subtractive CNC cleanup (best effort)."""
     if role not in CLEAN_ROLES:return path
+    radius=p.CNCToolRadius
     from .airflow_gui import QtGui,QtCore,polygon_path,_path_filled_area,capsule_path
     try:
-        junctions=_path_junctions(path)
+        junctions=_path_junctions(path,radius)
         if not junctions:return path
         stroke=QtGui.QPainterPathStroker()
-        stroke.setWidth(2*TOOL_RADIUS_MM)
+        stroke.setWidth(2*radius)
         stroke.setCapStyle(QtCore.Qt.RoundCap)
         stroke.setJoinStyle(QtCore.Qt.RoundJoin)
         shrunk=path.subtracted(stroke.createStroke(path))
@@ -211,7 +222,7 @@ def clean_blank_path(p,role,path):
             patch=polygon_path(pts)
             box=patch.boundingRect()
             bounds=(box.left(),box.top(),box.right(),box.bottom())
-            if not _small_patch(_path_filled_area(patch),bounds,junctions):continue
+            if not _small_patch(_path_filled_area(patch),bounds,junctions,radius):continue
             if any(_distance_bbox(pt,bounds)<=r+1e-5 and
                    _path_filled_area(patch.intersected(capsule_path(pt,pt,r)))>1e-7
                    for pt,r in protection):continue

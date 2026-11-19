@@ -215,15 +215,15 @@ def compact_key_corner_arcs(p, arms, pocket=False, outline=None):
     clearance to keep the normal separation between corresponding curves.
     Both profiles use the same clamped key radius so they cannot drift apart.
     """
-    from .plate_fillets import MIN_CNC_RADIUS_MM
+    minimum=p.CNCToolRadius
     key=compact_key_outline(p,arms,False,False)
     pocket_points=compact_key_outline(p,arms,True,False)
-    requested=max(p.KeystoneFillet,MIN_CNC_RADIUS_MM)
+    requested=max(p.KeystoneFillet,minimum)
     effective=min(requested,_keystone_fit_radius(key),
                   _keystone_fit_radius(pocket_points)-p.KeystoneClearance)
-    if effective<MIN_CNC_RADIUS_MM-1e-5:
-        raise ValueError('The keystone pocket cannot fit an R0.5 mm internal corner '
-                         'for a 1 mm CNC cutter. Increase the key width/length or clearance.')
+    if effective<minimum-1e-5:
+        raise ValueError(f'The keystone pocket cannot fit an R{minimum:g} mm internal corner '
+                         f'for a {2*minimum:g} mm CNC cutter. Increase the key width/length or clearance.')
     radius=effective+(p.KeystoneClearance if pocket else 0.)
     points=outline if outline is not None else (pocket_points if pocket else key)
     arcs=[]

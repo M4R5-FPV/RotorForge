@@ -6,12 +6,15 @@ CARBON_EDGE='#111315'
 PAD_COLOR=(23/255,25/255,28/255)
 PAD_HEX='#17191c'
 PAD_GROOVE='#43464a'
-# Keep the TPU palette consistent with the detailed propeller colour picker.
+# Share propeller colour choices, but use a dedicated neutral black for TPU.
 # Old Yellow/Grey finishes are retained for backwards-compatible saved frames.
 from .prop_palette import PROP_FINISHES, PROP_FINISH_CHOICES, prop_swatch
 LEGACY_PRINTED_COLOURS = {'Yellow': '#f2ce35', 'Grey': '#808890'}
 PRINTED_COLOURS = {name: prop_swatch(name) for name in PROP_FINISH_CHOICES}
 PRINTED_COLOURS.update(LEGACY_PRINTED_COLOURS)
+# Black TPU is neutral and darker than the polycarbonate propeller finish.
+PRINTED_BLACK_HEX = "#080808"
+PRINTED_COLOURS["Black"] = PRINTED_BLACK_HEX
 
 def printed_hex(p=None):
     return PRINTED_COLOURS.get(getattr(p,'PrintedPartColour','Black'),PRINTED_COLOURS['Black'])
@@ -19,7 +22,7 @@ def printed_hex(p=None):
 def printed_finish(p=None):
     """RGB and viewport transparency for one unified printed-part finish."""
     name=getattr(p,'PrintedPartColour','Black')
-    if name in PROP_FINISHES:
+    if name != "Black" and name in PROP_FINISHES:
         return PROP_FINISHES[name]
     h=PRINTED_COLOURS.get(name,PRINTED_COLOURS['Black']).lstrip('#')
     return tuple(int(h[i:i+2],16)/255 for i in (0,2,4)), 0
@@ -118,12 +121,44 @@ def opacity_texture_path(opacity=30.,background=CARBON_HEX,source_path=None):
     return str(source)
 
 
+from functools import lru_cache
+
+
+@lru_cache(maxsize=12)
+def _preview_carbon_image(qtgui, source, stamp, opacity, background):
+    """Cache an in-memory 2D weave tile; do not write per-brush PNGs."""
+    original=qtgui.QImage(source)
+    if original.isNull():return original
+    if opacity>=99.999:return original
+    fmt=getattr(qtgui.QImage,'Format_ARGB32',None)
+    if fmt is None:fmt=qtgui.QImage.Format.Format_ARGB32
+    canvas=qtgui.QImage(original.size(),fmt)
+    canvas.fill(qtgui.QColor(background))
+    painter=qtgui.QPainter(canvas)
+    try:
+        painter.setOpacity(opacity/100.)
+        painter.drawImage(0,0,original)
+    finally:painter.end()
+    return canvas
+
+
+@lru_cache(maxsize=8)
+def _preview_carbon_pixmap(qtgui, source, stamp, opacity, background):
+    return qtgui.QPixmap.fromImage(_preview_carbon_image(qtgui,source,stamp,opacity,background))
+
+
 def carbon_brush(p, qtgui, plain=CARBON_HEX, role=None):
     """Tiled 2D brush matching 3D visibility and individual arm direction."""
     if not getattr(p,'CarbonTextureEnabled',False):return qtgui.QColor(plain)
     opacity=_clamp_texture_opacity(getattr(p,'CarbonTextureOpacity',30.))
     if opacity<=0:return qtgui.QColor(plain)
-    pix=qtgui.QPixmap(opacity_texture_path(opacity,plain))
+    from pathlib import Path
+    source=carbon_texture_path()
+    try:stamp=Path(source).stat().st_mtime_ns
+    except OSError:return qtgui.QColor(plain)
+    # The source is 1024x1024: keep the original visual quality. Avoid
+    # repeated disk-save, decode and filesystem hashing during editor draws.
+    pix=_preview_carbon_pixmap(qtgui,source,stamp,round(opacity,1),plain)
     if pix.isNull():return qtgui.QColor(plain)
     brush=qtgui.QBrush(pix)
     tile=max(8.0,min(200.0,float(getattr(p,'CarbonTextureTile',64.0))))
@@ -372,7 +407,10 @@ def apply_material(view,role,carbon_roles,p=None):
         return
     if p is not None and role in ('CameraMountLeft','CameraMountRight') and p.CameraCageStyle!='Carbon side plates':
         colour,alpha=printed_finish(p) if p.CameraCageStyle=='TPU cage' else ((.68,.70,.73),0)
-        view.ShapeColor=colour;view.DiffuseColor=[colour];view.LineColor=(.08,.09,.10)
+        view.ShapeColor=colour;view.DiffuseColor=[colour]
+        # Match the dark edges of other printed parts, with a small lift
+        # for the cage's rounded surfaces. Keep the metal holder untouched.
+        view.LineColor=(.035,.037,.040) if p.CameraCageStyle=='TPU cage' else (.08,.09,.10)
         reset_face_materials(view,(colour,),alpha)
         # A previous carbon camera side panel can become a TPU cage. Drop the
         # old weave shader before returning to the printed-material finish.
@@ -422,7 +460,7 @@ def apply_material(view,role,carbon_roles,p=None):
             except Exception:pass
 
 def design_signature(p):
-    return tuple(False if n=='CarbonTextureEnabled' else 64.0 if n=='CarbonTextureTile' else 30.0 if n=='CarbonTextureOpacity' else 'Black' if n=='PrintedPartColour' else 'Matte black' if n=='VTXAntennaHeadColour' else 'Smoke grey' if n=='PropReferenceColour' else getattr(p,n) for n in p.__dataclass_fields__)
+    return tuple(False if n=='CarbonTextureEnabled' else 64.0 if n=='CarbonTextureTile' else 30.0 if n=='CarbonTextureOpacity' else 'Black' if n=='PrintedPartColour' else 'Matte black' if n=='VTXAntennaHeadColour' else 'Smoke grey' if n=='PropReferenceColour' else 'Black' if n=='MotorReferenceColour' else getattr(p,n) for n in p.__dataclass_fields__)
 
 
 def reset_face_materials(view,colours,transparency):

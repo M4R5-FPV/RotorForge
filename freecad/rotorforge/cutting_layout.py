@@ -1,4 +1,4 @@
-"""Deterministic, thickness-separated cutting sheets, in millimetres."""
+"""Deterministic, thickness-separated native 3D CAM stock layouts, in mm."""
 import math
 
 PROFILE_GAP=12.0
@@ -49,8 +49,12 @@ def arrange_profiles(items):
                 rotation='Arms aligned vertically with alternating motor ends; other flattened axes retained',sheets=sheets)
 
 
-def document_layout(settings, layout, faces, export_folder, origin_x):
-    """Replace this frame's native cutting snapshot in one undoable transaction."""
+def document_layout(settings, layout, solids, export_folder, origin_x):
+    """Replace this frame's native 3D CAM stock snapshot in one transaction.
+
+    DXF/SVG are written independently by the exporter. This tree contains
+    original, flattened carbon *solids*, not imported vector geometries.
+    """
     import FreeCAD as App
     from .document import component_objects
     doc=settings.Document
@@ -60,10 +64,12 @@ def document_layout(settings, layout, faces, export_folder, origin_x):
     existing=matches[0] if matches else None
     for sheet in layout['sheets']:
         for item in sheet['parts']:
-            if not faces[item['role']].isValid():raise ValueError('Invalid cutting profile: '+item['role'])
+            solid=solids[item['role']]
+            if solid.isNull() or not solid.isValid() or not solid.Solids or solid.Volume<=0:
+                raise ValueError('Invalid CAM stock solid: '+item['role'])
     undo_mode=doc.UndoMode
     if not undo_mode:doc.UndoMode=1
-    doc.openTransaction('Refresh RotorForge cutting profiles')
+    doc.openTransaction('Refresh RotorForge CAM cutting solids')
     try:
         if existing:
             root=existing
@@ -75,8 +81,8 @@ def document_layout(settings, layout, faces, export_folder, origin_x):
             root.addProperty('App::PropertyString','Snapshot','Cutting layout')
             root.addProperty('App::PropertyLength','PartGap','Cutting layout')
             root.Placement.Base=App.Vector(origin_x,0,0)
-        root.Label='Cutting profiles (DXF / SVG)'
-        root.ExportFolder=str(export_folder.resolve());root.Snapshot='Export snapshot - re-export after editing the frame'
+        root.Label='CAM cutting layout (3D solids)'
+        root.ExportFolder=str(export_folder.resolve());root.Snapshot='3D solid snapshot - re-export after editing the frame'
         root.PartGap=layout['gap']
         if 'ArmGap' not in root.PropertiesList:root.addProperty('App::PropertyLength','ArmGap','Cutting layout')
         root.ArmGap=layout['arm_gap']
@@ -93,8 +99,8 @@ def document_layout(settings, layout, faces, export_folder, origin_x):
             group.Label=f"Stock {sheet['thickness']:g} mm";usedgroups.add(group.Name)
             group.Placement.Base=App.Vector(0,sheet['combined_y'],0)
             for prop,val in [('StockThickness',sheet['thickness']),('SheetWidth',sheet['width']),('SheetHeight',sheet['height'])]:setattr(group,prop,val)
-            group.DXFFile=str((export_folder/('Stock_'+sheet['token']+'.dxf')).resolve())
-            group.SVGFile=str((export_folder/('Stock_'+sheet['token']+'.svg')).resolve())
+            group.DXFFile=str((export_folder/('Stock_'+sheet['token']+'.dxf')).resolve()) if (export_folder/('Stock_'+sheet['token']+'.dxf')).exists() else ''
+            group.SVGFile=str((export_folder/('Stock_'+sheet['token']+'.svg')).resolve()) if (export_folder/('Stock_'+sheet['token']+'.svg')).exists() else ''
             ordered=[]
             for item in sheet['parts']:
                 role=item['role'];obj=oldparts.get(role)
@@ -107,8 +113,8 @@ def document_layout(settings, layout, faces, export_folder, origin_x):
                     for oldgroup in list(root.Group):
                         if oldgroup!=group and obj in oldgroup.Group:oldgroup.removeObject(obj)
                 group.addObject(obj);ordered.append(obj);usedparts.add(obj.Name)
-                obj.Label=role+f" - {sheet['thickness']:g} mm"
-                obj.Placement=App.Placement();obj.Shape=faces[role].copy()
+                obj.Label=role+f" - {sheet['thickness']:g} mm solid"
+                obj.Placement=App.Placement();obj.Shape=solids[role].copy()
                 obj.Placement.Base=obj.Placement.Base+App.Vector(item['x'],item['y'],0)
                 obj.SourcePart=sources.get(role);obj.StockThickness=sheet['thickness']
                 if App.GuiUp:
@@ -125,3 +131,36 @@ def document_layout(settings, layout, faces, export_folder, origin_x):
         doc.abortTransaction();raise
     finally:
         if not undo_mode:doc.UndoMode=undo_mode
+
+
+def remove_document_layout(settings):
+    """Explicitly remove the generated RotorForge CAM snapshot, not frame parts.
+
+    Refuse to erase unexpected user-added objects nested under the layout.
+    """
+    doc=settings.Document
+    roots=[o for o in doc.Objects if 'RotorForgeCuttingLayout' in o.PropertiesList
+           and o.RotorForgeCuttingLayout and o.SourceFrame==settings]
+    if not roots:return False
+    for root in roots:
+        for group in list(root.Group):
+            if 'StockThickness' not in group.PropertiesList:
+                raise ValueError('CAM layout contains a user-added group; remove it manually before clearing the layout.')
+            for obj in list(group.Group):
+                if 'SourceRole' not in obj.PropertiesList:
+                    raise ValueError('CAM layout contains a user-added object; remove it manually before clearing the layout.')
+    undo_mode=doc.UndoMode
+    if not undo_mode:doc.UndoMode=1
+    doc.openTransaction('Remove RotorForge CAM cutting solids')
+    try:
+        for root in roots:
+            for group in list(root.Group):
+                for obj in list(group.Group):doc.removeObject(obj.Name)
+                doc.removeObject(group.Name)
+            doc.removeObject(root.Name)
+        doc.recompute();doc.commitTransaction()
+    except Exception:
+        doc.abortTransaction();raise
+    finally:
+        if not undo_mode:doc.UndoMode=undo_mode
+    return True

@@ -204,6 +204,8 @@ for _key,_label in (('FlexGuardVentShape','VTX vent shape'),('FlexGuardVentWidth
  _v=FLEX_OPTIONS[_key]
  FLEX_OPTIONS[_key]=(_v[0],_label,'VTX section only. '+_v[2])+_v[3:]
 
+FLEX_OPTIONS.update({'FlexGuardClosureContour':('Plate outlines and camera cage','Front closure follows','Plate outlines and camera cage: follow the finished upper and lower carbon edges, with a local landing toward the camera cage. Plate outlines only: follow the carbon edges without pulling the panel toward the cage (may leave a gap). Camera cage only: prioritize the cage landing over the carbon contours. Top plate and camera cage / Bottom plate and camera cage: preserve only the selected carbon edge while guiding the opposite edge toward the cage. All modes preserve the forward reach, plate fit and clearance checks.',('Plate outlines and camera cage','Plate outlines only','Camera cage only','Top plate and camera cage','Bottom plate and camera cage'))})
+
 FLEX_OPTIONS.update({'FlexGuardCloseFront':(False,'Close sides to camera plates','Add a solid full-height panel ahead of the foremost standoffs down to the bottom plate, tapering to the actual camera side plates. Includes foremost post coverage. Requires FPV camera side plates; camera tilt stays unchanged.'),'FlexGuardCameraOverlap':(3.0,'Camera plate landing length','Length of the guard landing along the outside rear edge of each camera side plate. Nominal face contact; carbon and camera screw access are relieved automatically. Between plates seats against the frame plate faces; Plate-edge wrap uses plate clearance 0 mm for nominal edge contact.')})
 
 FLEX_OPTIONS.update({
@@ -245,3 +247,20 @@ FLEX_ROLES=FLEX_ROLES+('RearAntennaMount',)
 from .elrs_options import FIELDS as ELRS_FIELDS
 FLEX_OPTIONS.update(ELRS_FIELDS)
 FLEX_ROLES=FLEX_ROLES+('ELRSAntennaMount',)
+
+
+# A removable three-finger GoPro-style action-camera interface, fastened using
+# the four EXISTING upper M3 TPU cage screws; no new carbon holes are drilled.
+FLEX_OPTIONS.update({
+ 'ActionCamMountEnabled': (False,'HD action-camera mount',
+    'Add a separate printed TPU mount above the front top plate when a TPU camera cage is selected. It reuses the cage’s four upper M3 screws and provides a standard three-finger M5 action-camera hinge. No camera cradle or camera is included.'),
+ 'ActionCamMountNutRecess': (False,'M5 nut recess',
+    'Add a reinforced hexagonal seat on the outside of one hinge finger for a standard M5 hex nut (8 mm across flats). Leave off for an ordinary through-bolt mount. Install the nut from the outside; measure and test fit before printing.'),
+ 'ActionCamMountBaseThickness': (3.0,'Mount base thickness',
+    'Thickness of the separate four-bolt TPU base on top of the carbon plate. Allow for this extra thickness when choosing the four M3 cage screws.'),
+ 'ActionCamMountHingeHeight': (12.0,'Hinge axis height',
+    'Height of the transverse M5 action-camera pivot above the upper surface of the TPU base. A taller hinge adds camera clearance but increases the leverage on the four cage screws.'),
+ 'ActionCamMountOffsetY': (0.0,'Hinge fore/aft offset',
+    'Move the hinge relative to the middle of the four upper cage screws: positive is toward the FPV camera/nose; negative is rearward. The base extends automatically to support the hinge.'),
+})
+FLEX_ROLES=FLEX_ROLES+('ActionCameraMount',)

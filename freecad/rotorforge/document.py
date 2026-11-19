@@ -13,9 +13,9 @@ from .arm_roots import ROOT_BOLT_COORDINATES, LEGACY_ROOT_BOLT_COORDINATES
 ICON = icon_path()
 from .parameters import RETIRED_PARAMETERS,STACK_PATTERNS,stack_label
 
-FLOATS = {"CarbonTextureOpacity","BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
-SIGNED_LENGTHS = {'FlexAntennaHolderOffset','StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
-GEOMETRY_FIELDS = {"Layout", "PlateDesign", "Wheelbase", "LengthToWidth", "FrontSpread", "RearArmExtension", "PropDiameter", "RequiredPropGap"}
+FLOATS = {"LiPoPadTextWidthScale","CarbonTextureOpacity","BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
+SIGNED_LENGTHS = {'LiPoPadTextOffsetX','LiPoPadTextOffsetY','ActionCamMountOffsetY','FlexAntennaHolderOffset','StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
+GEOMETRY_FIELDS = {"CNCToolRadius","Layout", "PlateDesign", "Wheelbase", "LengthToWidth", "FrontSpread", "RearArmExtension", "PropDiameter", "RequiredPropGap"}
 ARM_FIELDS = {"ArmBeamShape","ArmProfileAmount","ArmEdgeFillet","ArmThickness", "ArmWidth", "ArmRootY", "RootInset", "RootExtension", "RootBoltSpacing", "RootHoleDiameter", "ArmBoltMaterialAllowance"}|ARM_LOCK_FIELDS
 MOTOR_FIELDS = {"MotorPadNeckLength","MotorPadBlendRadius","MotorPadRelief","MotorPadReliefWidth","MotorPadReliefLength","MotorPadDiameter", "MotorSpacingX", "MotorSpacingY", "MotorHoleDiameter", "MotorCenterDiameter", 'MotorPadShape', 'MotorPadCornerRadius', 'MotorTipLength','MotorTipSlotEnabled','MotorTipSlotWidth','MotorTipSlotLength'}
 
@@ -33,7 +33,7 @@ def property_group(name):
     if name.startswith(("MotorReference","PropReference")) or name in ("MotorHoleLayout","MotorBoltCircle","MotorHoleRotation","MotorPadRotation","MotorPadRotationPivot"):return "04 Motor mounts"
     if name in STRINGS:
         return '11 Airflow cutouts'
-    if name in FPV_FIELDS:
+    if name in FPV_FIELDS or name=='CameraCageScrewHead':
         return "10 FPV camera and VTX"
     if name in GEOMETRY_FIELDS:
         return "01 Frame geometry"
@@ -43,6 +43,8 @@ def property_group(name):
         return "04 Motor mounts"
     if name.startswith(('ShowVTXAntenna','VTXAntennaReference','ShowELRST','ELRSTReference')):
         return '08 Checks and references'
+    if name.startswith('ActionCamMount'):
+        return '14 Flexible parts'
     if name.startswith("Stack"):
         return "05 Electronics"
     if name.startswith("Standoff"):
@@ -102,10 +104,11 @@ def ensure_parameter_properties(obj, defaults=None):
         # Convert the older midpoint-based two-screw camera location once.
         obj.CameraMountY=defaults.CameraMountY
         obj.CameraPivotHeight=defaults.CameraPivotHeight
+    properties=set(obj.PropertiesList)
     for f in fields(defaults):
-        if f.name=='StackSpacing' and f.name in obj.PropertiesList and obj.getTypeIdOfProperty(f.name)!='App::PropertyEnumeration':obj.removeProperty(f.name)
-        if f.name in VENT_ROW_COUNTS and f.name in obj.PropertiesList and obj.getTypeIdOfProperty(f.name)!='App::PropertyIntegerConstraint':obj.removeProperty(f.name)
-        if f.name in obj.PropertiesList:
+        if f.name=='StackSpacing' and f.name in properties and obj.getTypeIdOfProperty(f.name)!='App::PropertyEnumeration':obj.removeProperty(f.name);properties.discard(f.name)
+        if f.name in VENT_ROW_COUNTS and f.name in properties and obj.getTypeIdOfProperty(f.name)!='App::PropertyIntegerConstraint':obj.removeProperty(f.name);properties.discard(f.name)
+        if f.name in properties:
             if f.name.startswith('KeystoneRetainer') or f.name in ('MotorSpacingX','MotorSpacingY','LiPoPadOutlineLengthScale'):obj.setEditorMode(f.name,2)
             if f.name in ENUMERATIONS and obj.getEnumerationsOfProperty(f.name)!=list(ENUMERATIONS[f.name]):
                 setattr(obj,f.name,list(ENUMERATIONS[f.name]))
@@ -115,9 +118,9 @@ def ensure_parameter_properties(obj, defaults=None):
                         if name in obj.PropertiesList:setattr(obj,name,getattr(defaults,name))
             if f.name in SIGNED_LENGTHS and obj.getTypeIdOfProperty(f.name) == "App::PropertyLength":
                 # Length clamps negative values to zero; Distance is signed.
-                obj.removeProperty(f.name)
+                obj.removeProperty(f.name);properties.discard(f.name)
             else:
-                if f.name=='StackSpacing':
+                if f.name=='StackSpacing' and obj.getEnumerationsOfProperty(f.name)!=[text for text,value in STACK_PATTERNS]:
                     obj.StackSpacing=[text for text,value in STACK_PATTERNS];obj.StackSpacing=stack_label(defaults.StackSpacing)
                 continue
         kind = ("App::PropertyIntegerConstraint" if f.name in VENT_ROW_COUNTS else
@@ -181,9 +184,9 @@ class ParameterProxy:
             self._restored_signature=None
             warnings = require_valid(p)
             from .geometry import prime_document_cache,build_report
-            prime_document_cache(obj)
             pending=getattr(self,'_pending_report',None)
             if pending is None:
+                prime_document_cache(obj)
                 # A restored/externally edited document has not necessarily
                 # passed through the editor's geometry preflight.
                 from .geometry import prepare_frame_build
@@ -202,6 +205,14 @@ class ParameterProxy:
             obj.RebuiltComponents=report.get('rebuilt',[])
             obj.ReusedComponents=report.get('reused',[])
             obj.BuildStageTimings=[f'{stage}: {seconds:.3f} s' for stage,seconds in report.get('stages',{}).items()]
+            events=report.get('events',[])
+            if events:
+                ordered=sorted(events,key=lambda e:e['seconds'],reverse=True)
+                App.Console.PrintMessage('RotorForge geometry stages: '+', '.join(obj.BuildStageTimings)+'\n')
+                App.Console.PrintMessage('RotorForge geometry detail: '+', '.join(f"{e['role']} ({e['action']}): {e['seconds']:.3f}s" for e in ordered if e['seconds']>=.05)+'\n')
+                collision=report.get('collision_detail',{})
+                if collision:
+                    App.Console.PrintMessage(f"RotorForge clearance detail: {collision['exact_check_requests']} exact/cache checks, {collision['compound_skips']} disjoint compound pairs skipped; {collision['seconds']:.3f}s in exact/cache checks\n")
             for kind,name,desc in [('App::PropertyFloat','FrameMassGrams','Estimated carbon + standoffs + LiPo pad + flexible parts; excludes screws and electronics'),('App::PropertyVector','FrameCG','Estimated bare frame centre of gravity in frame coordinates'),('App::PropertyFloat','FramePlusBatteryMassGrams','Frame estimate plus reference battery only'),('App::PropertyVector','FramePlusBatteryCG','Frame plus reference battery only; excludes electronics and motors')]:
                 if name not in obj.PropertiesList:
                     obj.addProperty(kind,name,'09 Results',desc,8);obj.setEditorMode(name,1)
@@ -280,6 +291,29 @@ class PartProxy:
         obj.setEditorMode("FrameRole", 1)
         obj.Proxy = self
 
+    def onChanged(self,obj,name):
+        if name in ('Shape','Placement','ComponentCache','ComponentDocumentDigest','ComponentBRep'):
+            self._shape_witness=None
+            self._verified_document_digest=None
+
+    def _document_matches(self,obj,manifest,digest):
+        witness=getattr(self,'_shape_witness',None)
+        if witness is None or not digest:return False
+        old,placement,orientation,verified_manifest,verified_digest=witness
+        if manifest!=verified_manifest or digest!=verified_digest:return False
+        try:
+            actual=obj.Shape
+            return (obj.Placement==placement and actual.isSame(old) and
+                    str(actual.Orientation)==orientation)
+        except (AttributeError,RuntimeError,TypeError):return False
+
+    def _remember_document(self,obj,manifest,digest):
+        try:
+            actual=obj.Shape
+            if actual.isNull():return
+            self._shape_witness=(actual,App.Placement(obj.Placement),str(actual.Orientation),manifest,digest)
+        except (AttributeError,RuntimeError,TypeError):self._shape_witness=None
+
     def execute(self, obj):
         try:
             parent_proxy=getattr(obj.Parameters,'Proxy',None)
@@ -288,37 +322,43 @@ class PartProxy:
             if p is None:p=read_parameters(obj.Parameters)
             if getattr(parent_proxy,'_restored_signature',None)==p.signature():return
             role = normalise_role(obj.FrameRole)
-            from .geometry import build_shape
-            shape = build_shape(p,role,validated=validated)
+            from .geometry import _document_source_shape
+            shape = _document_source_shape(p,role,validated=validated)
             placement = App.Placement(shape.Placement)
             import hashlib,json
             from .dependency_cache import shape_token
             from .geometry import component_manifest,component_payload
             manifest=component_manifest(role,p);token=json.loads(manifest)['token'] if manifest else shape_token(shape)
             unchanged=False
-            has_cache=all(n in obj.PropertiesList for n in ('ComponentCache','ComponentDocumentDigest'))
-            # Comparing OCC's native shape identity is much cheaper than
-            # exporting/hashing its entire BRep. Retain the strong digest path
-            # whenever an object differs or lacks a verified cache record.
+            properties=set(obj.PropertiesList)
+            has_cache={'ComponentCache','ComponentDocumentDigest'}<=properties
+            old_manifest=str(obj.ComponentCache) if has_cache else ''
+            stored_digest=str(obj.ComponentDocumentDigest) if has_cache else ''
+            try:old_token=json.loads(old_manifest).get('token') if has_cache else None
+            except (ValueError,TypeError,AttributeError):old_token=None
+            actual=obj.Shape
+            # Read the native shape and cached metadata once. Keep both the
+            # identity witness and the strong BRep digest verification paths.
             try:
-                quick_match=(has_cache and str(obj.ComponentDocumentDigest) and
-                             json.loads(str(obj.ComponentCache)).get('token')==token and
-                             obj.Shape.isSame(shape) and
-                             str(obj.Shape.Orientation)==str(shape.Orientation) and
+                quick_match=(has_cache and stored_digest and old_token==token and
+                             actual.isSame(shape) and
+                             str(actual.Orientation)==str(shape.Orientation) and
                              obj.Placement==placement)
             except (ValueError,TypeError,AttributeError,RuntimeError):quick_match=False
-            if quick_match:
-                current=str(obj.ComponentDocumentDigest)
+            try:
+                witnessed=(not quick_match and has_cache and old_token==token and
+                           self._document_matches(obj,old_manifest,stored_digest))
+            except (ValueError,TypeError,AttributeError):witnessed=False
+            if quick_match or witnessed:
+                current=stored_digest
                 unchanged=True
             else:
-                current=hashlib.sha256(obj.Shape.exportBrepToString().encode()).hexdigest()
-                if has_cache:
-                    try:
-                        unchanged=(json.loads(str(obj.ComponentCache)).get('token')==token and
-                                   (str(obj.ComponentDocumentDigest)==current or
-                                    getattr(self,'_verified_document_digest',None)==current))
-                    except (ValueError,TypeError,AttributeError):pass
+                current=hashlib.sha256(actual.exportBrepToString().encode()).hexdigest()
+                unchanged=(has_cache and old_token==token and
+                           (stored_digest==current or
+                            getattr(self,'_verified_document_digest',None)==current))
             if not unchanged:
+                shape=shape.copy()
                 # Prepare display triangulation on the GUI thread before the
                 # view provider receives a restored/cached BRep. This avoids
                 # parallel display meshing stalls; the exact solid is retained.
@@ -337,6 +377,7 @@ class PartProxy:
                 digest=current if unchanged else hashlib.sha256(obj.Shape.exportBrepToString().encode()).hexdigest()
                 for name,value in (('ComponentCache',manifest),('ComponentBRep',payload),('ComponentDocumentDigest',digest)):
                     if str(getattr(obj,name))!=value:setattr(obj,name,value)
+                self._remember_document(obj,manifest,digest)
             if App.GuiUp:apply_material(obj.ViewObject,role,CARBON_ROLES,p)
             if role in ('LiPoPad','BatteryEnvelope','FrameCGMarker'):
                 obj.Label={'LiPoPad':'LiPo pad (separate material)','BatteryEnvelope':('LiPo reference (detailed)' if p.DetailedBatteryReference else f'{p.BatteryCells}S LiPo reference (editable)'),'FrameCGMarker':'Active CG (nominal estimate)'}[role]
@@ -350,7 +391,7 @@ class PartProxy:
                 obj.Label=('VTX antenna reference' if role=='VTXAntennaReference' else 'ELRS T-antenna reference')
                 if App.GuiUp:obj.ViewObject.Visibility=reference_enabled(p,role)
             elif role in FLEX_ROLES:
-                obj.Label={"CameraPadLeft":"Camera isolation left","CameraPadRight":"Camera isolation right"}.get(role,role.replace("MotorProtector","Motor protector ").replace("ElectronicsGuard","Electronics guard "))
+                obj.Label={"CameraPadLeft":"Camera isolation left","CameraPadRight":"Camera isolation right","ActionCameraMount":"HD action-camera mount (TPU)"}.get(role,role.replace("MotorProtector","Motor protector ").replace("ElectronicsGuard","Electronics guard "))
                 if App.GuiUp:obj.ViewObject.Visibility=role in flex_roles(p)
             elif role == "MidPlate":
                 obj.Label = "Mid plate" if three_plate(p) else "Mid plate (unused in 2-plate mode)"
@@ -434,7 +475,8 @@ def ensure_components(settings):
     group=next((parent for parent in settings.InList if 'Generator' in parent.PropertiesList and parent.Generator==settings),None)
     for role in ALL_ROLES:
         if role in existing:
-            if App.GuiUp:apply_material(existing[role].ViewObject,role,CARBON_ROLES,p)
+            # Existing parts receive materials in PartProxy.execute after their
+            # new shapes are assigned. Avoid texturing the old geometry first.
             continue
         obj=settings.Document.addObject('Part::FeaturePython',role)
         PartProxy(obj,settings,role)
@@ -507,13 +549,14 @@ def update_frame(settings, p):
     current=read_parameters(settings)
     from dataclasses import replace
     from .appearance import CARBON_TEXTURE_FIELDS
-    view_fields=CARBON_TEXTURE_FIELDS | {'PrintedPartColour'}
+    view_fields=CARBON_TEXTURE_FIELDS | {'PrintedPartColour','MotorReferenceColour','PropReferenceColour','VTXAntennaHeadColour'}
     if any(getattr(p,n)!=getattr(current,n) for n in view_fields) and replace(current,**{n:getattr(p,n) for n in view_fields})==p and isinstance(settings.Proxy,ParameterProxy) and str(settings.Status).startswith('Valid'):
-        require_valid(p);doc=settings.Document;doc.openTransaction('Colour RotorForge printed parts')
+        require_valid(p);doc=settings.Document;doc.openTransaction('Edit RotorForge appearance')
         try:
             ensure_parameter_properties(settings,p)
             for name in view_fields:
                 if getattr(settings,name)!=getattr(p,name):setattr(settings,name,getattr(p,name))
+            settings.GeneratorVersion=__version__
             settings.Proxy._restored_signature=p.signature();settings.Proxy._last_full_signature=p.signature()
             apply_document_appearance(settings,p);doc.recompute();doc.commitTransaction();return
         except Exception:doc.abortTransaction();raise

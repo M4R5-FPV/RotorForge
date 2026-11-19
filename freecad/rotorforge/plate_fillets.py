@@ -1,4 +1,4 @@
-"""Exact 2D corner fillets plus the mandatory R0.5 mm CNC inside-corner rule."""
+"""Exact 2D corner fillets plus the selected CNC inside-corner rule."""
 
 # A 1 mm end mill cannot enter a re-entrant radius smaller than 0.5 mm.
 # Convex outside corners can be sharp; they do not need a mandatory roundover.
@@ -31,8 +31,11 @@ def _away(edge,point):
 
 def _corners(wire):
  points=[]
+ # Cache native edge/vertex wrappers once per immutable wire. Preserve the
+ # existing point tolerance and ordering (including closed analytic edges).
+ edges=[(e,tuple(v.Point for v in e.Vertexes)) for e in wire.Edges]
  for vertex in wire.Vertexes:
-  point=vertex.Point;adj=[e for e in wire.Edges if any((v.Point-point).Length<1e-6 for v in e.Vertexes)]
+  point=vertex.Point;adj=[e for e,ends in edges if any((v-point).Length<1e-6 for v in ends)]
   if len(adj)!=2:continue
   turn=math.acos(max(-1.,min(1.,-_away(adj[0],point).dot(_away(adj[1],point)))))
   if 1e-4<turn<math.pi-1e-4:points.append((point,.45*min(e.Length for e in adj)/max(1e-6,math.tan(turn/2))))
@@ -78,7 +81,7 @@ def _unmachinable_corners(face):
     return bad
 
 
-def _unmachinable_arcs(face):
+def _unmachinable_arcs(face, minimum=MIN_CNC_RADIUS_MM):
     """Find pre-existing concave analytic arcs too tight for a 1 mm cutter."""
     import FreeCAD as App
     import Part
@@ -86,8 +89,10 @@ def _unmachinable_arcs(face):
     for wire in face.Wires:
         for edge in wire.Edges:
             curve=edge.Curve
-            if not isinstance(curve,Part.Circle) or curve.Radius>=MIN_CNC_RADIUS_MM-1e-5:
+            if not isinstance(curve,Part.Circle) or curve.Radius>=minimum-1e-5:
                 continue
+            # Full circular bores are separate drill operations; never resize them.
+            if minimum>MIN_CNC_RADIUS_MM and abs(edge.Length-2*math.pi*curve.Radius)<1e-5 and curve.Radius>=MIN_CNC_RADIUS_MM-1e-5:continue
             halfway=edge.valueAt((edge.FirstParameter+edge.LastParameter)/2)
             direction=curve.Center-halfway
             if direction.Length<1e-7:continue
@@ -100,13 +105,13 @@ def _unmachinable_arcs(face):
     return bad
 
 
-def _validate_cnc_inside_radii(face,role):
+def _validate_cnc_inside_radii(face,role,minimum=MIN_CNC_RADIUS_MM):
     corners=_unmachinable_corners(face)
-    arcs=_unmachinable_arcs(face)
+    arcs=_unmachinable_arcs(face,minimum)
     if corners or arcs:
         x,y=(corners[0] if corners else arcs[0][:2])
-        raise ValueError(f'{role}: 1 mm CNC cutter cannot reach an internal corner at '
-                         f'X {x:.2f} / Y {y:.2f} mm (minimum R{MIN_CNC_RADIUS_MM:.1f} mm). '
+        raise ValueError(f'{role}: {2*minimum:g} mm CNC cutter cannot reach an internal corner at '
+                         f'X {x:.2f} / Y {y:.2f} mm (minimum R{minimum:g} mm). '
                          'Automatic CNC smoothing cannot safely reach this location without changing a protected mounting or fitted joint. '
                          'Review the final outline near the reported coordinates.')
 
@@ -186,6 +191,32 @@ def _circular_blend(first,second,point,r):
  if not candidates:raise ValueError('no local tangent solution')
  return min(candidates,key=lambda i:i[0])[1:]
 
+def _linear_fillet_bounds(point, adj, arc, first, second):
+ """Conservative local edit bounds for verified straight-edge fillets only.
+ The changed region is enclosed by the two old corner-to-contact segments
+ and the replacement arc. Other curve types retain the old full-face tests.
+ """
+ import Part
+ from .geometry_bounds import EnclosingBox
+ if not all(isinstance(e.Curve,Part.Line) for e in adj):return None
+ try:
+  contacts=[v.Point for v in arc.Vertexes]
+  if len(contacts)!=2:return None
+  for old,new in zip(adj,(first,second)):
+   ends=[v.Point for v in old.Vertexes];trim=[v.Point for v in new.Vertexes]
+   if len(ends)!=2 or len(trim)!=2:return None
+   if min((v-point).Length for v in ends)>1e-7:return None
+   far=max(ends,key=lambda v:(v-point).Length);direction=far-point
+   if direction.Length<1e-7:return None
+   if min((v-far).Length for v in trim)>1e-7:return None
+   contact=max(trim,key=lambda v:(v-far).Length)
+   if min((v-contact).Length for v in contacts)>1e-7:return None
+   t=(contact-point).dot(direction)/direction.dot(direction)
+   if not 0.<t<1. or (contact-point-direction*t).Length>1e-7:return None
+  return EnclosingBox((arc.BoundBox,),[point,*contacts])
+ except (ValueError,TypeError,AttributeError,RuntimeError,ZeroDivisionError):return None
+
+
 def _face(wires):
  import Part
  return Part.makeFace(wires,'Part::FaceMakerBullseye')
@@ -223,6 +254,7 @@ def apply_plate_fillet(p,role,shape):
  # Camera side plates lie vertically in YZ and have a separate machining
  # workflow. The planar XY cutter rule applies to horizontal frame carbon.
  if role not in FIELDS:return shape
+ minimum=p.CNCToolRadius
  requested=fillet_radius(p,role)
  # Even zero aesthetic fillet settings must protect concave cutter corners.
  import FreeCAD as App
@@ -277,7 +309,20 @@ def apply_plate_fillet(p,role,shape):
  # The old pre-fillet patch workaround is retired: first apply only valid
  # local corner fillets, then repair unresolved joints on the FINAL profile.
  # This prevents the two independent repair stages from overbuilding bumps.
- gaps={(a,b):min(p.MinimumWeb,wires[a].distToShape(wires[b])[0]) for a in range(len(wires)) for b in range(a+1,len(wires))}
+ # The original gap is measured on the initial wires, never an already
+ # modified contour. A conservative bounding-box lower bound can prove
+ # a pair meets the capped gap without calling OCC's exact distance solver.
+ from .geometry_bounds import box_distance
+ initial_wires=tuple(wires);initial_boxes=tuple(w.BoundBox for w in wires)
+ current_boxes=list(initial_boxes);gaps={}
+ def original_gap(i,j):
+  key=(min(i,j),max(i,j))
+  if key not in gaps:
+   a,b=key
+   gaps[key]=(p.MinimumWeb if box_distance(initial_boxes[a],initial_boxes[b])>=p.MinimumWeb+1e-6
+              else min(p.MinimumWeb,initial_wires[a].distToShape(initial_wires[b])[0]))
+  return gaps[key]
+ disk_boxes=[(disk,disk.BoundBox) for disk in disks]
  adapted=[];retained=0;done=0
  for index in range(len(wires)):
   for point,limit in _corners(wires[index]):
@@ -292,15 +337,16 @@ def apply_plate_fillet(p,role,shape):
    user_radius=(_arm_corner_radius(p,arm,(point.x,point.y),root_limit)
                 if arm else requested)
    if not compulsory and (not optional or user_radius<=1e-9):continue
-   corner_requested=max(MIN_CNC_RADIUS_MM,user_radius) if (compulsory or optional) else 0.
+   floor_radius=minimum if compulsory else MIN_CNC_RADIUS_MM
+   corner_requested=max(floor_radius,user_radius) if (compulsory or optional) else 0.
    if corner_requested<=0:continue
-   if compulsory and limit<MIN_CNC_RADIUS_MM-1e-5:
+   if compulsory and limit<minimum-1e-5:
     # Do not abort a whole frame over a short segment. The final rolling
     # cutter resolves the complete neighboring chain as one rounded notch.
     continue
    radius=min(corner_requested,limit);accepted=False
    for attempt in range(14):
-    if radius<MIN_CNC_RADIUS_MM-1e-5:break
+    if radius<floor_radius-1e-5:break
     try:
      arc,first,second=_blend(adj[0],adj[1],point,radius)
      rest=[e for e in edges if not any(e.isSame(a) for a in adj)]
@@ -308,35 +354,61 @@ def apply_plate_fillet(p,role,shape):
      if not candidate.isClosed() or not candidate.isValid():raise ValueError('wire closure')
      trial=wires[:];trial[index]=candidate;face=_face(trial)
      if len(face.Faces)!=1 or len(face.Wires)!=len(wires) or not face.isValid():raise ValueError('face connectivity')
+     candidate_box=candidate.BoundBox
+     local_box=_linear_fillet_bounds(point,adj,arc,first,second)
      for j,other in enumerate(wires):
-      if j!=index and candidate.distToShape(other)[0]<gaps[min(index,j),max(index,j)]-1e-5:raise ValueError('minimum web')
+      if j==index or box_distance(candidate_box,current_boxes[j])>=p.MinimumWeb+1e-6:continue
+      # All unchanged edges already met the original capped gap; a new
+      # linear fillet remote from the other wire cannot reduce that gap.
+      if local_box is not None and box_distance(local_box,current_boxes[j])>=p.MinimumWeb+1e-5:continue
+      if candidate.distToShape(other)[0]<original_gap(index,j)-1e-5:raise ValueError('minimum web')
      if protected is not None and (working.cut(face).common(protected).Area>1e-7 or (not compulsory and face.cut(working).common(protected).Area>1e-7)):raise ValueError('Root mounting stock must remain unchanged')
      if arm and fitted_roots(p):
       added=face.cut(working)
       if added.Area>1e-8 and added.cut(joint_cell).Area>1e-7:raise ValueError('Arm fillet must remain in its own fitted joint cell')
-     removed=working.cut(face)
-     if removed.Area>1e-8:
-      for disk in disks:
-       if removed.BoundBox.intersect(disk.BoundBox) and removed.common(disk).Area>1e-7:raise ValueError('fastener support')
-     wires=trial;working=face;accepted=True;done+=1
+     # For an inner wire only, any stock removal is contained within its
+     # old/new enclosed regions. If BOTH enclosing boxes have a strict gap
+     # to every bearing disk, the stock-support test is vacuous. Outer
+     # contours and uncertain pairs still run the original exact Boolean.
+     need_support_check=(index==0 or any(min(box_distance(current_boxes[index],disk_box),
+                                            box_distance(candidate_box,disk_box))<=1e-6
+                                        for disk,disk_box in disk_boxes))
+     if need_support_check and local_box is not None:
+      need_support_check=any(box_distance(local_box,disk_box)<=1e-5 for disk,disk_box in disk_boxes)
+     if need_support_check:
+      removed=working.cut(face)
+      if removed.Area>1e-8:
+       removed_box=removed.BoundBox
+       for disk,disk_box in disk_boxes:
+        if removed_box.intersect(disk_box) and removed.common(disk).Area>1e-7:raise ValueError('fastener support')
+     wires=trial;current_boxes[index]=candidate_box;working=face;accepted=True;done+=1
      if radius<corner_requested-1e-4:adapted.append(radius)
      break
     except Exception:
-     # Retry an oversized requested fillet down to the R0.5 tool floor;
+     # Retry an oversized requested fillet down to the selected tool floor;
      # the cutter-required feature is not allowed to vanish or go smaller.
      if compulsory:
-      if radius<=MIN_CNC_RADIUS_MM+1e-6:break
-      radius=max(MIN_CNC_RADIUS_MM,radius*.70)
+      if radius<=minimum+1e-6:break
+      radius=max(minimum,radius*.70)
      else:
       radius*=.5
    if not accepted:
     retained+=1
  # The per-vertex fillet cannot handle every line/arc chain. A rolling
- # 1 mm cutter in the actual finished contour removes remaining concave
+ # selected cutter in the actual finished contour removes remaining concave
  # under-radii without weakening bolt support or changing mating positions.
  from .cnc_autorepair import finish_cnc_face
  working=finish_cnc_face(working,role,arm,
-                         joint_cell if arm and fitted_roots(p) else None)
+                         joint_cell if arm and fitted_roots(p) else None,minimum)
+ if minimum>MIN_CNC_RADIUS_MM:
+  # A larger cutter must never fill pre-existing hardware clearance. Circular
+  # bores may be drilled separately; constrained slots require a smaller tool.
+  added=working.cut(original)
+  if not added.isNull() and added.Area>1e-8:
+   for pt,r,_ in holes:
+    bore=Part.Face(Part.Wire(Part.makeCircle(r,App.Vector(*pt,0))))
+    if added.BoundBox.intersect(bore.BoundBox) and added.common(bore).Area>1e-7:
+     raise ValueError(f'{role}: R{minimum:g} cutter repair would change a mounting bore. Use an appropriate smaller cutter.')
  result=shape
  for change,adding in ((original.cut(working),False),(working.cut(original),True)):
   if change.isNull() or change.Area<1e-8:continue
@@ -348,13 +420,14 @@ def apply_plate_fillet(p,role,shape):
  # cosmetic preview, so DXF/SVG/STEP inherit the same cutter-sized geometry.
  top=max((f for f in result.Faces if f.BoundBox.ZLength<1e-5 and
           abs(f.BoundBox.ZMin-result.BoundBox.ZMax)<1e-5),key=lambda f:f.Area)
- _validate_cnc_inside_radii(top,role)
+ _validate_cnc_inside_radii(top,role,minimum)
  if adapted or retained:
   detail=(f'; minimum local radius {min(adapted):.3g} mm' if adapted else '')+(f'; {retained} constrained corners retained' if retained else '')
   App.Console.PrintMessage(f'{role}: {done} corners filleted; requested {requested:g} mm'+detail+'\n')
  return result
 
 def preview_fillet(p,role,path):
+ minimum=p.CNCToolRadius
  """Lightweight target-radius preview on outside and internal cutout loops."""
  if role not in FIELDS:return path
  radius=fillet_radius(p,role)
@@ -367,9 +440,13 @@ def preview_fillet(p,role,path):
  transform=QtGui.QTransform();transform.scale(100,100)
  result=QtGui.QPainterPath();result.setFillRule(QtCore.Qt.OddEvenFill)
  loops=path.toSubpathPolygons(transform)
+ from .preview_acceleration import LocalPathContains
+ contains=LocalPathContains(path,QtGui).contains
  def area(poly):return abs(sum(a.x()*b.y()-b.x()*a.y() for a,b in zip(poly,list(poly)[1:]+[poly[0]])))
- outer=max(loops,key=area) if loops else None
- for loop in loops:
+ outer_index=max(range(len(loops)),key=lambda index:area(loops[index])) if loops else -1
+ round_openings=fillet_openings(p,role)
+ for loop_index,loop in enumerate(loops):
+  optional_loop=loop_index==outer_index or round_openings
   points=[(v.x()/100,v.y()/100) for v in loop]
   if len(points)>1 and math.dist(points[0],points[-1])<1e-8:points.pop()
   if len(points)<3:continue
@@ -377,9 +454,12 @@ def preview_fillet(p,role,path):
   def _turn(a,b,c):
    a1=math.atan2(b[1]-a[1],b[0]-a[0]);a2=math.atan2(c[1]-b[1],c[0]-b[0])
    return abs((a2-a1+math.pi)%(2*math.pi)-math.pi)
+  count=len(points)
+  lengths=[math.dist(points[i-1],b) for i,b in enumerate(points)]
+  turns=[_turn(points[i-1],b,points[(i+1)%count]) for i,b in enumerate(points)]
   for i,b in enumerate(points):
-   a,c=points[i-1],points[(i+1)%len(points)]
-   la=math.dist(a,b);lb=math.dist(b,c)
+   a,c=points[i-1],points[(i+1)%count]
+   la=lengths[i];lb=lengths[(i+1)%count]
    if min(la,lb)<1e-8:corners.append((b,b,b,b));continue
    toward1=((a[0]-b[0])/la,(a[1]-b[1])/la)
    toward2=((c[0]-b[0])/lb,(c[1]-b[1])/lb)
@@ -389,24 +469,29 @@ def preview_fillet(p,role,path):
    probe=min(.025,.12*min(la,lb))
    # Qt tessellates smooth circles and arcs into small segments. Do not
    # mistake the regular turning between those segments for sharp notches.
-   prev_turn=_turn(points[i-2],a,b)
-   next_turn=_turn(b,c,points[(i+2)%len(points)])
+   prev_turn=turns[i-1]
+   next_turn=turns[(i+1)%count]
    sampled_arc=(corner_turn>1e-6 and prev_turn>1e-6 and next_turn>1e-6
                 and abs(corner_turn-prev_turn)<.07 and abs(corner_turn-next_turn)<.07)
    compulsory=(not sampled_arc and sl>1e-6 and CNC_CORNER_ANGLE_RAD<corner_turn<math.pi-CNC_CORNER_ANGLE_RAD
-               and probe>1e-6 and not path.contains(QtCore.QPointF(b[0]+sx/sl*probe,b[1]+sy/sl*probe)))
-   optional=(loop==outer or fillet_openings(p,role)) and (not arm or _arm_root_corner_can_fillet_xy(p,arm,b,root_limit))
-   user_radius=(_arm_corner_radius(p,arm,b,root_limit) if arm else radius)
-   if sampled_arc or (not compulsory and (not optional or user_radius<=1e-9)):
+               and probe>1e-6 and not contains(QtCore.QPointF(b[0]+sx/sl*probe,b[1]+sy/sl*probe)))
+   # Smooth sampled arcs cannot receive another corner fillet. Skip the
+   # optional root and radius computations for those vertices entirely.
+   if sampled_arc:
     corners.append((b,b,b,b));continue
-   corner_radius=max(MIN_CNC_RADIUS_MM,user_radius)
+   optional=optional_loop and (not arm or _arm_root_corner_can_fillet_xy(p,arm,b,root_limit))
+   user_radius=(_arm_corner_radius(p,arm,b,root_limit) if arm else radius)
+   if not compulsory and (not optional or user_radius<=1e-9):
+    corners.append((b,b,b,b));continue
+   floor_radius=minimum if compulsory else MIN_CNC_RADIUS_MM
+   corner_radius=max(floor_radius,user_radius)
    u=(-toward1[0],-toward1[1]);v=toward2
    angle=corner_turn
    threshold=CNC_CORNER_ANGLE_RAD if compulsory else .25
    distance=min(corner_radius*math.tan(angle/2),la*.45,lb*.45) if threshold<angle<math.pi-.01 else 0.
-   if distance<MIN_CNC_RADIUS_MM*max(0.,math.tan(angle/2))-1e-5:
+   if distance<floor_radius*max(0.,math.tan(angle/2))-1e-5:
     # Native FreeCAD will flag this constrained corner rather than create
-    # a false under-R0.5 radius; keep the preview corner unmodified.
+    # a false undersized radius; keep the preview corner unmodified.
     corners.append((b,b,b,b));continue
    if arm and not compulsory:
     from .arm_roots import fitted_roots
@@ -419,7 +504,11 @@ def preview_fillet(p,role,path):
    start=(b[0]-u[0]*distance,b[1]-u[1]*distance);end=(b[0]+v[0]*distance,b[1]+v[1]*distance)
    corners.append((start,(start[0]+u[0]*k,start[1]+u[1]*k),(end[0]-v[0]*k,end[1]-v[1]*k),end))
   q=QtGui.QPainterPath();q.moveTo(*corners[0][0])
-  for start,a,b,end in corners:q.lineTo(*start);q.cubicTo(*a,*b,*end)
+  for start,a,b,end in corners:
+   q.lineTo(*start)
+   # No degenerate Bezier for ordinary polygon points. It adds three Qt
+   # elements for no geometric change and makes later path booleans slower.
+   if not (start==a==b==end):q.cubicTo(*a,*b,*end)
   q.closeSubpath();result.addPath(q)
  if arm:
   from .arm_roots import fitted_roots,root_cell_polygon

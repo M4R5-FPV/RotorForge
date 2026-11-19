@@ -1,6 +1,7 @@
 """Per-part pattern editor and local-coordinate cutting preview."""
 import math,json
 from functools import lru_cache
+from .parameter_memo import parameter_cache
 try:
     from PySide import QtCore, QtGui, QtWidgets
 except ImportError:
@@ -8,7 +9,8 @@ except ImportError:
         from PySide2 import QtCore, QtGui, QtWidgets
     except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets
-from .cutouts import CUTOUT_ROLES, CUTOUT_TYPES, CUTOUT_MODES, MAX_PATTERNS, MAX_ENABLED_CUTOUTS, PATTERN_DEFAULTS, parse_patterns, encode_patterns, pattern_instances, cutout_polygon, CNC_POLYGON_TYPES, cutout_profile_segments
+from .cutouts import CUTOUT_ROLES, CUTOUT_TYPES, CUTOUT_MODES, MAX_PATTERNS, MAX_ENABLED_CUTOUTS, PATTERN_DEFAULTS, parse_patterns, encode_patterns, pattern_instances, cutout_polygon, CNC_POLYGON_TYPES, cutout_profile_segments, pattern_cut_count
+from .stencil_text import TEXT_FONTS, ENGRAVING_FONTS, text_profiles, check_text_web, minimum_text_size
 from .parameters import bottom_bounds, mid_bounds, top_bounds, plate_holes, arm_brace_layouts, arm_layouts, strap_slots, stack_holes, upper_clamp_active, underside_clamp_active, keystone_active, mid_tabs
 from .parameters import bottom_body_bounds, bottom_tabs
 from .fpv import CAMERA_ROLES, camera_mounts, camera_slots, camera_position_y, camera_pivot_height
@@ -22,7 +24,8 @@ ROLE_LABELS={'FrontBumper':'Front bumper','CameraPadLeft':'Camera pad left','Cam
              'ArmLowerClampPlate':'Lower arm clamp plate',
              'CameraMountLeft':'Camera side plate — left','CameraMountRight':'Camera side plate — right',
              'ArmFrontRight':'Front right arm','ArmFrontLeft':'Front left arm',
-             'ArmRearLeft':'Rear left arm','ArmRearRight':'Rear right arm'}
+             'ArmRearLeft':'Rear left arm','ArmRearRight':'Rear right arm',
+             'ActionCameraMount':'HD action-camera mount','LiPoPad':'LiPo pad'}
 
 
 def capsule_path(a,b,r):
@@ -117,7 +120,7 @@ def keystone_path(p,arms=None):
     return path
 
 
-@lru_cache(maxsize=96)
+@parameter_cache(maxsize=96)
 def _profile_path_cached(p,role,width,rear,front,radius,wide_override,trim_ends):
     path=QtGui.QPainterPath();path.addRoundedRect(QtCore.QRectF(-width/2,rear,width,front-rear),radius,radius)
     outline=plate_base_polygon(p,role,width,rear,front,radius)
@@ -255,17 +258,17 @@ def _path_filled_area(path):
     return area
 
 
-@lru_cache(maxsize=24)
+@parameter_cache(maxsize=24)
 def _bottom_plate_default(p):
     return supported_path(p,'BottomPlate',_base_bottom_plate_path(p,None))
 
 
-@lru_cache(maxsize=24)
+@parameter_cache(maxsize=24)
 def _mid_plate_default(p):
     return supported_path(p,'MidPlate',_base_mid_plate_path(p,None))
 
 
-@lru_cache(maxsize=24)
+@parameter_cache(maxsize=24)
 def _clamp_plate_default(p,role):
     return supported_path(p,role,_base_clamp_plate_path(p,role))
 
@@ -319,7 +322,7 @@ def motor_pad_path(p,arm=None):
     return path
 
 
-def cutout_path(pattern):
+def cutout_path(pattern,radius=.5):
     """Immutable per-shape cache; return a private Qt copy to every caller.
 
     Repeated Keep/Randomize runs and preview repaints draw the same saved
@@ -330,49 +333,57 @@ def cutout_path(pattern):
               if pattern['shape']=='Web cell' else ())
     return QtGui.QPainterPath(_cutout_path_cached(
         pattern['shape'],pattern['width'],pattern['length'],
-        pattern['x'],pattern['y'],pattern['rotation'],vertices,pattern.get('arc_angle',75.)))
+        pattern['x'],pattern['y'],pattern['rotation'],vertices,pattern.get('arc_angle',75.),
+        pattern.get('text','FPV'),pattern.get('text_font',TEXT_FONTS[0]),pattern.get('text_dot',1.2),
+        pattern.get('mirror_u',False),pattern.get('mirror_v',False),radius))
 
 
 @lru_cache(maxsize=384)
-def _cutout_path_cached(shape,w,l,x,y,rotation,vertices,arc_angle):
+def _cutout_path_cached(shape,w,l,x,y,rotation,vertices,arc_angle,text='FPV',text_font=TEXT_FONTS[0],text_dot=1.2,mirror_u=False,mirror_v=False,radius=.5):
     pattern={'shape':shape,'width':w,'length':l,
-             'x':x,'y':y,'rotation':rotation,'vertices':vertices,'arc_angle':arc_angle}
+             'x':x,'y':y,'rotation':rotation,'vertices':vertices,'arc_angle':arc_angle,
+             'text':text,'text_font':text_font,'text_dot':text_dot,'_cnc_radius':radius}
+    from .cutouts import check_cnc_shape
+    check_cnc_shape(pattern,radius)
     path=QtGui.QPainterPath()
     if pattern['shape']=='Circle':path.addEllipse(QtCore.QPointF(),w/2,w/2)
     elif pattern['shape']=='Ellipse':path.addEllipse(QtCore.QPointF(),w/2,l/2)
     elif pattern['shape']=='Slot':
         path=(capsule_path((0,-(l-w)/2),(0,(l-w)/2),w/2) if l>=w else
               capsule_path((-(w-l)/2,0),((w-l)/2,0),l/2))
-    elif pattern['shape']=='Rounded rectangle':path.addRoundedRect(QtCore.QRectF(-w/2,-l/2,w,l),min(w,l)/4,min(w,l)/4)
-    elif pattern['shape'] in CNC_POLYGON_TYPES:
-        # Draw the exact same analytic R0.5 fillets used by the BRep cutter.
-        segments=cutout_profile_segments(pattern)
-        path.moveTo(*segments[0][1])
-        for segment in segments:
-            if segment[0]=='line':path.lineTo(*segment[2])
-            else:
-                start,mid,end=segment[1:]
-                # A true circular arc reconstructed from its three points.
-                ax,ay=start; bx,by=mid;cx,cy=end
-                den=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by))
-                if abs(den)<1e-10:raise ValueError('Degenerate rounded cutout arc.')
-                a2=ax*ax+ay*ay;b2=bx*bx+by*by;c2=cx*cx+cy*cy
-                ux=(a2*(by-cy)+b2*(cy-ay)+c2*(ay-by))/den
-                uy=(a2*(cx-bx)+b2*(ax-cx)+c2*(bx-ax))/den
-                rad=math.hypot(ax-ux,ay-uy)
-                start_angle=math.atan2(ay-uy,ax-ux)
-                mid_angle=math.atan2(by-uy,bx-ux)
-                end_angle=math.atan2(cy-uy,cx-ux)
-                sweep=(end_angle-start_angle)%(2*math.pi)
-                if (mid_angle-start_angle)%(2*math.pi)>sweep+1e-5:sweep-=2*math.pi
-                path.arcTo(QtCore.QRectF(ux-rad,uy-rad,2*rad,2*rad),
-                           -math.degrees(start_angle),-math.degrees(sweep))
-        path.closeSubpath()
+    elif pattern['shape']=='Rounded rectangle':path.addRoundedRect(QtCore.QRectF(-w/2,-l/2,w,l),max(radius,min(w,l)/4),max(radius,min(w,l)/4))
+    elif pattern['shape'] in CNC_POLYGON_TYPES or pattern['shape']=='Text':
+        profiles=text_profiles(pattern) if pattern['shape']=='Text' else (cutout_profile_segments(pattern),)
+        if pattern['shape']=='Text' and pattern['text_font'] in ENGRAVING_FONTS:
+            path.setFillRule(QtCore.Qt.WindingFill)
+        for segments in profiles:
+            path.moveTo(*segments[0][1])
+            for segment in segments:
+                if segment[0]=='line':path.lineTo(*segment[2])
+                else:
+                    start,mid,end=segment[1:]
+                    # A true circular arc reconstructed from its three points.
+                    ax,ay=start; bx,by=mid;cx,cy=end
+                    den=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by))
+                    if abs(den)<1e-10:raise ValueError('Degenerate rounded cutout arc.')
+                    a2=ax*ax+ay*ay;b2=bx*bx+by*by;c2=cx*cx+cy*cy
+                    ux=(a2*(by-cy)+b2*(cy-ay)+c2*(ay-by))/den
+                    uy=(a2*(cx-bx)+b2*(ax-cx)+c2*(bx-ax))/den
+                    rad=math.hypot(ax-ux,ay-uy)
+                    start_angle=math.atan2(ay-uy,ax-ux)
+                    mid_angle=math.atan2(by-uy,bx-ux)
+                    end_angle=math.atan2(cy-uy,cx-ux)
+                    sweep=(end_angle-start_angle)%(2*math.pi)
+                    if (mid_angle-start_angle)%(2*math.pi)>sweep+1e-5:sweep-=2*math.pi
+                    path.arcTo(QtCore.QRectF(ux-rad,uy-rad,2*rad,2*rad),
+                               -math.degrees(start_angle),-math.degrees(sweep))
+            path.closeSubpath()
     else:
         points=cutout_polygon(pattern);path.moveTo(*points[0])
         for point in points[1:]:path.lineTo(*point)
         path.closeSubpath()
     transform=QtGui.QTransform();transform.translate(pattern['x'],pattern['y']);transform.rotate(pattern['rotation'])
+    transform.scale(-1 if mirror_u else 1,-1 if mirror_v else 1)
     return transform.map(path)
 
 
@@ -423,12 +434,22 @@ def _spatial_path_union(paths):
     return result
 
 
-def combined_cutout_path(patterns,role,additions=False):
-    scale=QtGui.QTransform();scale.scale(100,100)
-    profiles=(scale.map(cutout_path(instance))
+def combined_cutout_path(patterns,role,additions=False,radius=.5):
+    # Keep the original pattern order and exact 100x Qt Boolean precision.
+    relevant=[{k:v for k,v in pattern.items() if k not in ('auto_keep','auto_group')}
               for pattern in patterns
               if pattern['enabled'] and pattern['role']==role and
-                 (pattern['mode']=='Add material' if additions else pattern['mode'] not in ('Add material','Pocket'))
+                 (pattern['mode']=='Add material' if additions else pattern['mode'] not in ('Add material','Pocket'))]
+    if not relevant:return QtGui.QPainterPath()
+    encoded=json.dumps(relevant,sort_keys=True,separators=(',',':'))
+    return QtGui.QPainterPath(_combined_cutout_path_cached(encoded,radius))
+
+
+@lru_cache(maxsize=64)
+def _combined_cutout_path_cached(encoded,radius):
+    scale=QtGui.QTransform();scale.scale(100,100)
+    profiles=(scale.map(cutout_path(instance,radius))
+              for pattern in json.loads(encoded)
               for instance in pattern_instances(pattern))
     return scale.inverted()[0].map(_spatial_path_union(profiles))
 
@@ -441,10 +462,12 @@ def _profile_parameters(p):
     from dataclasses import replace
     from .parameters import Parameters
     defaults=Parameters()
-    return replace(p,**{name:getattr(defaults,name) for name in p.__dataclass_fields__
-                       if name.startswith(('FlexGuard','FlexProtector','FlexAntenna','FlexELRS','LiPoPad')) or name in ('FlexRearAntenna','FlexSideGuards','FlexMotorProtectors','PrintedPartColour')})
+    changes={name:getattr(defaults,name) for name in p.__dataclass_fields__
+             if name.startswith(('FlexGuard','FlexProtector','FlexAntenna','FlexELRS','LiPoPad')) or name in ('FlexRearAntenna','FlexSideGuards','FlexMotorProtectors','PrintedPartColour')}
+    changes['CutoutPatterns']='[]'
+    return replace(p,**changes)
 
-@lru_cache(maxsize=96)
+@parameter_cache(maxsize=96)
 def _finished_part_path_cached(p,role,pattern_json,include_strap_notches=True):
     return _make_finished_part_path(p,role,parse_patterns(pattern_json),include_strap_notches)
 
@@ -460,8 +483,6 @@ def finished_part_path(p,role,patterns=None,include_strap_notches=True):
                for pattern in patterns if pattern['role']==role]
     encoded=json.dumps(geometric,sort_keys=True,separators=(',',':'))
     profile=_profile_parameters(p)
-    if profile.CutoutPatterns!='[]':
-        profile=replace(profile,CutoutPatterns='[]')
     return QtGui.QPainterPath(_finished_part_path_cached(profile,role,encoded,include_strap_notches))
 
 def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
@@ -519,12 +540,13 @@ def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
                     for a in (arc['start']+(arc['end']-arc['start'])*i/40 for i in range(41))]
             for a,b in zip(points,points[1:]):path=path.subtracted(capsule_path(a,b,arc['width']/2))
     elif role in ('BottomPlate','MidPlate','TopPlate'):
-        rear,front={'BottomPlate':bottom_bounds,'MidPlate':mid_bounds,'TopPlate':top_bounds}[role](p)
-        path=profile_path(p,role,p.TopWidth if role=='TopPlate' else p.BodyWidth,rear,front,p.CornerRadius)
         if role=='MidPlate':
             path=mid_plate_path(p)
         elif role=='BottomPlate':
             path=bottom_plate_path(p)
+        else:
+            rear,front=top_bounds(p)
+            path=profile_path(p,role,p.TopWidth,rear,front,p.CornerRadius)
         holes=[(pt,r) for pt,r,_ in plate_holes(p,role)]
         if role in ('BottomPlate','TopPlate'):slots=list(camera_slots(p,role))
         if role=='TopPlate':
@@ -547,7 +569,7 @@ def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
         for poly in notch_polygons(p) if include_strap_notches else ():
             cut=QtGui.QPainterPath();cut.addPolygon(QtGui.QPolygonF([QtCore.QPointF(*pt) for pt in poly]));cut.closeSubpath();path=path.subtracted(cut)
     source_patterns=parse_patterns(p.CutoutPatterns) if patterns is None else patterns
-    additions=combined_cutout_path(source_patterns,role,True)
+    additions=combined_cutout_path(source_patterns,role,True,p.CNCToolRadius)
     if not additions.isEmpty():
         path=path.united(additions)
     # Remove disjoint fasteners, straps and vents in a single Qt Boolean.
@@ -559,7 +581,7 @@ def _make_finished_part_path(p,role,patterns=None,include_strap_notches=True):
         hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(*pt),r,r)
         cutters.append(hole)
     cutters.extend(capsule_path(a,b,r) for a,b,r in slots)
-    cutout=combined_cutout_path(source_patterns,role)
+    cutout=combined_cutout_path(source_patterns,role,radius=p.CNCToolRadius)
     if not cutout.isEmpty():
         cutters.append(cutout)
     if cutters:
@@ -594,11 +616,12 @@ class AirflowPreview(QtWidgets.QWidget):
         # Enabled cuts are bounded by MAX_ENABLED_CUTOUTS. Only the selected
         # disabled array is expanded, avoiding 80,000 inactive copies in a view.
         indices=tuple(i for i,p in enumerate(e.patterns) if p['role']==role and not e.pattern_list.item(i).isHidden() and (p['enabled'] or i==selected))
-        key=(role,e._patterns_revision,indices)
+        radius=self._frame_parameters.CNCToolRadius if self._frame_parameters is not None else e.get_parameters().CNCToolRadius
+        key=(role,e._patterns_revision,indices,radius)
         if key!=self._records_key:
             records=[]
             for i in indices:
-                paths=tuple(cutout_path(v) for v in pattern_instances(e.patterns[i]))
+                paths=tuple(cutout_path(v,radius) for v in pattern_instances(e.patterns[i]))
                 box=QtCore.QRectF()
                 for path in paths:box=box.united(path.boundingRect())
                 records.append((i,paths,box))
@@ -671,10 +694,11 @@ class AirflowPreview(QtWidgets.QWidget):
     def visible_through_cuts(self):
         """All enabled cuts, including those hidden by the list filter."""
         e=self.editor;role=e.role.currentData()
-        key=(role,e._patterns_revision)
+        radius=self._frame_parameters.CNCToolRadius if self._frame_parameters is not None else e.get_parameters().CNCToolRadius
+        key=(role,e._patterns_revision,radius)
         if self._visible_cuts_key!=key:
             self._visible_cuts=tuple(
-                cutout_path(inst)
+                cutout_path(inst,radius)
                 for pattern in e.patterns
                 if pattern['enabled'] and pattern['role']==role
                 and pattern['mode'] not in ('Add material','Pocket')
@@ -749,7 +773,7 @@ class AirflowPreview(QtWidgets.QWidget):
             path,transform,scale=self.view();painter.setTransform(transform)
             painter.setPen(QtGui.QPen(QtGui.QColor('#111315'),.8/scale));painter.setBrush(QtGui.QColor('#2e3033'));painter.drawPath(path)
             # Cheap visual holes, independent of Qt boolean complexity.
-            # Their contours come from cutout_path, the same R0.5-rounded
+            # Their contours come from cutout_path, the same cutter-radius-rounded
             # shape used by the exact manufacturing clearance check.
             painter.setPen(QtCore.Qt.NoPen)
             painter.setBrush(QtGui.QColor('#f3f6f8'))
@@ -771,6 +795,12 @@ class AirflowPreview(QtWidgets.QWidget):
                     painter.setPen(QtGui.QColor('#9a4d00') if selected else QtGui.QColor('#08798a'));painter.setBrush(QtGui.QColor(255,255,255,230));painter.drawRoundedRect(rect,3,3);painter.drawText(rect,QtCore.Qt.AlignCenter,text);painter.restore()
         except Exception as exc:self.last_error=str(exc)
         finally:painter.end()
+
+
+# Search can index Airflow without constructing its Qt widgets or parsing saved patterns.
+_AIRFLOW_SEARCH_CONTROLS = (('Part', 'role'), ('Cutout type', 'shape'), ('Cutting mode / outline notch', 'mode'), ('Enabled', 'enabled'), ('Saved patterns', 'pattern_list'), ('Find saved cutout', 'find_pattern'), ('Filter cutouts by part', 'filter_role'), ('Show pattern numbers', 'show_numbers'), ('Zoom to selected cutout', 'zoom_button'), ('Fit cutout plate preview', 'fit_button'), ('Add pattern', 'add_button'), ('Apply to pattern', 'apply_button'), ('Remove pattern', 'remove_button'), ('Discard unapplied changes', 'discard_button'), ('Copy to other camera side', 'copy_button'), ('Check plate cuts in CAD', 'check_button'))
+_AIRFLOW_SEARCH_INPUTS = (('Width', 'width'), ('Length', 'length'), ('Centre U', 'x'), ('Centre V', 'y'), ('Columns', 'columns'), ('Rows', 'rows'), ('Pitch U', 'pitch_x'), ('Pitch V', 'pitch_y'), ('Rotation', 'rotation'), ('Arc angle', 'arc_angle'), ('Pocket depth', 'depth'))
+AIRFLOW_SEARCH_FIELDS = tuple(title for title, _ in _AIRFLOW_SEARCH_CONTROLS + _AIRFLOW_SEARCH_INPUTS)
 
 
 class AirflowEditor(QtWidgets.QWidget):
@@ -797,7 +827,7 @@ class AirflowEditor(QtWidgets.QWidget):
         for role in CUTOUT_ROLES:self.role.addItem(ROLE_LABELS[role],role)
         self.role.setCurrentIndex(2);form.addRow('Part',self.role)
         self.shape=QtWidgets.QComboBox();self.shape.addItems(CUTOUT_TYPES);self.shape.setCurrentText('Slot');form.addRow('Cutout type',self.shape)
-        self.shape.setToolTip('CNC-safe profiles include classic and curved round-ended slots plus R0.5-rounded polygon motifs. Arc slot uses the separate signed Arc bend control; length is the end-centre chord. Very narrow dimensions are refused.')
+        self.shape.setToolTip('CNC-safe profiles include classic and curved round-ended slots plus cutter-radius-rounded polygon motifs. Arc slot uses the separate signed Arc bend control; length is the end-centre chord. Very narrow dimensions are refused.')
         self.mode=QtWidgets.QComboBox();self.mode.addItems(CUTOUT_MODES);form.addRow('Operation',self.mode)
         self.mode.setToolTip('Interior removes material through the carbon. Pocket makes a shallow blind relief up to half thickness, including across plate edges, holes and other cutouts; machine it separately and check remaining screw support. Outline notch opens an outside edge. Add material extends main/clamp edges.')
         self.enabled=QtWidgets.QCheckBox('Enabled');self.enabled.setChecked(True);form.addRow(self.enabled)
@@ -811,6 +841,12 @@ class AirflowEditor(QtWidgets.QWidget):
                     control.setSuffix('°' if key=='rotation' else ' mm')
                 control.setValue(PATTERN_DEFAULTS[key]);line.addWidget(control);self.inputs[key]=control
             form.addRow(title,row)
+        mirror_row=QtWidgets.QWidget();mirror_layout=QtWidgets.QHBoxLayout(mirror_row);mirror_layout.setContentsMargins(0,0,0,0)
+        self.mirror_u=QtWidgets.QCheckBox('Flip U (left/right)');self.mirror_v=QtWidgets.QCheckBox('Flip V (front/rear)')
+        for control in (self.mirror_u,self.mirror_v):
+            control.setToolTip('Reflect the shape in its local coordinates before rotation; its centre and grid stay unchanged.')
+            mirror_layout.addWidget(control)
+        form.addRow('Mirror shape',mirror_row)
         self.arc_angle_label=QtWidgets.QLabel('Arc bend')
         self.arc_angle=QtWidgets.QDoubleSpinBox()
         self.arc_angle.setDecimals(1)
@@ -821,6 +857,27 @@ class AirflowEditor(QtWidgets.QWidget):
         self.arc_angle.setToolTip('Arc slot only: signed curvature in degrees. Positive curves to local +U, negative curves to -U, and 0° produces a straight capsule. Length is the chord between end-cap centres; Width is the channel thickness. Rotate the entire slot using Rotation.')
         form.addRow(self.arc_angle_label,self.arc_angle)
         self.inputs['arc_angle']=self.arc_angle
+        self.text_label=QtWidgets.QLabel('CNC text')
+        self.text_input=QtWidgets.QLineEdit('FPV');self.text_input.setMaxLength(24)
+        self.text_input.setToolTip('A–Z, 0–9, space, -, _ and period. Lowercase is converted to uppercase. Width / length set the full lettering grid size.')
+        form.addRow(self.text_label,self.text_input)
+        self.text_font_label=QtWidgets.QLabel('CNC font')
+        self.text_font=QtWidgets.QComboBox();self.text_font.addItems(TEXT_FONTS);self.text_font.setCurrentText(ENGRAVING_FONTS[0])
+        self.text_font.setToolTip('Every CNC font is available for blind pockets. Engraving styles use round-ended cutter strokes; Dot matrix uses separate circular pockets. Use Fit lettering to CNC rules after choosing a style.')
+        form.addRow(self.text_font_label,self.text_font)
+        self.text_dot_label=QtWidgets.QLabel('Dot diameter')
+        self.text_dot=QtWidgets.QDoubleSpinBox();self.text_dot.setRange(1.,10.);self.text_dot.setDecimals(2);self.text_dot.setSuffix(' mm');self.text_dot.setValue(1.)
+        form.addRow(self.text_dot_label,self.text_dot)
+        self.text_fit=QtWidgets.QPushButton('Fit lettering to CNC rules');self.text_fit.clicked.connect(self.fit_lettering)
+        self.text_fit.setToolTip('Fit the lettering to its selected stroke diameter (at least the selected cutter diameter), preserving the selected cutter-radius rule. Engraving is a blind pocket; exact placement is checked on Create / Update.')
+        form.addRow(self.text_fit)
+        self.text_size_hint=QtWidgets.QLabel();self.text_size_hint.setWordWrap(True)
+        form.addRow(self.text_size_hint)
+        self.text_input.textChanged.connect(self.update_text_size_hint)
+        self.text_dot.valueChanged.connect(self.update_text_size_hint)
+        for key in ('width','length'):
+            self.inputs[key].valueChanged.connect(self.update_text_size_hint)
+        self.text_font.currentIndexChanged.connect(self.update_shape_controls)
         self.shape.currentIndexChanged.connect(self.update_shape_controls)
         self.update_shape_controls()
         self.depth=QtWidgets.QDoubleSpinBox()
@@ -861,6 +918,10 @@ class AirflowEditor(QtWidgets.QWidget):
         self._draft_baseline=self.draft()
         for control in (self.role,self.shape,self.mode):control.currentIndexChanged.connect(self.update_pending_status)
         self.enabled.toggled.connect(self.update_pending_status)
+        self.mirror_u.toggled.connect(self.update_pending_status);self.mirror_v.toggled.connect(self.update_pending_status)
+        self.text_input.textChanged.connect(self.update_pending_status)
+        self.text_font.currentIndexChanged.connect(self.update_pending_status)
+        self.text_dot.valueChanged.connect(self.update_pending_status)
         for control in self.inputs.values():control.valueChanged.connect(self.update_pending_status)
         self.update_capacity();self.filter_patterns()
         # Full-width cutting workspace: saved patterns, editing, and inspection
@@ -966,6 +1027,10 @@ class AirflowEditor(QtWidgets.QWidget):
         for panel in (library, edit, inspect):self.workspace.addWidget(panel)
         self.workspace.setSizes([210, 350, 420])
 
+
+    def search_controls(self):
+        return ([(title,getattr(self,attr)) for title,attr in _AIRFLOW_SEARCH_CONTROLS]
+                + [(title,self.inputs[key]) for title,key in _AIRFLOW_SEARCH_INPUTS])
 
     def update_coordinates(self,*args):
         camera=self.role.currentData() in CAMERA_ROLES
@@ -1121,7 +1186,7 @@ class AirflowEditor(QtWidgets.QWidget):
 
             remaining_slots=min(
                 MAX_PATTERNS-len(working),
-                MAX_ENABLED_CUTOUTS-sum(v['rows']*v['columns'] for v in working
+                MAX_ENABLED_CUTOUTS-sum(pattern_cut_count(v) for v in working
                                         if v['enabled']))
             if remaining_slots<1:
                 raise ValueError('Airflow cutout capacity reached. Remove or disable a pattern.')
@@ -1216,10 +1281,13 @@ class AirflowEditor(QtWidgets.QWidget):
                     keep_disc(ret['point'],max(ret['head_diameter']*.5,ret['bore']))
             for point,radius in carbon_rim_centres(p,role):
                 keep_disc(point,radius)
+            from .screw_heads import countersink_specs
+            for seat in countersink_specs(p,role):
+                keep_disc(seat['point'],seat['head_diameter']/2)
             for item in working:
                 if item['enabled'] and item['role']==role and item['mode']!='Add material':
                     for instance in pattern_instances(item):
-                        add_obstacle(scale.map(cutout_path(instance)))
+                        add_obstacle(scale.map(cutout_path(instance,p.CNCToolRadius)))
 
             # One pen is reused for the entire batch; no repeated full-plate
             # union, stroke or topology conversion during individual attempts.
@@ -1291,7 +1359,7 @@ class AirflowEditor(QtWidgets.QWidget):
                     if not usable_box.contains(approx):
                         group_ok=False;break
                     try:
-                        outline=scale.map(cutout_path(part))
+                        outline=scale.map(cutout_path(part,p.CNCToolRadius))
                     except (ValueError, TypeError, ArithmeticError):
                         group_ok=False;break
                     rect=outline.boundingRect()
@@ -1325,7 +1393,7 @@ class AirflowEditor(QtWidgets.QWidget):
 
             if not candidate_new:
                 self.status.setText(
-                    f'No free area for additional R0.5 cutouts after {trials} '
+                    f'No free area for additional cutter-radius cutouts after {trials} '
                     f'attempts ({time.perf_counter()-started:.2f} s). '
                     'Kept shapes and the existing design '
                     'were preserved. Try a narrower carbon web, release a '
@@ -1342,7 +1410,7 @@ class AirflowEditor(QtWidgets.QWidget):
                     f'{detail_text}: {len(candidate_new)} cutouts in '
                     f'{accepted_groups} groups ({trials} local candidates; '
                     f'{time.perf_counter()-started:.2f} s). '
-                    f'{kept_groups} previous groups kept; R0.5 profiles, '
+                    f'{kept_groups} previous groups kept; cutter-radius profiles, '
                     f'{required_web:g} mm minimum web. Check plate cuts in CAD before export.')
             else:
                 self.patterns=old
@@ -1362,19 +1430,61 @@ class AirflowEditor(QtWidgets.QWidget):
         arc = self.shape.currentText() == 'Arc slot'
         self.arc_angle_label.setVisible(arc)
         self.arc_angle.setVisible(arc)
+        lettering=self.shape.currentText()=='Text'
+        for control in (self.text_label,self.text_input,self.text_font_label,self.text_font,self.text_fit):control.setVisible(lettering)
+        font=self.text_font.currentText()
+        self.text_dot_label.setText('Stroke diameter' if font in ENGRAVING_FONTS else 'Dot diameter')
+        for control in (self.text_dot_label,self.text_dot):control.setVisible(lettering and (font in ENGRAVING_FONTS or font=='Dot matrix'))
+        for mode in ('Interior','Outline notch','Add material'):
+            item=self.mode.model().item(self.mode.findText(mode))
+            if item is not None:item.setEnabled(not lettering)
+        if lettering:self.mode.setCurrentText('Pocket')
+        self.mode.setEnabled(not lettering)
+        self.update_text_size_hint()
+
+    def update_text_size_hint(self,*args):
+        lettering=self.shape.currentText()=='Text'
+        self.text_size_hint.setVisible(lettering)
+        if not lettering:return
+        item=dict(text=self.text_input.text().upper(),text_font=self.text_font.currentText(),text_dot=self.text_dot.value(),width=self.inputs['width'].value(),length=self.inputs['length'].value())
+        try:
+            width,height=minimum_text_size(item,0.)
+            # Rounded-up fit includes a small numerical allowance. Do not
+            # generate cutter profiles while the user is still typing.
+            suffix=(' — increase size or press Fit lettering.'
+                    if item['width']<width-.021 or item['length']<height-.021 else '')
+            self.text_size_hint.setText(f'Fit size: {width:.2f} × {height:.2f} mm{suffix}')
+            self.text_size_hint.setStyleSheet('color: #a45b00;' if suffix else '')
+        except ValueError as exc:
+            self.text_size_hint.setText(str(exc));self.text_size_hint.setStyleSheet('color: #a45b00;')
+
+    def fit_lettering(self,*args):
+        try:
+            item=self.draft()
+            web=0.
+            diameter=2*self.get_parameters().CNCToolRadius
+            if item['text_dot']<diameter:
+                self.text_dot.setValue(diameter);item['text_dot']=diameter
+            width,height=minimum_text_size(item,web)
+            if width>200 or height>300:raise ValueError('Lettering exceeds the permitted cutout size. Shorten the text or use a smaller valid cutter diameter.')
+            self.inputs['width'].setValue(width);self.inputs['length'].setValue(height)
+        except ValueError as exc:self.show_error(str(exc))
 
     def draft(self):
-        draft=dict(mode=self.mode.currentText(),role=self.role.currentData(),shape=self.shape.currentText(),enabled=self.enabled.isChecked(),**{k:c.value() for k,c in self.inputs.items()})
+        draft=dict(mode=self.mode.currentText(),role=self.role.currentData(),shape=self.shape.currentText(),enabled=self.enabled.isChecked(),mirror_u=self.mirror_u.isChecked(),mirror_v=self.mirror_v.isChecked(),**{k:c.value() for k,c in self.inputs.items()})
+        if draft['shape']=='Text':
+            draft['mode']='Pocket';draft['text']=self.text_input.text().upper();draft['text_font']=self.text_font.currentText();draft['text_dot']=self.text_dot.value()
         if draft['shape']=='Web cell':
             draft['vertices']=[list(v) for v in getattr(self,'_web_cell_vertices',[])]
         return draft
 
     def update_capacity(self):
-        enabled=sum(p['columns']*p['rows'] for p in self.patterns if p['enabled'])
+        enabled=sum(pattern_cut_count(p) for p in self.patterns if p['enabled'])
         self.capacity.setText(f'Saved patterns: {len(self.patterns)} / {MAX_PATTERNS}   |   Enabled cuts: {enabled} / {MAX_ENABLED_CUTOUTS}')
 
     def has_pending_changes(self):
-        return self.draft()!=getattr(self,'_draft_baseline',self.draft())
+        draft=self.draft()
+        return draft!=getattr(self,'_draft_baseline',draft)
 
     def update_pending_status(self,*args):
         if hasattr(self,'status') and self.has_pending_changes():
@@ -1389,8 +1499,10 @@ class AirflowEditor(QtWidgets.QWidget):
     def discard_changes(self):
         p=dict(self._draft_baseline)
         self._web_cell_vertices=[list(v) for v in p.get('vertices',[])]
-        self.mode.setCurrentText(p['mode']);self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
-        self.shape.setCurrentText(p['shape']);self.enabled.setChecked(p['enabled'])
+        self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
+        self.shape.setCurrentText(p['shape']);self.mode.setCurrentText(p['mode']);self.enabled.setChecked(p['enabled'])
+        self.mirror_u.setChecked(p.get('mirror_u',False));self.mirror_v.setChecked(p.get('mirror_v',False))
+        self.text_input.setText(p.get('text','FPV'));self.text_font.setCurrentText(p.get('text_font',TEXT_FONTS[0]) if p['shape']=='Text' else ENGRAVING_FONTS[0]);self.text_dot.setValue(p.get('text_dot',1.) if p['shape']=='Text' else 1.)
         for k,c in self.inputs.items():c.setValue(p[k])
         self._draft_baseline=self.draft();self.status.setStyleSheet('')
         self.status.setText('Unapplied edits discarded. Saved patterns are unchanged.');self.preview.update()
@@ -1401,22 +1513,29 @@ class AirflowEditor(QtWidgets.QWidget):
             return False
         return True
 
-    def publish(self,select=-1):
-        try:value=encode_patterns(self.patterns)
+    def publish(self,select=-1,loaded_value=None):
+        try:
+            if loaded_value is None:
+                value=encode_patterns(self.patterns)
+                self.patterns=parse_patterns(value)
+            else:
+                # set_json already parsed/validated the saved input. Only
+                # canonicalize it, not another round of schema validation.
+                value=json.dumps(self.patterns,separators=(',',':'),allow_nan=False)
         except ValueError as exc:self.show_error(str(exc));return False
-        self.patterns=parse_patterns(value)
         self._patterns_revision+=1
-        self.pattern_list.blockSignals(True);self.pattern_list.clear()
+        self.pattern_list.setUpdatesEnabled(False);self.pattern_list.blockSignals(True);self.pattern_list.clear()
         for i,p in enumerate(self.patterns):
-            item=QtWidgets.QListWidgetItem(self.pattern_text(i))
-            item.setToolTip(self.pattern_text(i)+'\nRotation '+str(p['rotation'])+' degrees; grid '+str(p['columns'])+' x '+str(p['rows'])+'; pitch '+str(p['pitch_x'])+' / '+str(p['pitch_y'])+' mm'+
+            description=self.pattern_text(i)
+            item=QtWidgets.QListWidgetItem(description)
+            item.setToolTip(description+'\nRotation '+str(p['rotation'])+' degrees; grid '+str(p['columns'])+' x '+str(p['rows'])+'; pitch '+str(p['pitch_x'])+' / '+str(p['pitch_y'])+' mm'+
                             ('\nCheck Keep to retain this generated opening during Randomize. Mirrored partners share this setting.' if p.get('auto_group') else ''))
             if p.get('auto_group'):
                 item.setFlags(item.flags()|QtCore.Qt.ItemIsUserCheckable)
                 item.setCheckState(QtCore.Qt.Checked if p['auto_keep'] else QtCore.Qt.Unchecked)
             self.pattern_list.addItem(item)
         self._selected_index=-1
-        self.pattern_list.setCurrentRow(select);self.pattern_list.blockSignals(False)
+        self.pattern_list.setCurrentRow(select);self.pattern_list.blockSignals(False);self.pattern_list.setUpdatesEnabled(True)
         if select>=0:self.select_pattern(select,force=True)
         self.filter_patterns()
         self._draft_baseline=self.draft();self.update_capacity();self.status.setStyleSheet('')
@@ -1426,12 +1545,13 @@ class AirflowEditor(QtWidgets.QWidget):
         # Loaded designs are NOT assumed to have a rerollable session result.
         self._last_auto_patterns=[]
         self._last_auto_role=None
-        self.patterns=parse_patterns(value);self.publish()
+        self.patterns=parse_patterns(value);self.publish(loaded_value=value)
 
     def pattern_text(self,index):
         p=self.patterns[index]
         size=f"Ø{p['width']:g} mm" if p['shape']=='Circle' else f"{p['width']:g} × {p['length']:g} mm"
-        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size}"+(f" · bend {p['arc_angle']:g}°" if p['shape']=='Arc slot' else '')+f" · ({p['x']:g}, {p['y']:g})"+(f" · depth {p['depth']:g} mm" if p['mode']=='Pocket' else '')+(' [off]' if not p['enabled'] else '')+(' · Keep' if p.get('auto_keep') else '')
+        label=(' · '+p['text']+' ('+p['text_font']+')') if p['shape']=='Text' else ''
+        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size}"+label+(f" · bend {p['arc_angle']:g}°" if p['shape']=='Arc slot' else '')+f" · ({p['x']:g}, {p['y']:g})"+(f" · depth {p['depth']:g} mm" if p['mode']=='Pocket' else '')+(' [off]' if not p['enabled'] else '')+(' · Keep' if p.get('auto_keep') else '')
 
     def filter_patterns(self,*args):
         tokens=self.find_pattern.text().casefold().split();role=self.filter_role.currentData();shown=0
@@ -1468,20 +1588,36 @@ class AirflowEditor(QtWidgets.QWidget):
         self._selected_index=index
         p=self.patterns[index]
         self._web_cell_vertices=[list(v) for v in p.get('vertices',[])]
-        self.mode.setCurrentText(p['mode']);self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
+        self.role.setCurrentIndex(CUTOUT_ROLES.index(p['role']))
         if self.shape.findText(p['shape'])<0:
             # Keep obsolete polygon profiles editable in older saved designs,
             # but never offer these sharp-corner types for new CNC openings.
             self.shape.addItem(p['shape'])
             item=self.shape.model().item(self.shape.findText(p['shape']))
             if item is not None:item.setEnabled(False)
-        self.shape.setCurrentText(p['shape']);self.enabled.setChecked(p['enabled'])
+        self.shape.setCurrentText(p['shape']);self.mode.setCurrentText(p['mode']);self.enabled.setChecked(p['enabled'])
+        self.mirror_u.setChecked(p.get('mirror_u',False));self.mirror_v.setChecked(p.get('mirror_v',False))
+        self.text_input.setText(p.get('text','FPV'));self.text_font.setCurrentText(p.get('text_font',TEXT_FONTS[0]) if p['shape']=='Text' else ENGRAVING_FONTS[0]);self.text_dot.setValue(p.get('text_dot',1.) if p['shape']=='Text' else 1.)
         for k,c in self.inputs.items():c.setValue(p[k])
         self._draft_baseline=self.draft();self.status.setStyleSheet('');self.status.setText('Selected #'+str(index+1)+'. Edit and press Apply to pattern, or Add pattern for a new cut.')
         self.filter_patterns();self.preview.update();return True
 
+    def _check_lettering(self,item):
+        if not item['enabled']:return True
+        try:
+            params=self.get_parameters()
+            from .cutouts import check_cnc_shape
+            check_cnc_shape(item,params.CNCToolRadius)
+            if item['shape']!='Text':return True
+            if item['role'] in CAMERA_ROLES and params.CameraCageStyle!='Carbon side plates':raise ValueError('CNC text requires carbon camera side plates.')
+            check_text_web(item,0. if item['mode']=='Pocket' else max(params.MinimumWeb,item.get('auto_web',0.)))
+        except ValueError as exc:self.show_error(str(exc));return False
+        return True
+
     def add_pattern(self,*args):
-        old=list(self.patterns);self.patterns.append(self.draft())
+        item=self.draft()
+        if not self._check_lettering(item):return
+        old=list(self.patterns);self.patterns.append(item)
         if not self.publish(len(self.patterns)-1):self.patterns=old
 
     def apply_pattern(self,*args):
@@ -1489,6 +1625,7 @@ class AirflowEditor(QtWidgets.QWidget):
         if index<0:self.status.setText('Select a saved pattern first, or press Add pattern.');return
         old=list(self.patterns);updated=self.draft()
         updated['auto_web']=self.patterns[index].get('auto_web',0.)
+        if not self._check_lettering(updated):return
         if updated['shape']=='Web cell':updated['vertices']=[list(v) for v in self.patterns[index].get('vertices',[])]
         self.patterns[index]=updated
         if not self.publish(index):self.patterns=old
@@ -1499,6 +1636,7 @@ class AirflowEditor(QtWidgets.QWidget):
 
     def copy_camera(self,*args):
         pattern=self.draft();pattern['role']='CameraMountRight' if pattern['role']=='CameraMountLeft' else 'CameraMountLeft'
+        if not self._check_lettering(pattern):return
         old=list(self.patterns);self.patterns.append(pattern)
         if not self.publish(len(self.patterns)-1):self.patterns=old
 

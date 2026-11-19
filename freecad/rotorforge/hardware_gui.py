@@ -5,12 +5,15 @@ from . import hardware_refs as refs
 from .hardware_layout import HARDWARE_GROUPS
 class HardwareDialog(QtWidgets.QDialog):
  def __init__(self,frame):
-  super().__init__(Gui.getMainWindow());self.frame=frame;self.setWindowTitle('RotorForge — Hardware references');self.resize(540,420)
-  l=QtWidgets.QVBoxLayout(self);label=QtWidgets.QLabel('Simplified low-profile round button-head screws. Retention settings and real plate cuts are on Hardware → Nut retention in the frame editor. Optional FC press nuts sit below the raised stack; conventional upper nuts stay above it. VTX screws have no retaining nuts.');label.setWordWrap(True);l.addWidget(label)
+  super().__init__(Gui.getMainWindow());self.frame=frame;self.setWindowTitle('RotorForge — Hardware references');self.resize(540,460)
+  l=QtWidgets.QVBoxLayout(self);label=QtWidgets.QLabel('Show or hide screw groups and retaining nuts independently. These are visual hardware references only; actual nut seats and plate cuts are configured under Hardware → Nut retention in the frame editor.');label.setWordWrap(True);l.addWidget(label)
   self.o=refs.options(frame);self.groups={}
   for name in HARDWARE_GROUPS:
-   w=QtWidgets.QCheckBox(name);w.setChecked(name in self.o['groups']);self.groups[name]=w;l.addWidget(w)
-  self.nuts=QtWidgets.QCheckBox('Show arm retaining hardware');self.nuts.setChecked(self.o['nuts']);l.addWidget(self.nuts)
+   w=QtWidgets.QCheckBox(name);w.setChecked(name in self.o['groups'])
+   if name=='Camera screws':w.setToolTip('Screws securing the FPV camera body to its carbon or TPU side mounts.')
+   elif name=='TPU cage screws':w.setToolTip('The separate M3 screws securing the TPU camera cage to the carbon plates, including the four top screws used by an optional action-camera mount.')
+   self.groups[name]=w;l.addWidget(w)
+  self.nuts=QtWidgets.QCheckBox('Nuts and press nuts (independent of screws)');self.nuts.setChecked(self.o['nuts']);self.nuts.setToolTip('Show or hide all modelled retaining nuts and press nuts without hiding any screw. Screw groups above affect screws only.');l.addWidget(self.nuts)
   form=QtWidgets.QFormLayout();self.eng=QtWidgets.QDoubleSpinBox();self.eng.setRange(.5,10);self.eng.setValue(self.o['engagement']);self.eng.setSuffix(' mm');form.addRow('Nominal threaded engagement',self.eng);l.addLayout(form)
   self.status=QtWidgets.QLabel('References are excluded from manufacturing exports and do not add a second weight estimate.');self.status.setWordWrap(True);l.addWidget(self.status)
   for title,fn in [('Create / refresh references',self.refresh),('Hide references',lambda:self.visible(False)),('Show references',lambda:self.visible(True)),('Close',self.close)]:
@@ -22,7 +25,7 @@ class HardwareDialog(QtWidgets.QDialog):
   refs.set_visible(self.frame,on)
   if on:refs.sync_refs(self.frame)
  def refresh(self):
-  self.o.update(groups=[n for n,w in self.groups.items() if w.isChecked()],nuts=self.nuts.isChecked(),engagement=self.eng.value());s=refs.refresh(self.frame,self.o);self.status.setText(f'{len(s)} nominal button-head fasteners. Verify real screw lengths, head clearance and purchased inserts.')
+  self.o.update(groups=[n for n,w in self.groups.items() if w.isChecked()],nuts=self.nuts.isChecked(),engagement=self.eng.value());s=refs.refresh(self.frame,self.o);self.status.setText(f'{len(s)} modelled screw locations. Screw and nut visibility is independent; verify real hardware sizes and insert engagement.')
 class HardwareCommand:
  def GetResources(self):
   from .paths import icon_path

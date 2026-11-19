@@ -3,10 +3,28 @@ import math
 from .parameters import (arm_layouts,plate_levels,standoff_layouts,stack_holes,stack_reference_z,
                          stack_mounting_role,three_plate,arm_braces,underside_clamp_active)
 from .fpv import camera_mounts,camera_screw_offsets,camera_position_y,camera_pivot_height,camera_body_centre,vtx_holes,vtx_deck_z
+from .action_camera_mount import upper_cage_screw_lift
 
-HARDWARE_GROUPS=('Arm bolts','Motor screws','Standoff screws','Stack hardware','Camera screws','VTX hardware')
+HARDWARE_GROUPS=('Arm bolts','Motor screws','Standoff screws','Stack hardware','Camera screws','TPU cage screws','VTX hardware')
 SIZES={1.4:(2.6,1.4,3.2,.3,3.2,1.2),1.6:(3.,1.6,4.,.3,3.2,1.3),2.:(3.8,2.,5.,.3,4.,1.6),2.5:(4.5,2.5,6.,.5,5.,2.),3.:(5.5,3.,7.,.5,5.5,2.4),4.:(7.,4.,9.,.8,7.,3.2)}
-DEFAULT_OPTIONS=dict(groups=list(HARDWARE_GROUPS),nuts=True,engagement=3.)
+DEFAULT_OPTIONS=dict(groups=list(HARDWARE_GROUPS),nuts=True,engagement=3.,group_schema=2)
+
+def normalize_options(value=None):
+    """Migrate old combined camera/cage reference visibility once, then keep both independent.
+
+    Up to v0.92.97, 'Camera screws' controlled the FPV side screws and all TPU
+    cage M3 screws. The schema marker distinguishes old settings from a new
+    deliberate choice to turn off only one of the two groups.
+    """
+    raw=dict(value or {})
+    result={key:raw.get(key,default) for key,default in DEFAULT_OPTIONS.items()}
+    groups=list(result['groups'])
+    if 'groups' in raw and raw.get('group_schema',1)==1:
+        if 'Camera screws' in groups and 'TPU cage screws' not in groups:
+            groups.insert(groups.index('Camera screws')+1,'TPU cage screws')
+    result['groups']=groups
+    result['group_schema']=2
+    return result
 
 def metric_size(hole):
     """Use a nominal diameter below a clearance bore; never enlarge the hole."""
@@ -16,15 +34,12 @@ def hardware_layout(p,options=None):
     o=dict(DEFAULT_OPTIONS,**(options or {}));eng=float(o['engagement'])
     if not math.isfinite(eng) or not .5<=eng<=10:raise ValueError('Thread engagement must be between 0.5 and 10 mm.')
     levels=plate_levels(p);az=levels['arm_z'];stands=standoff_layouts(p);result=[]
-    def add(group,name,point,axis,hole,length,owner,nut=False):
-        if group not in o['groups']:return
+    def add(group,name,point,axis,hole,length,owner,nut=False,head='Round head'):
         d=metric_size(hole);hd,hh,wd,wt,nw,nh=SIZES[d]
         # Point is the supporting face; the round head sits outside the joint.
         result.append(dict(group=group,name=name,point=tuple(point),axis=tuple(axis),diameter=d,
-                           length=max(length,d),nut=bool(nut and (o['nuts'] or group=='Stack hardware')),
-                           nut_distance=length-nh if nut else 0.,owner=owner))
-    rootbottom=min(0.,az)- (p.UndersideClampThickness if underside_clamp_active(p) else 0.)
-    roottop=levels['mid_z']+p.ClampThickness if three_plate(p) else (levels['stack_deck_z'] if arm_braces(p) else max(p.BottomThickness,az+p.ArmThickness))
+                           length=max(length,d),nut=bool(nut),
+                           nut_distance=length-nh if nut else 0.,owner=owner,head=head))
     for a in arm_layouts(p):
         role='Arm'+a['name']
         for i,pt in enumerate(a['bolts']):
@@ -32,16 +47,18 @@ def hardware_layout(p,options=None):
             from .nut_seats import joint_seat
             seat=joint_seat(p,'Arm bolts',pt);d=metric_size(p.RootHoleDiameter);nh=SIZES[d][5]
             face=seat['z'];axis=seat['axis'];press=p.ArmNutMount=='M3 press nut';depth=seat['depth']
-            start=rootbottom if axis>0 else max(p.BottomThickness,az+p.ArmThickness)
+            from .screw_heads import arm_bolt_base, standoff_head
+            bearing_role,start,_,axis=arm_bolt_base(p,a,pt)
             length=abs(face-start)+(p.PressNutFlangeHeight-p.PressNutFlangeRecess if press else nh-depth)
-            add('Arm bolts',f'{a["name"]} root {i+1}',(*pt,start),(0,0,axis),p.RootHoleDiameter,length,role,True)
+            add('Arm bolts',f'{a["name"]} root {i+1}',(*pt,start),(0,0,axis),p.RootHoleDiameter,length,role,True,head=standoff_head(p,bearing_role))
             if result and result[-1]['name']==f'{a["name"]} root {i+1}':result[-1].update(seat=seat,press=press)
         for i,pt in enumerate(a['motor_holes']):add('Motor screws',f'{a["name"]} motor {i+1}',(*pt,az),(0,0,1),p.MotorHoleDiameter,p.ArmThickness+eng,role)
+    from .screw_heads import standoff_base, standoff_head
     for i,s in enumerate(stands):
-        add('Standoff screws',f'{s["position"]} {i+1} top',(*s['point'],levels['top_z']+p.TopThickness),(0,0,-1),p.StandoffHoleDiameter,p.TopThickness+min(eng,s['length']/2),'TopPlate')
+        add('Standoff screws',f'{s["position"]} {i+1} top',(*s['point'],levels['top_z']+p.TopThickness),(0,0,-1),p.StandoffHoleDiameter,p.TopThickness+min(eng,s['length']/2),'TopPlate',head=standoff_head(p,'TopPlate'))
         # Shared bolts pass through the complete arm sandwich into the standoff.
-        bottom=rootbottom if s['shared_arm'] else s['base']-(p.ClampThickness if s['mount']=='Mid plate' else p.ArmBraceThickness if s['mount']=='Arm clamp plate' else p.BottomThickness)
-        add('Standoff screws',f'{s["position"]} {i+1} base',(*s['point'],bottom),(0,0,1),p.StandoffHoleDiameter,s['base']-bottom+min(eng,s['length']/2),'MidPlate' if s['mount']=='Mid plate' else 'ArmClampPlate' if s['mount']=='Arm clamp plate' else 'BottomPlate')
+        seat_role,bottom,_=standoff_base(p,s)
+        add('Standoff screws',f'{s["position"]} {i+1} base',(*s['point'],bottom),(0,0,1),p.StandoffHoleDiameter,s['base']-bottom+min(eng,s['length']/2),'MidPlate' if s['mount']=='Mid plate' else 'ArmClampPlate' if s['mount']=='Arm clamp plate' else 'BottomPlate',head=standoff_head(p,seat_role))
     carrier=stack_mounting_role(p);deck=levels['stack_deck_z']
     thick=p.ClampThickness if carrier=='MidPlate' else p.ArmBraceThickness if carrier=='ArmClampPlate' else p.BottomThickness
     for i,pt in enumerate(stack_holes(p)):
@@ -77,10 +94,14 @@ def hardware_layout(p,options=None):
         # blind heat-set inserts (two per side on each plate). Previously the
         # optional hardware reference only modelled the lateral M2 camera
         # screws, so the actual cage fasteners never appeared in the assembly.
-        # Their positions are shared with the plate-hole and pocket builders.
+        # Their XY positions are shared with the plate-hole and pocket builders.
+        # An optional TPU action-camera base raises only the four TOP screw
+        # heads. Extend their shafts by the same amount so the engagement in
+        # the heat-set inserts stays identical; lower fasteners do not move.
         if p.CameraCageStyle == 'TPU cage':
             from .camera_cages import boss_x
             z_top=levels['top_z'] + p.TopThickness
+            top_mount_lift=upper_cage_screw_lift(p)
             for m in camera_mounts(p):
                 sign=-1 if m['role'].endswith('Left') else 1
                 x=boss_x(p,sign)
@@ -88,11 +109,13 @@ def hardware_layout(p,options=None):
                     ('BottomPlate',m['tabs_y'],0.,1,p.BottomThickness),
                     ('TopPlate',m['top_tabs_y'],z_top,-1,p.TopThickness)):
                     for i,y in enumerate(ys):
-                        add('Camera screws',
+                        add('TPU cage screws',
                             '%s %s cage M3 %d'%(m['role'],plate_name,i+1),
-                            (x,y,z),(0,0,axis),3.2,
-                            thickness+min(eng,float(p.CameraTPUInsertDepth)-.3),
-                            plate_name)
+                            (x,y,z+top_mount_lift if plate_name=='TopPlate' else z),
+                            (0,0,axis),3.2,
+                            thickness+(top_mount_lift if plate_name=='TopPlate' else 0.0)
+                            +min(eng,float(p.CameraTPUInsertDepth)-.3),
+                            plate_name,head=p.CameraCageScrewHead)
         deck=vtx_deck_z(p);thick=p.ClampThickness if three_plate(p) else p.BottomThickness
         for i,(pt,r,_) in enumerate(vtx_holes(p)[:4]):
             add('VTX hardware',f'VTX {i+1}',(*pt,deck-thick),(0,0,1),2*r,thick+eng,'MidPlate' if three_plate(p) else 'BottomPlate',False)

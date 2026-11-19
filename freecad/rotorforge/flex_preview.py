@@ -29,7 +29,26 @@ def camera_interface_path(p,w,h,lip=0.):
   path=scale.inverted()[0].map(large.united(stroke.createStroke(large)))
  return path
 
+from functools import lru_cache
+
 def flex_path(p,role):
+ return QtGui.QPainterPath(_flex_path_cached(p,role))
+
+@lru_cache(maxsize=48)
+def _flex_path_cached(p,role):
+ if role=='ActionCameraMount':
+  from .action_camera_mount import mount_layout
+  d=mount_layout(p);path=QtGui.QPainterPath()
+  if d is None:return path
+  x0,x1,y0,y1=d['box'];r=d['corner_radius']
+  path.addRoundedRect(QtCore.QRectF(x0,y0,x1-x0,y1-y0),r,r)
+  if d['nut']:
+   n=d['nut'];boss=QtGui.QPainterPath()
+   boss.addRect(QtCore.QRectF(n['start_x'],d['hinge_y']-n['radius'],n['end_x']-n['start_x'],2*n['radius']))
+   path=path.united(boss)
+  for x,y in d['screws']:
+   hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(x,y),1.65,1.65);path=path.subtracted(hole)
+  return path
  if role=='ELRSAntennaMount':
   from .elrs_preview import elrs_path
   return elrs_path(p)
@@ -181,27 +200,38 @@ def _guard_plan_cached(p,role):
   grip=QtGui.QPainterPath();grip.addEllipse(QtCore.QPointF(sx,sy),radius,radius)
   bridge=capsule_path(a,b,r);half=QtGui.QPainterPath();half.addRect(QtCore.QRectF(sx if sign>0 else sx-1000,-500,1000,1000))
   result=result.united(grip).united(bridge.intersected(half))
- from .protection_layout import closure_profile
+ from .protection_layout import closure_profile,guard_main_wall_x,guard_closure_wall_bounds,closure_stations
  closure=closure_profile(p,g)
  if closure:
   from .parameters import Parameters
   # Bottom silhouette is needed only for the optional full-height front panel.
-  plate=finished_part_path(p,'BottomPlate');polys=plate.toSubpathPolygons()
+  plate=finished_part_path(p,'BottomPlate',include_strap_notches=False);scale=QtGui.QTransform();scale.scale(20,20);polys=plate.toSubpathPolygons(scale)
   if polys:
    polygon=max(polys,key=lambda a:abs(sum(u.x()*v.y()-v.x()*u.y() for u,v in zip(a,list(a)[1:]+[a[0]]))))
-   contours['BottomPlate']=[(v.x(),v.y()) for v in polygon]
+   contours['BottomPlate']=[(v.x()/20,v.y()/20) for v in polygon]
+  samples=closure_stations(closure,contours=(contours.get('BottomPlate',[]),contours.get('TopPlate',[])))
   for start,(z,end) in zip(closure['starts'],closure['sections']):
-   low=closure['sections'][0][0];high=closure['sections'][-1][0];t=(z-low)/(high-low);points=[]
-   for i in range(13):
-    y=start+(end-start)*i/12
-    xb=outline_side_x(contours.get('BottomPlate',[]),y,sign);xt=outline_side_x(contours.get('TopPlate',[]),y,sign)
-    if xb is None:xb=outline_side_x(contours.get('BottomPlate',[]),min(y,closure['sections'][0][1]),sign)
-    if xt is None:xt=outline_side_x(contours.get('TopPlate',[]),min(y,closure['sections'][-1][1]),sign)
-    if xb is None or xt is None:continue
-    x=guard_wall_inner_x(p,xb*(1-t)+xt*t,sign);b=max(0.,min(1.,(y-(end-14))/14));b=b*b*(3-2*b)
-    points.append((x*(1-b)+closure['x']*b,y))
+   points=[];outer_points=[]
+   for y in samples:
+    main_y=min(y,closure['join'])
+    mb=outline_side_x(contours.get(g['lower_role'],[]),main_y,sign)
+    mt=outline_side_x(contours.get('TopPlate',[]),main_y,sign)
+    if mt is None:continue
+    main_low=g['z'] if mb is not None else g['inner_top']-10
+    if mb is None:mb=mt
+    main=(main_y,guard_wall_inner_x(p,mb,sign),guard_wall_inner_x(p,mt,sign),main_low)
+    main_x=guard_main_wall_x(p,g,main,z)
+    if y<=closure['join']:
+     x,outer_x=main_x,main_x+sign*p.FlexGuardWall
+    else:
+     xb=outline_side_x(contours.get('BottomPlate',[]),y,sign);xt=outline_side_x(contours.get('TopPlate',[]),y,sign)
+     if xb is None and y<g['front']-p.FlexGuardFrontInset:xb=outline_side_x(contours.get(g['lower_role'],[]),y,sign)
+     if xb is None and y<g['front']-p.FlexGuardFrontInset:xb=xt
+     if xb is None or xt is None:continue
+     x,outer_x=guard_closure_wall_bounds(p,g,closure,y,z,xb,xt,closure['x'],main_x)
+    points.append((x,y));outer_points.append((outer_x,y))
    if len(points)<2:continue
-   polygon=points+[(x+sign*p.FlexGuardWall,y) for x,y in points[::-1]]
+   polygon=points+outer_points[::-1]
    panel=QtGui.QPainterPath();panel.moveTo(*polygon[0])
    for point in polygon[1:]:panel.lineTo(*point)
    panel.closeSubpath();result=result.united(panel)

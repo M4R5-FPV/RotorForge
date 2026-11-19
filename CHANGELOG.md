@@ -1,3 +1,357 @@
+## v1.0.0 — First major release
+- Promote the tested v0.93.56 workbench to the 1.0 release baseline. Preserve design parameters, detailed preview, manufacturing geometry, and established performance optimizations.
+- Replace the bundled Help manual with a complete, text-only 30-chapter guide using the original cover and visual identity. Update the installation guide version.
+
+## v0.93.56 — Unified CNC perimeter cutter radius
+- Use the selected global CNC cutter radius for conservative Bottom/Mid outer-perimeter cleanup in the exact CAD and detailed 2D paths, replacing the fixed 2 mm cutter reference.
+- Tighten small-spur detection caps for smaller cutters without enlarging the existing maximum trim limits for larger cutters. Retain bearing-stock protection, validation, and original-blank fallback.
+- Report the actual cutter size and clarify optional cleanup failures. No changes to other CNC operations or preview rendering.
+
+## v0.93.55 — Local CAD operation optimization
+- Use verified straight-edge fillet edit bounds to avoid distant wire-distance and bearing-stock Boolean tests. Retain original exact checks for nearby geometry and non-linear edits, plus final CNC validation.
+- Group only provably separated side-guard opening cutters; preserve exact overlaps and fall back to the previous fusion on failure.
+- Skip disjoint LiPo rounding patch/hole intersections and report the accepted rounding substage timings. Keep exact offset, containment, and final solid checks.
+- No change to the editor or detailed 2D preview.
+
+## v0.93.54 — Targeted native geometry performance
+- Share the exact auxiliary unnotched top plate, native wire sections and carbon relief tools across both TPU side guards within a frame build, retaining independent lofts and validation.
+- Avoid provably disjoint guard and pad cutters, redundant full-reach pad clipping, and unnecessary isolated inner-cutout bearing-stock booleans. Preserve CNC radii and exact clearance checks.
+- Reuse the exact local FPV housing across sampled clearance angles with traced parameter dependencies.
+- Report detailed carbon, guard and LiPo geometry stage timings. No changes to the 2D preview.
+
+## v0.93.53 — Exact geometry generation performance
+- Build straight round-ended slots as a single analytic wire extrusion, with the previous Boolean construction retained as fallback.
+- Lazily evaluate CNC minimum-web distances using conservative enclosing bounds; reuse immutable wire endpoints and defect lists. All exact checks remain for unresolved cases.
+- Skip compound collision checks only when every pair of solid bounds has a strict separation; preserve exact intersections for possible contact.
+- Split LiPo pad and TPU intersections in build timing and report per-component build and collision timings. No 2D preview changes.
+
+## v0.93.52 — LiPo outline startup performance
+- Remove only sub-0.005 mm redundant vertices from the temporary eroded LiPo pad preview contour before the expensive native Qt dilation, retaining the original carrier, rounding radius, hole checks and legacy fallback.
+- Avoid redundant full-carrier clipping and clearance booleans for disjoint fasteners; reuse localized flush-seat containment tests.
+- Report individual LiPo carrier, clipping, erosion, dilation and clearance timings. No change to detailed overview drawing commands or manufactured solids.
+
+## v0.93.51 — Cold detailed-preview acceleration
+- Restrict native Qt point-in-profile tests to contours that can contain the probe, retaining the original curves and fill rule.
+- Reuse the exact detailed Fit-view image across FreeCAD sessions for identical visual settings, viewport and runtime. Cache is bounded; zoom and editing retain original vector rendering.
+- Report separate cold-preview timings for carbon, TPU, LiPo and airflow operations. No CNC or 3D geometry changes.
+
+## v0.93.50 — Editor startup / detailed preview rendering
+- Keep untouched settings pages outside the active Qt stacked-layout tree until first visited; all parameter controls and navigation remain available.
+- Draw the unchanged detailed preview directly into a native-resolution, DPI-aware pixmap at Fit view, avoiding QPicture texture serialization and replay during opening. Preserve vector rendering for zoom/pan and cache the fitted image within a bounded memory budget.
+- Report page construction, field widget construction, parameter restore, plate bounds, validation, preview build and actual paint timings separately.
+- No changes to the detailed drawing commands, CNC geometry, model generation, or render options.
+
+## v0.93.49 — Detailed editor performance
+- Reuse exact combined cutout paths between finished profiles and the overlay; preserve the same 100x Qt Boolean precision and selected CNC radius.
+- Cache complete detailed vector recordings across editor instances, with bounded memory and DPI/viewport-aware keys.
+- Reuse native carbon texture pixmaps and TPU front plan paths; avoid repeated fillet segment/turn calculations.
+- Record the opening preview after the initial editor layout and skip no-change debounced refreshes.
+- Dispose closed editor dialogs and their timers instead of retaining parent-owned widget trees.
+- Retain detailed overview as the default, all existing drawing operations, geometry, and manufacturing checks.
+
+## v0.93.48 — Restore detailed 2D preview
+- Default New frame and Edit frame to Detailed overview again; retain Fast overview as an explicit optional schematic.
+- Preserve the selected preview mode across parameter edits; fall back to Detailed overview if a selected part is no longer available.
+- Keep existing preview caching, CNC radius rules, and CAD/render pipelines unchanged.
+
+## v0.93.47 — Pre-1.0 performance and stability
+- Cache immutable parameter signature hashes and reuse snapshots in dependency-traced layout calculations.
+- Reuse motor centres, plate bounds, standoff pairs, standoff layouts and plate levels while retaining caller-owned mutable data and dependency invalidation.
+- Avoid duplicate component input fingerprints, repeated cutout parsing/encoding and unnecessary document property and BRep metadata reads.
+- Reduce redundant editor label updates and apply fixed DJI O4 Pro control states through the batched refresh mechanism.
+- Preserve existing CAD geometry rules, manufacturing validation, render settings and project compatibility.
+
+## v0.93.46 — System Pictures export location
+- Default all image renders and previews to the operating system’s Pictures folder via Qt, including redirected and localized locations. Manual save destinations remain available; project/look naming and collision protection are unchanged.
+
+## v0.93.45 — Render names and CNC cutter radius
+- Blender render exports include the selected look and receive a version suffix rather than overwrite an existing image.
+- Frame > Layout includes the CNC cutter radius, shared by carbon profile finishing, cutout construction and validation. Existing designs default to R0.5.
+
+## v0.93.44 — Clean render progress
+
+- Keep the Blender rendering progress dialog to a single status line; retain process output for error diagnostics.
+
+## v0.93.42 — Project-based export names
+
+- Use the current FreeCAD project label for default Quick/Studio render image names, preview names, frame export folders and individually saved JSON settings. Fall back to the saved project filename for generic labels, or Untitled for new RotorForge documents.
+- Sanitize invalid filename characters and preserve timestamp/collision handling for export folders. Keep manufacturing part filenames and export contents unchanged.
+
+## v0.93.41 — Creative studio lighting
+
+- Add nine distinct Blender studio looks: Neon Cyberpunk, Teal & Amber, Crimson Edge, Ice Blue, Violet & Gold, Overhead Softbox, Striplight Studio, Rim Silhouette and Pastel Editorial.
+- Add six independently selectable lighting arrangements, including rectangular stripboxes, overhead and frontal softboxes, cross and back lighting. Add a fourth adjustable accent light.
+- Advanced lighting controls include colour pickers for key, fill, rim, accent and ambient light, studio backdrop and floor, as well as AgX tonal contrast. Manual changes mark the look Custom; reset restores all look settings. White/Black/Transparent background overrides remain available.
+- Retain original looks, camera/flight and render-quality presets, seamless floor transition, conditional Blender-only controls and frame geometry. New controls are render-only and collapsed by default.
+
+## v0.93.40 — Conditional Blender controls & TPU cage edges
+
+- Hide Blender-only controls and the Studio Render engine choice when no valid Blender installation is selected. Keep all shared Quick Render settings and manual path, Browse and Auto-detect controls available.
+- Reveal Studio Render on detection or valid manual paths; return to Quick Render if the path becomes invalid. Avoid repeated installation discovery on ordinary UI changes.
+- Match TPU camera cage edge shading more closely to other printed parts, without changing its face colour, metal mounts or CAD geometry.
+
+## v0.93.39 — Cross-platform Blender discovery & seamless studio backdrop
+
+- Expand native installation discovery on Windows, macOS and Linux, including Steam library folders, common portable locations, per-user installations, Windows Store executable aliases and Snap paths.
+- Detect Blender Flatpak installations; stage only render job assets in a per-job directory and grant the renderer access for that launch.
+- Add Auto-detect, support manual executable paths and recover from missing saved paths. Persist the selected installation after successful rendering. No recursive drive scans or Blender launch during detection.
+- Blend the distant studio floor into the world backdrop using a smooth camera-only material transition. Preserve near-floor shadows and reflections without volumetric fog or subject blur.
+- Rendering quality settings, geometry and existing design controls are unchanged. Cross-platform launch, sandbox behavior and backdrop appearance require live testing.
+
+## v0.93.38 — High-quality studio rendering
+
+- Add independent Fast, Balanced, High Quality (default), Ultra Quality and Custom rendering presets. Default Blender output is 4K when detected; resolution remains independent of quality.
+- Expose maximum/minimum samples, adaptive noise threshold, denoising toggle, pixel filter width and finer 0.04/0.02 mm rendering mesh options. Use guided high-quality OpenImageDenoise where supported and keep camera depth of field disabled.
+- Keep preview renders at up to 960 px and 16 samples with standard mesh detail; final renders use the selected settings. Export final PNG at 16-bit per channel and JPEG at maximum quality.
+- No changes to frame geometry, editor, lighting/pose presets, viewport matching or manufacturing export. Syntax and isolated settings tests; live FreeCAD/Blender verification pending.
+
+## v0.93.37 — Match FreeCAD viewport
+
+- Add a Blender camera mode capturing the actual FreeCAD camera position, orientation, projection and field of view. Preserve pan and perspective; widen for output aspect or edge safety without moving the camera.
+- Default to viewport matching when Blender is available; existing pose presets and orientation-only auto-fit remain available.
+- Disable manual projection and focal length while matching the viewport. No changes to geometry or materials.
+- Syntax and isolated camera-math checks; live FreeCAD/Blender verification pending.
+
+## v0.93.36 — Studio-only rendering
+
+- Remove outdoor landscape look presets, Outdoor Flight pose and outdoor HDRI controls and rendering code.
+- Retain the original ten studio looks, nine pose presets including flight and hover, propeller blur, transparent PNG export and v0.93.35 perspective camera controls and focal lengths.
+- Validation: Python syntax and isolated preset regression checks; live FreeCAD and Blender testing remains pending.
+
+## v0.93.35
+- Made Blender studio renders clearly support perspective views.
+- Renamed projection choices to distinguish Perspective from Orthographic CAD-style rendering.
+- Lowered default studio focal lengths so renders no longer look unintentionally orthographic.
+- Updated pose presets and flight presets to use more natural perspective-friendly focal lengths.
+
+## v0.93.34 — Outdoor flight environments
+
+- Add Outdoor — Field & Forest and Outdoor — Golden Hour looks, plus an independent Outdoor Flight composition with low perspective, forward pitch, roll and prop blur.
+- Generate a seeded metre-scale meadow, grass, mixed woodland and sunlight exclusively inside the external Blender render process. Outdoor ground distance and light azimuth are adjustable; no extra dependencies, download, CAD regeneration or editor initialization.
+- Optionally load a local equirectangular HDR/EXR environment for photographic scenery and illumination. Panorama rotation is adjustable; an HDRI replaces the procedural scenery and does not provide a physical ground or contact shadows. Perspective projection is recommended.
+- Preserve existing studio presets and all manufacturing geometry. Syntax and isolated preset tests only; actual Blender and FreeCAD rendering remains unverified.
+
+## v0.93.33 — Studio looks and flight poses
+
+- Rename the engine selector to Studio Render (Blender); Cycles remains the internal rendering engine.
+- Add six independent look presets: Soft Dark Studio, High Contrast Studio, White Catalog, Warm Product Shot, Technical Gray and Showroom. Preserve the original four looks and their indices.
+- Add nine composition presets, including hovering, forward flight and aggressive flight. Custom changes and reset actions are independent for lighting and camera/pose.
+- Add render-only pitch, roll, yaw, flight height, shadow, propeller blur and forward composition margin controls. Spin uses lightweight annular exposure-coverage meshes with coloured transparent shaders and sharp hubs for detailed prop references, not a physical motion simulation. Hidden references remain hidden.
+- Fit the transformed assembly and prop sweep bounds in the final aspect ratio; reserve forward margin before fitting. Flight effects are available only in Blender and do not change any CAD solids, saved frame parameters or manufacturing exports.
+- Validation: syntax and isolated preset/framing tests; live Blender and FreeCAD testing remains pending.
+
+## v0.93.32 — True black TPU
+
+- Give the Black printed-part finish a dedicated neutral near-black (#080808) rather than borrowing the blue-grey propeller finish. Use the same opaque colour in native 3D, editor previews, swatches and Studio Render. Preserve all other colours, propeller finishes, saved selection names and geometry.
+- Validation: Python syntax and isolated palette regression checks; live FreeCAD and Blender verification remains pending.
+
+## v0.93.31 — Responsive frame editor startup
+
+- Initialize Airflow / outlines and virtual FPV camera workspaces only on first use; retain control search, saved patterns, and the existing unapplied-edit protection.
+- Open New / Edit frame in Fast overview, a lightweight schematic of the frame, motor/prop and mounting locations, basic component envelopes and bounded cutout markers. Detailed overview and individual part previews remain available from the existing preview selector. The fast schematic deliberately omits fine contour/TPU/texture details and is not a manufacturing check.
+- Avoid repeated parameter normalization for unchanged editor inputs, unused detailed plate paths and duplicate arm paths. Cache the 2D carbon texture composition in memory; do not alter the native 3D or Studio texture pipeline.
+- Avoid repacking identical navigation rows and emitting degenerate Bezier curves in the detailed 2D fillet preview; preserve normal validation and native CAD fillet/geometry generation.
+- Add one-line editor startup timings to the FreeCAD Report view, separating widget construction, initial validation/control updates, and initial preview recording. This is diagnostic instrumentation, not a measured end-to-end speedup.
+- Validation: Python syntax and isolated model/preview logic tests; live FreeCAD/PySide verification remains pending.
+
+## v0.93.30 — Motor and prop finishes, studio materials and editor startup
+
+- Expand the propeller palette from 13 to 30 finishes, including tinted clear and neon-clear choices, and share the new shades with the TPU palette. Use dedicated tinted polycarbonate transmission, IOR and roughness in Studio Render; keep original saved colour names.
+- Add 13 motor bell colours under Arms > Motor references, shared by the FreeCAD viewport and Studio Render. Preserve copper windings, mounting feet, shafts and nuts; colour-only edits avoid shape generation.
+- Prioritize fastener material classification over TPU camera cage role prefixes.
+- Retune dark/cinematic lighting and low-key contrast; differentiate matte TPU from satin carbon without changing selected base colours or requiring carbon weave. Add subtle shader-only polymer grain.
+- Share equivalent Blender materials; skip unused face palette and weave classification work.
+- Defer initial editor validation until after first window exposure; avoid recording an obsolete default-frame preview. Keep Create/Update disabled until validation completes.
+- Streamline loaded cutout list normalization, avoid repeat draft/title work, and cache preview-only TPU and LiPo text paths.
+- Validation: source-level and pure-Python checks; live FreeCAD and Blender tests pending.
+
+## v0.93.29 — Incremental performance and studio colour correction
+
+- Reuse drilled structural plate and arm blanks across machining-only edits using a bounded native cache with parameter dependency tracking. Keep downstream machining and exact geometry checks intact.
+- Reuse assembly collision bounds and propeller clearance probes; eliminate repeated intersections and unnecessary null-shape allocations.
+- Reduce redundant document cache priming, native shape copies, BRep serialization and hardware parameter reads; index component cache lookups by role and reuse manifest serialization.
+- Optimize preview path caching, parameter hashing, disk cache encoding and LiPo pad bounds calculations.
+- Recalibrate studio light power for metre-scaled geometry, with distinct brightness levels per preset, darker studio floors and lower unwanted reflections. Preserve configured carbon, TPU and propeller colours and restore detailed reference face palettes when available.
+- Validation: Python syntax and isolated cache/dependency, colour/power, archive and default parameter checks passed. Live FreeCAD geometry and Blender image output require local testing; no full-build speedup measured.
+
+## v0.93.28 — Render Studio presets and automatic framing
+
+- Apply complete Dark Studio, Light Studio, Cinematic and Clay Render lighting presets, with manual adjustments, Custom state and reset to the selected base preset.
+- Separate backdrop and ambient lighting; add independent rim light, world strength and ground roughness, rebalance Cycles light intensity and use camera-relative light placement and AgX contrast.
+- Preserve configured carbon, TPU and detailed propeller colours and read modern FreeCAD per-face appearance; use distinct surface finishes instead of a uniform grey look.
+- Fit the full visible drone mesh to the output aspect ratio in perspective and orthographic projections; balance projected bounds using camera position and lens shift. The default zoom reserves at least 6% of the image dimension on each edge; lower zoom adds space.
+- Skip UV generation for untextured parts. CAD generation, geometry and manufacturing exports remain unchanged.
+- Camera fit mathematical tests cover 2,250 simulated perspective/orthographic configurations; live FreeCAD/Blender testing remains pending.
+
+## v0.93.27 — Experimental Render Studio and performance pass
+
+- Add a separate Render Studio command with high-resolution FreeCAD viewport export and optional external Blender Cycles rendering, without generating or changing CAD parts.
+- Add camera angles, framing, preview export, resolution, studio lighting presets, material roughness, exposure, ground plane, transparent PNG, CPU / NVIDIA device selection and cancelable external rendering.
+- Transfer visible frame solids and hardware, per-face reference colours and carbon weave/edge textures; keep the original CAD geometry and use display-only tessellation.
+- Cache complete parameter validation and memoization field indexes, avoid duplicate appearance work on old geometry, reduce repetitive document property lookups and skip LiPo groove cutters fully removed by lettering reservations.
+- Experimental: FreeCAD and Blender GUI/runtime validation remains necessary; no measured full-build speedup claimed.
+
+## v0.93.26 — Custom LiPo pad lettering
+
+- Add optional blind lettering to the battery-facing LiPo pad surface, with five fixed orientations/positions, independent XY offsets and inset from either end.
+- Choose from 17 portable lettering designs with regular, bold, italic or bold italic styles; adjust height, width scale, stroke diameter, character spacing, depth and the smooth area on each side/end of the lettering.
+- Keep grip grooves outside the reserved text area and preserve mounting/strap/airflow openings; reject lettering that crosses the finished pad or compromises the backing.
+- Show lettering and the reserved area in the individual pad preview. Printable STL and STEP contain the lettering; the ungrooved DXF/SVG outline stays unchanged. Existing designs default to lettering off.
+
+## v0.93.25 — Plate-following LiPo pad corner radius
+
+- Enable the pad corner radius control for Mounting plate outline and round its outside perimeter after width and reach adjustments. Preserve internal openings, screw clearances, and the carbon carrier; zero keeps the unrounded carrier outline.
+- Apply the same operation in the 2D preview and the manufactured/exported pad; reduce the effective radius when the outline cannot safely accommodate it.
+
+## v0.93.24 — Structural countersinks and LiPo pad screw coverage
+
+- Apply plate screw-head settings to non-shared arm bolts and shared joints on exposed arm roots or clamp plates. Motor, VTX and FC stack screws are unchanged.
+- Add optional coverage of flush screws by the LiPo pad; preserve round-head clearances, structural openings and defaults.
+- Keep the ungrooved LiPo outline export consistent with its airflow and screw coverage settings.
+
+## v0.93.23 — Optional countersunk fasteners and airflow shape mirroring
+
+- Separate round/countersunk screw-head settings for top, mid and bottom plate standoff mounts and TPU cage screws. Countersinks are machined at the actual screw-head seat; motor hardware is unchanged.
+- Add local U/V shape reflection to Airflow / Outlines, including text and asymmetric profiles.
+- Preserve through-cut DXF/SVG profiles and record countersinks separately in machining reports.
+
+## v0.93.22 — Extended CNC engraving font selection
+
+- Add Aerospace, Cyber, Industrial, Extended, Narrow, Reverse italic, Rounded italic, Racing block, Digital and Slab serif engraving styles. All eighteen built-in lettering styles use blind pockets.
+- Preserve the existing styles, minimum cutter diameter, half-thickness pocket depth, preview and manufacturing export integration.
+
+## v0.93.21 — Expanded CNC engraving styles
+
+- Add Block, Compact, Racing, Rounded and Serif engraving styles; retain Technical, Italic and Dot matrix. All listed CNC fonts are selectable and use blind pockets only.
+- Replace obsolete Block/Compact stencil topology with pocket cutter strokes; saved stencil patterns migrate to their matching engraving style at the original dimensions and 1 mm stroke. Keep the existing dot-matrix geometry and technical/italic lettering dimensions.
+- Show live minimum fit dimensions for the chosen text and cutter diameter; preserve the R0.5 minimum tool radius and half-thickness limit.
+
+## v0.93.20 — Blind CNC engraving
+
+- Replace the selectable stencil fonts with Technical and Italic centre-line engraving, using exact round-ended cutter strokes of at least 1 mm diameter. Text is limited to blind pockets; older through-text patterns become shallow pockets at their saved depth.
+- Keep legacy lettering geometry readable, retain half-thickness depth validation, and fuse overlapping engraving strokes per glyph before CAD machining and pocket-outline export.
+- Update preview and minimum-size fitting to support readable compact labels without imposing through-cut web spacing within letters.
+
+## v0.93.19 — Compact CNC lettering
+
+- Add Compact stencil as the default font for new text patterns. Separate narrow rounded cutter strokes from material gaps and fit only the clearance bands needed by the glyphs and between characters.
+- Retain R0.5, through-cut minimum web and final plate clearance/connectivity checks; allow smaller shallow lettering using Pocket.
+- Keep the original Block stencil and Dot matrix dimensions and saved contours unchanged. Update the lettering controls and fit guidance.
+
+## v0.93.18 — CNC lettering and side guard closure contour repair
+
+- Add Text to Airflow / Outlines, with two self-contained CNC lettering styles, adjustable size, rotation, placement, dot diameter and a minimum-size fit tool.
+- Use analytic R0.5-or-larger cutter profiles; preserve stencil bridges, minimum web and plate/fastener clearance validation. Support through cuts and half-thickness-limited pockets, including all glyph contours in machining exports.
+- Keep the exterior of the combined plate-and-camera side guard closure on the plate-following profile. Guide only the inside of the panel toward recessed camera cages, avoiding outward landing flares.
+
+## v0.93.17 — Front side guard contour control
+
+- Add a front closure contour selector: both plate outlines and camera cage, plate outlines only, camera cage only, or either individual plate and camera cage.
+- In the combined mode, anchor both carbon-edge lips to the finished plate profiles and steer the free wall toward the cage with a local landing.
+- Sample both finished carrier outlines through the forward closure; update the plan preview and preserve the existing seam overlap and clearance operations.
+
+## v0.93.16 — Continuous side guard front closure
+
+- Start the camera enclosure before the lower carrier ends instead of leaving a gap beside the foremost standoff.
+- Match the closure to the existing wall cross section in the shared overlap and then blend to the camera landing; synchronize both schematic and plan previews.
+- Keep same-height motor-wire opening segments continuous rather than cutting separate rounded slivers at the transition.
+
+## v0.93.15 — Simplify detailed LiPo reference
+
+- Remove the external main and balance connectors, their contacts and wire harnesses from the detailed LiPo reference.
+- Preserve the pack dimensions, cell layers, placement and clearance envelope.
+
+## v0.93.14 — Optional M5 action-camera nut recess
+
+- Add an optional reinforced hex-nut seat on the outside of the action-camera hinge, with a continuous M5 bore.
+- Preserve the original three-finger mount when disabled and update its inspection preview.
+
+## v0.93.13 — LiPo reference connector geometry
+
+- Join both main power leads to the XT60-style connector and attach the balance-lead harness to its plug.
+- Keep contact details within the balance connector housing rather than leaving them detached.
+- Preserve the editable 3S–8S battery reference dimensions, battery clearance envelope, and all manufacturing geometry.
+
+## v0.93.12 — Side guard camera enclosure correction
+
+- Correct the forward-side guard closure for sloped camera walls. Its forward
+  edge now uses one consistent reach rather than following the rear edge of
+  the camera side plate at every height, avoiding the triangular extension.
+- Keep the preview and actual 3D profile consistent and retain the existing
+  plate-edge fit, wire access, camera openings and mount clearances.
+
+## v0.93.11 — Correct front-closing electronics side guards
+
+- Repair front-closing TPU side guards for every frame layout when a camera cage's
+  sloping rear edge extends behind the foremost posts at upper heights.
+- Keep the rear closure seam stationary and extend only its forward edge toward
+  the camera cage; eliminate the large backward-folding triangular transition.
+- Preserve front-post coverage, carbon-plate reliefs, camera screw access,
+  normal motor-wire cutouts and all existing side-guard options.
+
+## v0.93.10 — Rear antenna mount cleanup
+
+- Restored the proven rear VTX antenna mount and removed the discontinued experimental extension.
+- Left all other workbench features and the bundled Help manual unchanged.
+
+## v0.93.0 — Restore independent motor-screw visibility
+
+- Fix shared hardware-reference objects that made Motor screws follow Arm bolts (and could also couple standoff, TPU cage and VTX screws on shared plates). Each screw group now has its own independently controlled reference object per component.
+- Keep nuts and press nuts independently selectable; do not change mounting positions, reference screw dimensions, carbon geometry or manufacturing exports.
+- Migrate existing frame hardware references on the next refresh, preserving saved display preferences and the global visibility setting. The new grouping affects display objects only.
+
+## v0.92.99 — Export choices and independent nut references
+
+- Added an export selection dialog for native FreeCAD CAM solids, STEP assembly, DXF and SVG cutting profiles, printable STL/STEP components, and manufacturing reports. Existing generated CAM solids can be removed only by explicit selection and confirmation.
+- Separated modelled nuts and press nuts from screw geometry in Hardware References. Nut visibility is controlled by its own checkbox, independently of individual screw-group visibility; hardware retention geometry remains unchanged.
+
+## v0.92.98 — Separate camera and TPU cage hardware references
+
+- Split the hardware references window into independent **Camera screws** (FPV camera-to-side-mount screws) and **TPU cage screws** (M3 screws securing the TPU cage to the carbon plates).
+- Preserve the geometry, mounting locations and lengths of both fastener sets, including the four raised upper cage screws with the optional action-camera mount.
+- Migrate older saved hardware-display preferences so the original combined camera-screw visibility choice initially applies to both groups; once separated, each choice persists independently in the FreeCAD project and saved JSON.
+- Leave all manufacturing geometry, frame parameters, exports and the bundled manual unchanged.
+
+## v0.92.97 — Native 3D solids for CAM cutting sheets
+
+- Export keeps the existing exact DXF/SVG cutting profiles and material-separated layout files on disk.
+- The cutting layout embedded in the FreeCAD document now contains flattened **3D carbon solids** instead of planar faces. Existing snapshots are replaced in place on the next export.
+- Preserve machined depths and surfaces, including blind airflow pockets, nut seats and countersinks, in the native CAM parts while maintaining the DXF/SVG through-cut profiles unchanged.
+- Retain thickness groups, original per-part labels/links, alternating arm orientation and the established gaps and stock coordinates. Each part is placed on the stock plane at Z=0.
+- The CAM solids are a manufacturing snapshot; re-export after editing frame parameters and create CAM jobs from the individual solids as needed.
+
+## v0.92.96 — HD action-camera mount preview and hardware positioning
+
+- Name the removable action-camera mount correctly in the 2D editor view selector and individual-part previews.
+- Raise the four top TPU-cage M3 hardware reference heads to the added action-camera mounting base and increase shaft lengths by the same amount, preserving insert engagement.
+- Leave bottom TPU cage screws, carbon holes and all other fasteners unchanged when the mount is enabled; disabled configurations retain their previous geometry.
+
+## v0.92.95 — Optional TPU action-camera mount
+
+- Optional separate TPU mount for the unified TPU camera cage, secured through its four existing upper M3 screws.
+- Standard three-finger, M5-bolt action-camera hinge with adjustable height, fore/aft position and base thickness.
+- Included in FreeCAD assembly, printable STEP/STL exports, part lists and mass estimates; preserves existing frame settings when disabled.
+
+## v0.92.94 — Walksnail HD Pro mounting compatibility
+
+- Repair older saved Walksnail HD Pro designs that still contain zero side-screw spacing: use the two-M2 6 mm vertical pattern and convert legacy single-pivot mounts to two fixed round mounting holes per side.
+- Selecting the Walksnail HD Pro camera now starts in Fixed mode with two round holes on each side. Variable mounting remains available via the editor and uses two adjustable slots, or one pivot and one arc slot.
+- Keep positive user-measured screw spacings, other camera profiles, and custom measurements unchanged.
+- Clarify the editor's distinction between physical screw count and the holes/slots used by an adjustable carbon side plate.
+
+## v0.92.93 — Walksnail Avatar HD Pro side-screw pattern
+
+- Correct the Walksnail Avatar HD Pro physical camera profile from one M2 screw per side to two M2 screws per side, using the reported 6 mm vertical centre spacing.
+- Let existing fixed and adjustable carbon/TPU mount generation, reference markers, side-plate openings, screw quantities and exported mounting information use the corrected two-screw profile automatically when selected.
+- Keep previously saved custom screw spacings unchanged until the camera is deliberately reselected, avoiding silent alterations to existing designs.
+- Preserve all other camera profiles, geometry, reference settings, and the bundled user manual.
+
+## v0.92.92 — TPU cage 22 mm camera wall compatibility
+
+- Repair a false X-bound violation in the straight TPU camera hard-mount wall when changing from a 19 mm camera to a wider 22 mm camera, including the Foxeer T-Rex Mini.
+- If the plate-following contact spline overshoots the fixed wall interval, regenerate only that contact with an X-bounded, shape-preserving spline. The original smooth wall remains the default.
+- Preserve the carbon-plate outer contour, fixed M3 socket positions, inner camera clearance, minimum TPU wall, and existing solid validity and interference checks. Physical width conflicts remain errors.
+
 ## v0.92.91 — Bundled user manual
 
 - Include the newly written RotorForge user manual directly in the workbench package.
@@ -1991,7 +2345,7 @@ Release history is listed newest first. The Help PDF describes the current featu
 
 ## 0.57.0
 
-- Redesign the combined rear mount around one open, shared low yoke with local VTX gussets, two ELRS handles per crossbar and a single aft GPS pocket.
+- Redesign the combined rear mount around one open, shared low yoke with local VTX gussets and two ELRS handles per crossbar.
 - Kept full ELRS crossbar insertion axes, local T-junction clearance and underside cable routes clear after all fittings are fused. Add a measured ELRS stem/cable clearance control.
 - Preserved independent accessory switches, connector choices, widths, tilt and two/four actual rear-standoff selection. Keep four-point bracing/windows between the post rows.
 - Make closed internal-opening fillets independently opt-in for each plate and the clamp pair; outside corners and edge notches continue using the selected radius.
@@ -2022,7 +2376,6 @@ Release history is listed newest first. The Help PDF describes the current featu
 ## 0.53.0
 
 - Arrange VTX above the low GPS/ELRS tier. Place GPS at the outermost rear, with ELRS ahead of it.
-- Added signed GPS tray pitch with a supported floor and side gussets.
 - Added scaled plain side-plate silhouettes for camera pads and captured inserts, excluding locating tabs. Keep the original outline and tilt screw paths.
 - Added independent bottom/mid/top perimeter fillets and a shared clamp fillet, with fastener and slot support checks.
 - Integrate controls and exact geometry illustrations into the Help.
@@ -2401,3 +2754,7 @@ Release history is listed newest first. The Help PDF describes the current featu
 - Mount arms below the bottom in two-plate mode, with no mid geometry, mass, STEP solid, or cutting profile.
 - Updated live preview, validation, exports, presets, and example documents.
 - Added support for updating existing 0.1 documents and presets.
+
+## v0.93.43
+- Balanced studio lighting so the drone front no longer renders darker than the rear on some look presets.
+- Added a subtle automatic front-balance light that preserves dramatic looks without flattening them.
