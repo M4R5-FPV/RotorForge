@@ -108,7 +108,8 @@ def antenna_reference(p,role):
     if role=='ELRSTReference':
         if not p.FlexELRSEnabled or not p.ShowELRSTReference:
             return Part.Shape(), ()
-        return _compound(_elrs_parts(p,elrs_layout(p),elrs_spec(p)))
+        l=elrs_layout(p)
+        return _compound(_elrs_parts(p,l,elrs_spec(p)))
     raise ValueError('Unknown display-only antenna reference: '+role)
 
 

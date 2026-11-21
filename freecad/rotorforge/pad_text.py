@@ -60,7 +60,8 @@ def validate_pad_text(p):
                       ('OffsetX',-300,300),('OffsetY',-300,300)):
         v=getattr(p,'LiPoPadText'+key)
         if not math.isfinite(v) or not lo<=v<=hi:return [f'LiPo pad text {key} must be between {lo:g} and {hi:g}.']
-    if p.LiPoPadTextDepth>p.LiPoPadThickness-.3+1e-9:
+    from .battery import pad_projection
+    if p.LiPoPadTextDepth>pad_projection(p)-.3+1e-9:
         return ['LiPo pad lettering must leave at least 0.3 mm continuous backing. Reduce text depth or increase pad thickness.']
     try:local_letters(p.LiPoPadText,p.LiPoPadTextFont,p.LiPoPadTextStyle,p.LiPoPadTextHeight,p.LiPoPadTextWidthScale,p.LiPoPadTextStroke,p.LiPoPadTextSpacing)
     except (ValueError,TypeError) as exc:return ['LiPo pad lettering: '+str(exc)]

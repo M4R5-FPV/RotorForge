@@ -1,10 +1,20 @@
 """LiPo placement and printable/grip-pad layout; CAD imports remain lazy."""
 import math
 from .pad_text import PAD_TEXT_FIELDS,validate_pad_text,text_layout,text_cutters
+# (saved checkbox, lateral half, longitudinal half); 0 spans both halves.
+# Frame coordinates: negative X is left, positive Y is front.
+LIP_PAD_OPTIONS={
+ 'Single':(),
+ 'Left / right':(('LiPoPadLipLeft',-1,0),('LiPoPadLipRight',1,0)),
+ 'Front / rear':(('LiPoPadLipFront',0,1),('LiPoPadLipRear',0,-1)),
+ 'Four parts':(('LiPoPadLipFrontLeft',-1,1),('LiPoPadLipFrontRight',1,1),
+               ('LiPoPadLipRearLeft',-1,-1),('LiPoPadLipRearRight',1,-1)),
+}
+LIP_PAD_FIELDS=frozenset(name for options in LIP_PAD_OPTIONS.values() for name,_,_ in options)
 BATTERY_FIELDS={'BatteryReferenceEnabled','BatteryWidth','BatteryLength','BatteryHeight','BatteryMass',
  'BatteryMount','BatteryX','BatteryY','BatteryRotation','LiPoPadEnabled','LiPoPadWidth','LiPoPadLength',
  'LiPoPadFrontReach','LiPoPadRearReach','LiPoPadOutlineWidthScale','LiPoPadOutlineLengthScale','LiPoPadThickness','LiPoPadShape','LiPoPadCornerRadius','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','LiPoPadPattern',
- 'LiPoPadGrooveWidth','LiPoPadGrooveDepth','LiPoPadGroovePitch','LiPoPadDensity'} | PAD_TEXT_FIELDS
+ 'LiPoPadPatternRelief','LiPoPadSideLips','LiPoPadLipHeight','LiPoPadLipWidth','LiPoPadLipEndInset','LiPoPadGrooveWidth','LiPoPadGrooveDepth','LiPoPadGroovePitch','LiPoPadDensity','LiPoPadLayout','LiPoPadSplitGap','LiPoPadPocketNumber','LiPoPadPocketClearance'} | PAD_TEXT_FIELDS | LIP_PAD_FIELDS
 
 def battery_point(p,x,y):
  a=math.radians(p.BatteryRotation);c,s=math.cos(a),math.sin(a)
@@ -15,19 +25,76 @@ def mounting_role(p):return 'TopPlate' if p.BatteryMount=='Top plate' else 'Bott
 def battery_levels(p):
  from .parameters import plate_levels
  top=plate_levels(p)['top_z']+p.TopThickness
- t=p.LiPoPadThickness if p.LiPoPadEnabled else 0.
- if p.BatteryMount=='Top plate':return dict(pad_z=top,battery_z=top+t)
- return dict(pad_z=-t,battery_z=-t-p.BatteryHeight)
+ t=pad_projection(p) if p.LiPoPadEnabled else 0.
+ rise=grip_rise(p) if p.LiPoPadEnabled else 0.
+ if p.BatteryMount=='Top plate':return dict(pad_z=top,battery_z=top+t+rise)
+ return dict(pad_z=-t,battery_z=-t-rise-p.BatteryHeight)
 
-GRIP_PATTERNS=('Solid','Transverse grooves','Cross grooves','Longitudinal grooves','Diagonal grooves','Diamond grooves','Chevron grooves','Zigzag grooves','Rectangular rings','Dimple grid','Staggered dimples','Dash grid','Basket weave','Hexagon cells','Wavy grooves','Brick joints','Herringbone','Plus grid','X grid','Square islands','Diamond islands','Triangular lattice','Ladder grooves','Interrupted ribs','Fish scale grooves')
+GRIP_PATTERNS=('Solid','Transverse grooves','Cross grooves','Longitudinal grooves','Diagonal grooves','Diamond grooves','Chevron grooves','Zigzag grooves','Rectangular rings','Dimple grid','Staggered dimples','Dash grid','Basket weave','Hexagon cells','Honeycomb','Wavy grooves','Brick joints','Herringbone','Plus grid','X grid','Square islands','Diamond islands','Triangular lattice','Ladder grooves','Interrupted ribs','Fish scale grooves')
 MAX_GRIP_SEGMENTS=512
 
+def grip_rise(p):
+ return p.LiPoPadGrooveDepth if p.LiPoPadPattern!='Solid' and p.LiPoPadPatternRelief=='Embossed' else 0.
+
+def requested_lip_sides(p):
+ return {'Off':(), 'Both sides':(-1,1), 'Left side':(-1,), 'Right side':(1,)}.get(p.LiPoPadSideLips,())
+
+def _lip_sections(p,side):
+ """Selected Y halves on this outer side; 0 means the whole length."""
+ if p.LiPoPadLayout=='Single':return (0,)
+ return tuple(y for name,x,y in LIP_PAD_OPTIONS.get(p.LiPoPadLayout,())
+              if x in (0,side) and getattr(p,name))
+
+def lip_sides(p):
+ return tuple(side for side in requested_lip_sides(p) if _lip_sections(p,side))
+
+def lip_regions(p,bounds,edges,split_bounds=None):
+ """Rectangular wall footprints on the straight, global X extrema only.
+
+ Edges are endpoint pairs of straight exterior segments in frame coordinates.
+ The unsplit battery-facing outline defines the left/right limits; a recessed
+ parallel edge or a diagonal/rounded transition can never seed a wall.
+ The preview and the exact CAD use the same selection and split rules.
+ """
+ x0,y0,x1,y1=bounds;w=x1-x0;inset=p.LiPoPadLipEndInset
+ sides=lip_sides(p)
+ if not sides:return ()
+ if y1-y0<=2*inset or w<=0:raise ValueError('Side lip end inset consumes the pad length.')
+ width=p.LiPoPadLipWidth
+ if width>w/3:raise ValueError('Side lip width must not exceed one third of the finished pad width.')
+ # Numerical tolerance only, independent of wall thickness. Do not treat
+ # a near-maximum or sloped edge as an outermost straight segment.
+ eps=1e-5;segments=tuple(edges);result=[]
+ sb=split_bounds if split_bounds is not None else bounds;cy=(sb[1]+sb[3])/2
+ for side in sides:
+  x=x0 if side<0 else x1
+  sections=_lip_sections(p,side);lo,hi=y0+inset,y1-inset
+  if 0 not in sections and len(sections)==1:
+   if sections[0]>0:lo=max(lo,cy+p.LiPoPadSplitGap/2)
+   else:hi=min(hi,cy-p.LiPoPadSplitGap/2)
+  if hi<=lo:continue
+  spans=[]
+  for (ax,ay),(bx,by) in segments:
+   if abs(ax-x)>eps or abs(bx-x)>eps or abs(bx-ax)>eps:continue
+   start=max(lo,min(ay,by));end=min(hi,max(ay,by))
+   if end-start>eps:spans.append((start,end))
+  # Merge adjacent collinear fragments, but never bridge a physical notch.
+  merged=[]
+  for start,end in sorted(spans):
+   if merged and start<=merged[-1][1]+eps:
+    merged[-1]=(merged[-1][0],max(end,merged[-1][1]))
+   else:merged.append((start,end))
+  a,b=(x,x+width) if side<0 else (x-width,x)
+  result.extend((side,(a,start,b,end)) for start,end in merged)
+ return tuple(result)
+
+
 def grip_point(p,x,y):
- return (x,y) if p.LiPoPadShape=='Mounting plate outline' else battery_point(p,x,y)
+ return (x,y) if p.LiPoPadShape in ('Mounting plate outline','Pocket insert') else battery_point(p,x,y)
 
 def grip_bounds(p,bounds):
  """Convert the finished frame-space pad bounds to the pattern coordinate system."""
- if p.LiPoPadShape=='Mounting plate outline':return bounds
+ if p.LiPoPadShape in ('Mounting plate outline','Pocket insert'):return bounds
  xmin,ymin,xmax,ymax=bounds;a=math.radians(p.BatteryRotation);c,s=math.cos(a),math.sin(a)
  pts=[((x-p.BatteryX)*c+(y-p.BatteryY)*s,-(x-p.BatteryX)*s+(y-p.BatteryY)*c) for x in (xmin,xmax) for y in (ymin,ymax)]
  return min(x for x,y in pts),min(y for x,y in pts),max(x for x,y in pts),max(y for x,y in pts)
@@ -80,15 +147,22 @@ def groove_segments(p,bounds=None):
     for d in (-pitch*.3,pitch*.3):
      if (i+j)%2:add((x+d,y-pitch*.7),(x+d,y+pitch*.7))
      else:add((x-pitch*.7,y+d),(x+pitch*.7,y+d))
- if kind=='Hexagon cells':
-  radius=pitch;dy=math.sqrt(3)*radius;dx=1.5*radius;seen=set()
+ if kind in ('Hexagon cells','Honeycomb'):
+  # Legacy hexagons use radius; Honeycomb specifies the distance across flats.
+  radius=pitch if kind=='Hexagon cells' else pitch/math.sqrt(3);dy=math.sqrt(3)*radius;dx=1.5*radius;seen=set()
   for i in range(math.floor((xmin-radius)/dx),math.ceil((xmax+radius)/dx)+1):
    for j in range(math.floor((ymin-radius)/dy)-1,math.ceil((ymax+radius)/dy)+1):
     x,y=i*dx,j*dy+(dy/2 if i%2 else 0)
     pts=tuple((x+radius*math.cos(k*math.pi/3),y+radius*math.sin(k*math.pi/3)) for k in range(6))
     for a,b in zip(pts,pts[1:]+pts[:1]):
      key=tuple(sorted((tuple(round(v,7) for v in a),tuple(round(v,7) for v in b))))
-     if key not in seen:seen.add(key);add(a,b)
+     if key not in seen:
+      seen.add(key)
+      # Keep the denser honeycomb bounded by the actual padded rectangle.
+      if kind=='Honeycomb':
+       r=p.LiPoPadGrooveWidth/2
+       if max(a[0],b[0])+r<xmin or min(a[0],b[0])-r>xmax or max(a[1],b[1])+r<ymin or min(a[1],b[1])-r>ymax:continue
+      add(a,b)
  if kind=='Wavy grooves':
   step=pitch/2
   for j in grid(ymin-pitch,ymax+pitch):
@@ -159,7 +233,8 @@ def clipped_grip_segments(p,segments,bounds):
 def validate_battery(p):
  errors=validate_pad_text(p)
  for name in (BATTERY_FIELDS-PAD_TEXT_FIELDS)|{'StandoffDensity'}:
-  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk'):continue
+  if name in LIP_PAD_FIELDS:continue
+  if name in ('BatteryX','BatteryY','BatteryRotation','BatteryMount','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadShape','LiPoPadPattern','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','LiPoPadLayout','LiPoPadSplitGap','LiPoPadPocketNumber','LiPoPadPocketClearance','LiPoPadPatternRelief','LiPoPadSideLips','LiPoPadLipHeight','LiPoPadLipWidth','LiPoPadLipEndInset'):continue
   if name.startswith('LiPoPad') and not p.LiPoPadEnabled:continue
   if name in ('LiPoPadFrontReach','LiPoPadRearReach'):
    if p.LiPoPadShape=='Mounting plate outline' and (not math.isfinite(getattr(p,name)) or getattr(p,name)<0):errors.append('Pad front/rear reaches must be finite and non-negative (zero means full plate).')
@@ -172,18 +247,36 @@ def validate_battery(p):
    if p.LiPoPadShape=='Rounded rectangle' and not 0<=p.LiPoPadCornerRadius<min(p.LiPoPadWidth,p.LiPoPadLength)/2:errors.append('Pad corner radius must be smaller than half the shorter pad dimension.')
    if p.LiPoPadShape=='Mounting plate outline' and (not math.isfinite(p.LiPoPadCornerRadius) or p.LiPoPadCornerRadius<0):errors.append('Plate-following pad corner radius must be finite and non-negative.')
   elif getattr(p,name)<=0:errors.append(name+' must be greater than zero.')
+ if p.LiPoPadEnabled:
+  if p.LiPoPadPatternRelief not in ('Debossed','Embossed'):errors.append('Unknown LiPo grip relief.')
+  if p.LiPoPadSideLips not in ('Off','Both sides','Left side','Right side'):errors.append('Unknown LiPo side lip setting.')
+  elif lip_sides(p):
+   for name,low,high in (('LiPoPadLipHeight',.2,20),('LiPoPadLipWidth',.3,12),('LiPoPadLipEndInset',0,100)):
+    value=getattr(p,name)
+    if not math.isfinite(value) or not low<=value<=high:errors.append(f'{name} must be {low:g}–{high:g} mm.')
+  if p.LiPoPadLayout not in ('Single','Left / right','Front / rear','Four parts'):errors.append('Unknown LiPo pad layout.')
+  if p.LiPoPadLayout!='Single' and not .1<=p.LiPoPadSplitGap<=50:errors.append('LiPo pad split gap must be 0.1–50 mm.')
+  if p.LiPoPadShape=='Pocket insert':
+   if not 0<=p.LiPoPadPocketClearance<=5:errors.append('Pocket fit clearance must be 0–5 mm per side.')
+   try:
+    depth=pocket_depth(p)
+    if p.LiPoPadThickness+1e-8<2*depth:errors.append(f'Pocket insert total thickness must be at least {2*depth:g} mm (twice the deepest selected pocket, {depth:g} mm).')
+   except ValueError as exc:errors.append(str(exc))
  if not -180<=p.BatteryRotation<=180:errors.append('Battery rotation must be between -180 and 180 degrees.')
  if p.LiPoPadEnabled and p.LiPoPadPattern!='Solid':
-  if p.LiPoPadGrooveDepth>=p.LiPoPadThickness:errors.append('Pad grooves must leave a continuous backing: groove depth must be less than pad thickness.')
+  if p.LiPoPadPatternRelief=='Debossed' and p.LiPoPadGrooveDepth>=pad_projection(p):errors.append('Pad grooves must leave a continuous backing: groove depth must be less than the pad height above carbon.')
   if p.LiPoPadGroovePitch<=p.LiPoPadGrooveWidth:errors.append('Pad groove pitch must exceed groove width.')
   if p.LiPoPadGroovePitch>0:
    try:
-    if p.LiPoPadShape=='Mounting plate outline':
+    if p.LiPoPadShape=='Pocket insert':
+     # Exact pocket bounds and grip density are validated at CAD generation.
+     bounds=None
+    elif p.LiPoPadShape=='Mounting plate outline':
      from .parameters import top_bounds,bottom_bounds
      rear,front=top_bounds(p) if p.BatteryMount=='Top plate' else bottom_bounds(p);rear,front=pad_reach_bounds(p,rear,front);w=max(p.TopWidth,p.TopCentreWidth) if p.BatteryMount=='Top plate' else max(p.BodyWidth,p.BottomCentreWidth);w*=p.LiPoPadOutlineWidthScale/100
      bounds=(-w/2,rear,w/2,front)
     else:bounds=None
-    groove_segments(p,bounds)
+    if p.LiPoPadShape!='Pocket insert':groove_segments(p,bounds)
    except ValueError as exc:errors.append(str(exc))
  return errors
 
@@ -224,7 +317,7 @@ def pad_parameters_without_airflow(p):
  plate. Do this only during exact CAD creation, never for a 2-D preview.
  None means there is no difference and avoids rebuilding a second plate.
  """
- if p.LiPoPadCopyAirflow or (p.LiPoPadShape!='Mounting plate outline' and not p.LiPoPadFollowPlate):
+ if p.LiPoPadShape=='Pocket insert' or p.LiPoPadCopyAirflow or (p.LiPoPadShape!='Mounting plate outline' and not p.LiPoPadFollowPlate):
   return None
  from .cutouts import parse_patterns,encode_patterns
  from .parameters import Parameters
@@ -255,7 +348,7 @@ def pad_standoff_clearance(p):
 
 def pad_flush_seats(p):
  """Only flush heads on the actual battery-facing carbon surface."""
- if not p.LiPoPadCoverCountersunk:return ()
+ if p.LiPoPadShape=='Pocket insert' or not p.LiPoPadCoverCountersunk:return ()
  from .screw_heads import countersink_specs
  role=mounting_role(p);axis=-1 if role=='TopPlate' else 1
  return tuple(s for s in countersink_specs(p,role) if s['axis']==axis)
@@ -272,7 +365,7 @@ def pad_fastener_clearances(p):
  active, also protect any remaining proud hardware at the battery face.
  """
  clearances=[(*pt,pad_standoff_clearance(p)) for pt in pad_standoff_points(p)]
- if not p.LiPoPadCoverCountersunk:return tuple(clearances)
+ if p.LiPoPadShape!='Pocket insert' and not p.LiPoPadCoverCountersunk:return tuple(clearances)
  from .hardware_layout import hardware_layout,SIZES
  from .parameters import plate_levels
  top=mounting_role(p)=='TopPlate';z=plate_levels(p)['top_z']+p.TopThickness if top else 0.
@@ -374,6 +467,240 @@ def round_pad_outline(shape,radius):
  return shape
 
 
+def layout_count(p):
+ return {'Single':1,'Left / right':2,'Front / rear':2,'Four parts':4}[p.LiPoPadLayout]
+
+
+def split_rectangles(p,bounds):
+ """Frame-aligned gap rectangles, centred on the finished pad bounds."""
+ if p.LiPoPadLayout=='Single':return ()
+ x0,y0,x1,y1=bounds;cx,cy=(x0+x1)/2,(y0+y1)/2;g=p.LiPoPadSplitGap;out=[]
+ if p.LiPoPadLayout in ('Left / right','Four parts'):
+  if g>=x1-x0:raise ValueError('LiPo pad split gap consumes its width.')
+  out.append((cx-g/2,y0-1,g,y1-y0+2))
+ if p.LiPoPadLayout in ('Front / rear','Four parts'):
+  if g>=y1-y0:raise ValueError('LiPo pad split gap consumes its length.')
+  out.append((x0-1,cy-g/2,x1-x0+2,g))
+ return tuple(out)
+
+
+def split_pad(p,shape):
+ import FreeCAD as App
+ import Part
+ b=shape.BoundBox
+ for x,y,w,h in split_rectangles(p,(b.XMin,b.YMin,b.XMax,b.YMax)):
+  shape=shape.cut(Part.makeBox(w,h,b.ZLength+.04,App.Vector(x,y,b.ZMin-.02))).removeSplitter()
+ return shape
+
+
+def pocket_choices(p):
+ """Saved pattern rows; the selection travels with the pattern, not its number."""
+ from .cutouts import parse_patterns
+ n=p.LiPoPadPocketNumber
+ if not math.isfinite(n) or n< -1 or n!=int(n):raise ValueError('Invalid pocket selector.')
+ return tuple((i,v, bool(v['pad_insert']) if n==-1 else n in (0,i))
+              for i,v in enumerate(parse_patterns(p.CutoutPatterns),1)
+              if v['role']=='TopPlate' and v['mode']=='Pocket')
+
+
+def pocket_patterns(p):
+ from .cutouts import pattern_instances
+ if p.BatteryMount!='Top plate':raise ValueError('Pocket inserts require a top-mounted battery: bottom plate pockets are machined from the inner face.')
+ selected=[v for _,v,checked in pocket_choices(p) if checked and v['enabled']]
+ if not selected:raise ValueError('Select one or more enabled top-plate pockets using Choose pockets in the LiPo pad settings.')
+ return tuple(dict(v,_cnc_radius=p.CNCToolRadius) for pattern in selected for v in pattern_instances(pattern))
+
+
+def pocket_depth(p):
+ return max(v['depth'] for v in pocket_patterns(p))
+
+
+def pad_projection(p):
+ """Thickness is total at the deepest selected floor; all tops are level.
+ Invalid/incomplete selections remain editable in the preview.
+ """
+ if p.LiPoPadShape=='Pocket insert':
+  try:return max(0.,p.LiPoPadThickness-pocket_depth(p))
+  except ValueError:return max(0.,p.LiPoPadThickness)
+ return p.LiPoPadThickness
+
+
+def pocket_pad(p,carrier,surface):
+ """Build a common, level top and stepped underside from actual machined floors.
+ The clearance is applied to the union outline, then to each deeper step.
+ """
+ import FreeCAD as App
+ import Part
+ from .airflow_geometry import profile_tool
+ from .cutouts import parse_patterns
+ from .pocket_regions import planar_union
+ patterns=pocket_patterns(p);depth=max(v['depth'] for v in patterns);top=surface+p.LiPoPadThickness-depth;eps=1e-6
+ if p.LiPoPadThickness+1e-8<2*depth:raise ValueError('Pocket insert must be at least twice the deepest selected pocket depth.')
+ def merge(faces):return planar_union(faces,surface)
+ def intersect(first,second):
+  # Common can leave coplanar fragments. Merge before offsetting, or
+  # fit clearance becomes an unintended gap along each source contour.
+  return merge(first.common(second).Faces)
+ def inset(region):
+  out=[];clearance=p.LiPoPadPocketClearance
+  for face in region.Faces:
+   if face.Area<=eps:continue
+   if clearance<=1e-9:out.append(face);continue
+   try:
+    offset=face.makeOffset2D(-clearance,join=0)
+    if not offset.Faces and offset.Wires:offset=Part.makeFace(offset.Wires,'Part::FaceMakerBullseye')
+    fitted=intersect(offset,face)
+    if fitted is None or fitted.Area>=face.Area-1e-7 or not fitted.isValid():raise ValueError('Invalid offset.')
+    if min(a.distToShape(b)[0] for a in fitted.Wires for b in face.Wires)<clearance-1e-5:raise ValueError('Insufficient clearance.')
+    out.extend(fitted.Faces)
+   except Exception as exc:raise ValueError('Pocket fit offset failed; reduce clearance or enlarge the selected pocket/step.') from exc
+  return merge(out)
+ # Project cutter footprints onto one plane. Only selected cuts define
+ # the desired underside depth; an unrelated deeper crossing may leave
+ # a gap below the insert, never silently become part of its design.
+ profiles_by_depth={}
+ for v in patterns:
+  tool=profile_tool(v,surface,.02)
+  profiles_by_depth.setdefault(v['depth'],[]).extend(f for f in tool.Faces if f.BoundBox.ZLength<eps and abs(f.CenterOfMass.z-surface)<eps)
+ selection=merge([f for faces in profiles_by_depth.values() for f in faces])
+ if selection is None:raise ValueError('Selected pockets have no planar profile.')
+ # Clip to projected actual machined floors, preserving through-holes,
+ # plate edges and unrelated material above the selected recesses.
+ depths={v['depth'] for v in parse_patterns(p.CutoutPatterns) if v['enabled'] and v['role']=='TopPlate' and v['mode']=='Pocket'}
+ floor_faces=[]
+ for f in carrier.Faces:
+  if f.BoundBox.ZLength<eps and f.normalAt(0,0).z>.99999 and any(abs(f.CenterOfMass.z-(surface-d))<eps for d in depths):
+   floor_faces.append(f)
+ floors=merge(floor_faces)
+ if floors is None:raise ValueError('No usable machined pocket floor found for the chosen pockets.')
+ usable=intersect(floors,selection)
+ if usable is None:raise ValueError('No usable machined pocket floor found for the chosen pockets.')
+ footprint=inset(usable)
+ if footprint is None or not footprint.Faces:raise ValueError('Pocket fit leaves no printable pad area.')
+ # Extrude each complete footprint from its shallowest floor to the
+ # finished top. Deeper extensions overlap only below the upper surface.
+ selected_depths=sorted(profiles_by_depth);shallow=selected_depths[0]
+ solids=[]
+ for f in footprint.Faces:
+  face=f.copy();face.translate(App.Vector(0,0,-shallow))
+  solids.append(face.extrude(App.Vector(0,0,top-surface+shallow)))
+ for i,d in enumerate(selected_depths[1:],1):
+  cumulative=merge([f for dd in selected_depths[i:] for f in profiles_by_depth[dd]])
+  if cumulative is None:raise ValueError('Selected pocket step has no planar profile.')
+  step=intersect(cumulative,usable)
+  if step is None:raise ValueError('Selected pocket step has no usable floor.')
+  lower=inset(step)
+  if lower is None:raise ValueError('Pocket step leaves no printable pad area.')
+  region=intersect(lower,footprint)
+  if region is None:raise ValueError('Pocket step leaves no printable pad area.')
+  for f in region.Faces:
+   face=f.copy();face.translate(App.Vector(0,0,-d))
+   solids.append(face.extrude(App.Vector(0,0,d+min(.02,(top-surface)/2))))
+ shape=solids[0].multiFuse(solids[1:]) if len(solids)>1 else solids[0]
+ if shape.isNull() or not shape.isValid() or not shape.Solids:raise ValueError('Cannot fuse the selected pocket inserts. Adjust the pocket layout or clearance.')
+ pieces=[s.removeSplitter() for s in shape.Solids]
+ for piece in pieces:
+  caps=[f for f in piece.Faces if f.BoundBox.ZLength<eps and abs(f.CenterOfMass.z-top)<eps]
+  if not piece.isValid() or len(caps)!=1:raise ValueError('Pocket insert could not form a seamless top surface; adjust the pocket layout.')
+ return pieces[0] if len(pieces)==1 else Part.makeCompound(pieces)
+
+
+def _surface_faces(shape,level):
+ """Exact flat battery-facing caps, independent of face orientation."""
+ return [f for f in shape.Faces if f.BoundBox.ZLength<1e-6 and abs(f.BoundBox.ZMin-level)<1e-6 and f.Area>1e-8]
+
+
+def side_lip_faces(p,unsplit,level):
+ """Seed straight walls from exact exterior line edges of the unsplit cap.
+ No directional outline offset: that would also raise notches and shoulders.
+ The final material and split masks retain holes and separate pad pieces.
+ """
+ import FreeCAD as App
+ import Part
+ if not lip_sides(p):return ()
+ caps=_surface_faces(unsplit,level)
+ if not caps:raise ValueError('Cannot find the pad surface for retaining lips.')
+ boxes=[f.optimalBoundingBox(False) for f in caps]
+ bounds=(min(b.XMin for b in boxes),min(b.YMin for b in boxes),max(b.XMax for b in boxes),max(b.YMax for b in boxes))
+ edges=[]
+ line_types=(Part.Line,Part.LineSegment)
+ for cap in caps:
+  for edge in cap.OuterWire.Edges:
+   if not isinstance(edge.Curve,line_types) or len(edge.Vertexes)!=2:continue
+   a,b=(v.Point for v in edge.Vertexes)
+   edges.append(((a.x,a.y),(b.x,b.y)))
+ b=unsplit.BoundBox
+ regions=lip_regions(p,bounds,edges,(b.XMin,b.YMin,b.XMax,b.YMax))
+ result=[];found=set()
+ for side,(x0,y0,x1,y1) in regions:
+  pts=[App.Vector(x,y,level) for x,y in ((x0,y0),(x1,y0),(x1,y1),(x0,y1),(x0,y0))]
+  window=Part.Face(Part.makePolygon(pts))
+  for cap in caps:
+   band=cap.common(window).removeSplitter()
+   faces=[f for f in band.Faces if f.Area>1e-7]
+   if faces:result.extend(faces);found.add(side)
+ for side in lip_sides(p):
+  if side not in found:
+   App.Console.PrintWarning('RotorForge LiPo pad: no straight outermost '+('left' if side<0 else 'right')+' edge in the selected pad section; no retaining lip added on that side.\n')
+ return tuple(result)
+
+
+def _surface_prism(piece,level,sign,inside,outside):
+ import FreeCAD as App
+ import Part
+ caps=_surface_faces(piece,level)
+ solids=[]
+ for cap in caps:
+  f=cap.copy();f.translate(App.Vector(0,0,-sign*inside))
+  solids.append(f.extrude(App.Vector(0,0,sign*(inside+outside))))
+ if not solids:raise ValueError('Cannot locate the battery-facing pad surface for raised features.')
+ return solids[0] if len(solids)==1 else Part.makeCompound(solids)
+
+
+def _add_pad_relief(p,base,level,sign,grip_tools,lip_faces,layout,projection):
+ """Fuse real raised geometry onto each original pad solid separately.
+ Mask everything by the original cap including holes and split gaps.
+ """
+ import FreeCAD as App
+ import Part
+ from .geometry_bounds import box_distance
+ rise=grip_rise(p)
+ lip_height=rise+p.LiPoPadLipHeight if lip_faces else 0.
+ # Lip bases extend beneath recesses so a cross-groove cannot detach a wall.
+ inset=min(projection,.02+(p.LiPoPadGrooveDepth if p.LiPoPadPattern!='Solid' and not rise else 0.))
+ lip_tools=[]
+ for face in lip_faces:
+  f=face.copy();f.translate(App.Vector(0,0,-sign*inset))
+  lip_tools.append(f.extrude(App.Vector(0,0,sign*(inset+lip_height))))
+ keep=None
+ if layout:
+  x0,y0,x1,y1=layout[2];h=max(rise,lip_height)+inset+2
+  keep=Part.makeBox(x1-x0,y1-y0,2*h,App.Vector(x0,y0,level-h))
+ result=[];added_grip=False;added_lips=False
+ for piece in base.Solids:
+  additions=[]
+  for tools,inside,outside,is_lip in ((grip_tools,.02,rise,False),(lip_tools,inset,lip_height,True)):
+   if not tools:continue
+   mask=_surface_prism(piece,level,sign,inside,outside);mb=mask.BoundBox
+   for tool in tools:
+    if box_distance(mb,tool.BoundBox)>1e-7:continue
+    clipped=tool.common(mask)
+    if clipped.Solids and keep is not None and box_distance(clipped.BoundBox,keep.BoundBox)<=1e-7:clipped=clipped.cut(keep)
+    valid=[a for a in clipped.Solids if a.Volume>1e-8]
+    if valid:
+     additions.extend(valid)
+     if is_lip:added_lips=True
+     else:added_grip=True
+  if additions:
+   merged=piece.multiFuse(additions).removeSplitter()
+   if not merged.isValid() or len(merged.Solids)!=1:raise ValueError('Raised pad features did not fuse into one printable piece. Adjust the pattern or lips.')
+   result.append(merged)
+  else:result.append(piece)
+ if grip_tools and not added_grip:raise ValueError('No embossed pattern fits the finished pad. Adjust spacing or lettering.')
+ if lip_faces and not added_lips:raise ValueError('No retaining lip fits the finished pad. Adjust the lip or lettering dimensions.')
+ return result[0] if len(result)==1 else Part.makeCompound(result)
+
+
 def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
  import FreeCAD as App
  import Part
@@ -384,21 +711,28 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
   nonlocal tick
   now=time.perf_counter();stages.append((label,now-tick));tick=now
  z=battery_levels(p)['pad_z']
+ projection=pad_projection(p)
+ pocket=p.LiPoPadShape=='Pocket insert'
+ if pocket:
+  shape=pocket_pad(p,carrier,z)
+  mark('pocket floor and fit')
  # The secondary plate is constructed only at Create/Update when the user
  # wants the LiPo pad to bridge carbon airflow openings. All mounting and
  # strap access holes are retained; the finished carbon plate is unchanged.
  if carrier_without_airflow is not None:
   carrier=carrier_without_airflow
- seats=pad_flush_seats(p)
+ seats=pad_flush_seats(p) if not pocket else ()
  # The lower plate's actual screw rims are on ZMin, not its inner upper face.
  sign=-1 if seats and p.BatteryMount=='Bottom plate' else 1
- faces=[f for f in carrier.Faces if sign*f.normalAt(0,0).z>.99999]
+ faces=[f for f in carrier.Faces if sign*f.normalAt(0,0).z>.99999] if not pocket else []
  if seats:
   surface=seats[0]['z'];faces=[f for f in faces if abs(f.CenterOfMass.z-surface)<1e-6]
   if not faces:raise ValueError('Could not locate the battery-facing screw seating plane.')
- face=max(faces,key=lambda f:f.Area).copy();face.translate(App.Vector(0,0,z-face.CenterOfMass.z))
- if seats:face=pad_face_with_flush_holes(p,face,seats)
- if p.LiPoPadShape=='Mounting plate outline':
+ if not pocket:
+  face=max(faces,key=lambda f:f.Area).copy();face.translate(App.Vector(0,0,z-face.CenterOfMass.z))
+  if seats:face=pad_face_with_flush_holes(p,face,seats)
+ if pocket:pass
+ elif p.LiPoPadShape=='Mounting plate outline':
   shape=face.extrude(App.Vector(0,0,p.LiPoPadThickness))
   if p.LiPoPadOutlineWidthScale!=100:
    # Scale only the outer boundary; carrier holes remain in their real positions.
@@ -426,21 +760,31 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
   if p.LiPoPadFollowPlate:shape=supported
   mark('carrier and reach clipping')
  from .geometry import cylinder
- tools=[cylinder(x,y,r,z-.01,p.LiPoPadThickness+.02) for x,y,r in pad_fastener_clearances(p)]
+ low=shape.BoundBox.ZMin
+ tools=[cylinder(x,y,r,low-.01,z+projection-low+.02) for x,y,r in pad_fastener_clearances(p)]
  shape_bounds=shape.BoundBox
  tools=[tool for tool in tools if box_distance(shape_bounds,tool.BoundBox)<=1e-6]
  if tools:shape=shape.cut(Part.makeCompound(tools)).removeSplitter()
  mark('fastener clearances')
+ if shape.isNull() or not shape.Solids:raise ValueError('LiPo pad has no material after clearances.')
+ surface_sign=-1 if p.BatteryMount=='Bottom plate' else 1
+ surface=z if surface_sign<0 else z+projection
+ lips=side_lip_faces(p,shape,surface) if grooves and lip_sides(p) else ()
+ shape=split_pad(p,shape)
+ pieces=len(shape.Solids)
+ if pieces==0:raise ValueError('Split gap leaves no printable pad material.')
+ if not pocket and pieces!=layout_count(p):raise ValueError('LiPo pad layout did not produce the requested number of connected pieces. Adjust gap, outline or openings.')
+ mark('pad splits')
  # The outline-only export deliberately omits all shallow surface machining.
  layout=None
  grip_box=None
  if grooves and p.LiPoPadTextEnabled:
-  if shape.isNull() or len(shape.Solids)!=1:raise ValueError('LiPo pad must be connected before lettering; adjust the pad outline or openings.')
+  if shape.isNull():raise ValueError('LiPo pad is empty before lettering.')
   box=grip_box=shape.optimalBoundingBox(False)
   layout=text_layout(p,(box.XMin,box.YMin,box.XMax,box.YMax))
   if layout:
    depth=p.LiPoPadTextDepth
-   bottom=z if p.BatteryMount=='Bottom plate' else z+p.LiPoPadThickness-depth
+   bottom=z if p.BatteryMount=='Bottom plate' else z+projection-depth
    # Use one set of cutters. Exact overlap must equal the designed depth;
    # the remaining 0.01 mm is deliberately outside the battery-facing surface.
    outside=z-.01 if p.BatteryMount=='Bottom plate' else bottom
@@ -451,7 +795,9 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
      raise ValueError('LiPo pad lettering crosses the pad edge or an opening. Move the text, reduce its size or choose another position.')
  if grooves:
   from .geometry import capsule
-  bottom=z-.01 if p.BatteryMount=='Bottom plate' else z+p.LiPoPadThickness-p.LiPoPadGrooveDepth
+  rise=grip_rise(p)
+  bottom=(surface-rise if surface_sign<0 else surface-.02) if rise else (z-.01 if surface_sign<0 else surface-p.LiPoPadGrooveDepth)
+  tool_height=rise+.02 if rise else p.LiPoPadGrooveDepth+.01
   box=grip_box if grip_box is not None else shape.optimalBoundingBox(False);bounds=grip_bounds(p,(box.XMin,box.YMin,box.XMax,box.YMax))
   segments=clipped_grip_segments(p,groove_segments(p,bounds),(box.XMin,box.YMin,box.XMax,box.YMax))
   radius=p.LiPoPadGrooveWidth/2
@@ -460,12 +806,12 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
    # A capsule wholly inside the reserved rectangle is removed by the old
    # cutter subtraction anyway. Skip creating its OCC solid entirely.
    eps=1e-7
-   if p.LiPoPadGrooveDepth<p.LiPoPadThickness:
+   if p.LiPoPadGrooveDepth<projection:
     segments=tuple((a,b) for a,b in segments if not (min(a[0],b[0])-radius>x0+eps and max(a[0],b[0])+radius<x1-eps and min(a[1],b[1])-radius>y0+eps and max(a[1],b[1])+radius<y1-eps))
-  tools=[capsule(a,b,radius,bottom,p.LiPoPadGrooveDepth+.01) for a,b in segments]
+  tools=[capsule(a,b,radius,bottom,tool_height) for a,b in segments]
   if layout:
    x0,y0,x1,y1=layout[2]
-   keep=Part.makeBox(x1-x0,y1-y0,p.LiPoPadThickness+.04,App.Vector(x0,y0,z-.02))
+   keep=Part.makeBox(x1-x0,y1-y0,projection+2*rise+.04,App.Vector(x0,y0,z-rise-.02))
    trimmed=[]
    for tool in tools:
     b=tool.BoundBox
@@ -476,11 +822,36 @@ def make_pad(p,carrier,grooves=True,carrier_without_airflow=None):
   shape_bounds=shape.BoundBox
   tools=[tool for tool in tools if box_distance(shape_bounds,tool.BoundBox)<=1e-6]
   mark('grip and lettering tools')
-  if tools:shape=shape.cut(Part.makeCompound(tools)).removeSplitter()
+  if rise and not tools:raise ValueError('No embossed grip pattern fits the pad. Adjust spacing or lettering.')
+  if rise or lips:
+   # Raise real ribs/walls on the uncut backing. Protect the wall footprint
+   # from recess cutters so cross-grooves cannot undermine the side walls.
+   if lips and not rise and tools:
+    protected=[]
+    for f in lips:
+     face=f.copy();face.translate(App.Vector(0,0,-surface_sign*(p.LiPoPadGrooveDepth+.02)))
+     protected.append(face.extrude(App.Vector(0,0,surface_sign*(p.LiPoPadGrooveDepth+.04))))
+    clipped=[]
+    for tool in tools:
+     for wall in protected:
+      if not tool.Solids:break
+      if box_distance(tool.BoundBox,wall.BoundBox)<=1e-7:tool=tool.cut(wall)
+      if not tool.Solids:break
+     clipped.extend(tool.Solids)
+    tools=clipped
+   shape=_add_pad_relief(p,shape,surface,surface_sign,tools if rise else (),lips,layout,projection)
+  if tools and not rise:
+   # Honeycomb has shared vertices; fuse its overlapping capsules into a
+   # valid cutter rather than subtracting an overlapping compound.
+   cutters=(tools[0].multiFuse(tools[1:]).removeSplitter() if len(tools)>1 else tools[0]) if p.LiPoPadPattern=='Honeycomb' else Part.makeCompound(tools)
+   shape=shape.cut(cutters).removeSplitter()
   if layout:shape=shape.cut(Part.makeCompound(letter_tools)).removeSplitter()
   mark('grip and lettering booleans')
- if shape.isNull() or not shape.isValid() or len(shape.Solids)!=1:
-  raise ValueError('LiPo pad must remain one connected part after plate cuts and 6 mm standoff clearances. Adjust its width/reaches or simplify cuts.')
+ if shape.isNull() or not shape.isValid() or len(shape.Solids)!=pieces or any(s.Volume<=1e-7 for s in shape.Solids):
+  raise ValueError('LiPo pad pieces must remain connected after grooves and lettering. Adjust the layout or surface details.')
+ if pocket and shape.common(carrier).Volume>1e-6:raise ValueError('Pocket insert intersects the carrier; increase fit clearance or simplify pockets.')
+ if lips and p.BatteryReferenceEnabled and shape.common(battery_envelope(p)).Volume>1e-5:
+  App.Console.PrintWarning('RotorForge LiPo pad: retaining lips overlap the battery envelope. Review the battery width, pad outline and lip thickness before printing.\n')
  mark('final validation')
  App.Console.PrintMessage('RotorForge LiPo geometry detail: '+', '.join(f'{k}: {v:.3f}s' for k,v in stages)+'\n')
  return shape

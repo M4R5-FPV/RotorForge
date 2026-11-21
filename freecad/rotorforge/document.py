@@ -13,7 +13,7 @@ from .arm_roots import ROOT_BOLT_COORDINATES, LEGACY_ROOT_BOLT_COORDINATES
 ICON = icon_path()
 from .parameters import RETIRED_PARAMETERS,STACK_PATTERNS,stack_label
 
-FLOATS = {"LiPoPadTextWidthScale","CarbonTextureOpacity","BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
+FLOATS = {'LiPoPadPocketNumber',"LiPoPadTextWidthScale","CarbonTextureOpacity","BottomNoseTipWidth","FlexDensity","PlateEndWidth","ArmProfileAmount","LiPoPadOutlineWidthScale","LiPoPadOutlineLengthScale","MotorMass","PropMass","FCMass","ESCMass","VTXMass","CameraMass","OtherMass","ScrewMassScale","LengthToWidth", "FrontSpread", "CarbonDensity", "LiPoPadDensity", "StandoffDensity", "BatteryMass"}
 SIGNED_LENGTHS = {'LiPoPadTextOffsetX','LiPoPadTextOffsetY','ActionCamMountOffsetY','FlexAntennaHolderOffset','StrapSingleY','StackUSBOffsetY','FlexGuardStrapY1','FlexGuardStrapY2','FlexGuardVentBoundaryOffset','FlexGuardVTXY','FlexGuardVTXZ','FlexGuardVTXVentZOffset','FlexGuardFCVentZOffset',"FlexGuardWireFrontY","FlexGuardWireRearY","FlexGuardUSBY","StackOffsetY", "StandoffPair3Y", "StandoffPair4Y", "VTXOffsetY", 'CentreSectionY','BatteryX','BatteryY'} | ROOT_BOLT_COORDINATES | set(TAB_OFFSET_FIELDS)
 GEOMETRY_FIELDS = {"CNCToolRadius","Layout", "PlateDesign", "Wheelbase", "LengthToWidth", "FrontSpread", "RearArmExtension", "PropDiameter", "RequiredPropGap"}
 ARM_FIELDS = {"ArmBeamShape","ArmProfileAmount","ArmEdgeFillet","ArmThickness", "ArmWidth", "ArmRootY", "RootInset", "RootExtension", "RootBoltSpacing", "RootHoleDiameter", "ArmBoltMaterialAllowance"}|ARM_LOCK_FIELDS
@@ -380,7 +380,7 @@ class PartProxy:
                 self._remember_document(obj,manifest,digest)
             if App.GuiUp:apply_material(obj.ViewObject,role,CARBON_ROLES,p)
             if role in ('LiPoPad','BatteryEnvelope','FrameCGMarker'):
-                obj.Label={'LiPoPad':'LiPo pad (separate material)','BatteryEnvelope':('LiPo reference (detailed)' if p.DetailedBatteryReference else f'{p.BatteryCells}S LiPo reference (editable)'),'FrameCGMarker':'Active CG (nominal estimate)'}[role]
+                obj.Label={'LiPoPad':'LiPo pad (separate material / pieces)','BatteryEnvelope':('LiPo reference (detailed)' if p.DetailedBatteryReference else f'{p.BatteryCells}S LiPo reference (editable)'),'FrameCGMarker':'Active CG (nominal estimate)'}[role]
                 if App.GuiUp:obj.ViewObject.Visibility=p.LiPoPadEnabled if role=='LiPoPad' else p.ShowReferences and (p.BatteryReferenceEnabled if role=='BatteryEnvelope' else p.ShowFrameCG)
             elif role in ('MotorEnvelopes','PropellerDiscs','StackEnvelope'):
                 from .reference_options import enabled

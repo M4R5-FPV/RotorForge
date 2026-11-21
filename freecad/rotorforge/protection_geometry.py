@@ -287,6 +287,10 @@ def side_guards(p,carbon=None,roles=None,include_strap_passages=True,work=None):
   tools.extend(antenna_guard_clearance(p))
   from .elrs_geometry import elrs_guard_clearance
   tools.extend(elrs_guard_clearance(p))
+  # Integrated mode now sculpts the full one-piece rear housing first and
+  # subtracts these finished side guards from the housing itself.  Unlike the
+  # older two-band strategy, do not carve any additional material from the
+  # side guards here: their original collar and wall geometry is preserved.
   if include_strap_passages:tools.extend(guard_top_strap_tools(p,collars,body))
   for vent in guard_vents(p,g):
    y,z,width,height=vent['y'],vent['z'],vent['width'],vent['height'];poly=vent_polygon(vent)

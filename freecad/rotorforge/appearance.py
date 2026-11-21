@@ -339,6 +339,105 @@ def _refresh_carbon_texture_asset(layer,texture_name,asset):
             return
 
 
+# The native Part display-mode groups are FreeCAD-owned. Never insert, remove
+# or share overlay children inside them. A single private switch at the root
+# gates the original independent overlay without touching native mesh state.
+_CARBON_OVERLAY_ROOT = 'RFCarbonOverlayRoot'
+
+
+def _carbon_gate(root):
+    """Find this part's independent texture switch in the Coin scenegraph."""
+    for i in range(root.getNumChildren()):
+        node=root.getChild(i)
+        if (str(node.getName())==_CARBON_OVERLAY_ROOT and
+                node.getNumChildren()==1):
+            return node.getChild(0)
+    return None
+
+
+def _set_carbon_gate(gate,visible):
+    choice=0 if visible else -1  # -1 = SoSwitch.SO_SWITCH_NONE
+    if gate.whichChild.getValue()!=choice:
+        gate.whichChild.setValue(choice)
+class CarbonTextureViewProvider:
+    """Tie display-only carbon overlays to the native FreeCAD part visibility.
+
+    The overlay is a private child of the view's scene root and therefore
+    needs an explicit SoSwitch update whenever a user hides/shows the Part in
+    the tree. A ViewProvider's onChanged callback receives these GUI property
+    changes; an App/Gui document observer does not reliably receive them.
+    """
+    def __init__(self, view=None):
+        if view is not None:
+            view.Proxy = self
+
+    def onChanged(self, view, prop):
+        if prop == 'Visibility':
+            sync_carbon_visibility(view)
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        pass
+
+    __getstate__ = dumps
+    __setstate__ = loads
+
+
+def sync_carbon_visibility(view):
+    """Update only RotorForge's switch; never change the native Part display."""
+    from .coin_support import scene_root
+    root=scene_root(view)
+    if root is None:return
+    gate=_carbon_gate(root)
+    if gate is None or gate.getNumChildren()!=1:return
+    layer=gate.getChild(0)
+    _set_carbon_gate(gate, bool(view.Visibility) and
+                     str(layer.getName())=='RFCarbonEnabled')
+
+
+def _ensure_carbon_view_proxy(view):
+    """Bind once, including on restored v1.0.8 frames and appearance edits."""
+    try:
+        proxy=getattr(view,'Proxy',None)
+        if isinstance(proxy,CarbonTextureViewProvider):
+            return True
+        CarbonTextureViewProvider(view)
+        return isinstance(getattr(view,'Proxy',None),CarbonTextureViewProvider)
+    except (AttributeError, RuntimeError, TypeError):
+        return False
+
+
+def _carbon_overlay_parent(view,root,coin,create):
+    # Remove only our old root-level nodes (from pre-1.0.11 sessions).
+    # The 1.0.11 mode-group overlays were transient; a full restart clears them.
+    for i in range(root.getNumChildren()-1,-1,-1):
+        node=root.getChild(i)
+        if _is_texture_node(node) and str(node.getName())!=_CARBON_OVERLAY_ROOT:
+            root.removeChild(i)
+    gate=_carbon_gate(root)
+    if create and not _ensure_carbon_view_proxy(view):return None
+    if gate is None:
+        if not create:return None
+        wrapper=coin.SoSeparator();wrapper.setName(_CARBON_OVERLAY_ROOT)
+        gate=coin.SoSwitch();gate.setName('RFCarbonOverlaySwitch')
+        _set_carbon_gate(gate,False)
+        layer=coin.SoSeparator();layer.setName('RFCarbonDisabled')
+        gate.addChild(layer);wrapper.addChild(gate);root.addChild(wrapper)
+    layer=gate.getChild(0)
+    layer.setName('RFCarbonDisabled')
+    _set_carbon_gate(gate,False)  # finish building while it is not traversed
+    return layer if create else None
+
+
+def _show_carbon_overlay(view,root):
+    gate=_carbon_gate(root)
+    if gate is not None:
+        gate.getChild(0).setName('RFCarbonEnabled')
+        sync_carbon_visibility(view)
+
+
 def apply_carbon_texture(view,enabled=False,tile_mm=64.0,side_face=False,opacity=30.,angle=0.0):
     """Plain weave and cut-edge layers, reusing their scene meshes when possible.
 
@@ -346,21 +445,21 @@ def apply_carbon_texture(view,enabled=False,tile_mm=64.0,side_face=False,opacity
     nodes; opacity-only changes swap image files rather than rebuilding meshes.
     A different geometry, scale or weave angle always rebuilds the overlay.
     """
-    root=getattr(view,'RootNode',None)
+    from .coin_support import initialize_coin, scene_root
+    coin=initialize_coin()
+    if coin is None:return False
+    root=scene_root(view)
     if root is None:return False
-    layers=_carbon_scene_layers(root)
-    if not enabled or _clamp_texture_opacity(opacity)<=0:
-        if layers:
-            for i in range(root.getNumChildren()-1,-1,-1):
-                if _is_texture_node(root.getChild(i)):root.removeChild(i)
-        return True
     owner=getattr(view,'Object',None)
     shape=getattr(owner,'Shape',None)
-    if shape is None or shape.isNull():
-        if layers:
-            for i in range(root.getNumChildren()-1,-1,-1):
-                if _is_texture_node(root.getChild(i)):root.removeChild(i)
-        return False
+    active=enabled and _clamp_texture_opacity(opacity)>0 and shape is not None and not shape.isNull()
+    parent=_carbon_overlay_parent(view,root,coin,active)
+    if not active:return not enabled or _clamp_texture_opacity(opacity)<=0
+    # Do not fall back to a detached overlay that cannot follow visibility.
+    if parent is None:return False
+    native_root=root
+    root=parent
+    layers=_carbon_scene_layers(root)
     from pathlib import Path
     broad_asset=opacity_texture_path(opacity)
     edge_asset=opacity_texture_path(opacity,source_path=carbon_edge_texture_path())
@@ -371,18 +470,74 @@ def apply_carbon_texture(view,enabled=False,tile_mm=64.0,side_face=False,opacity
                                       'RFCarbonSurfaceOverlayTexture',broad_asset)
         _refresh_carbon_texture_asset(layers.get('RFCarbonEdgeOverlay'),
                                       'RFCarbonEdgeOverlayTexture',edge_asset)
+        _show_carbon_overlay(view,native_root)
         return True
     # Rebuild only if a geometry or mapping parameter really changed.
     for i in range(root.getNumChildren()-1,-1,-1):
         if _is_texture_node(root.getChild(i)):root.removeChild(i)
-    from pivy import coin
     broad=_carbon_face_uv_mesh(shape,tile_mm,side_face,angle=angle)
     cut=_carbon_cut_edge_uv_mesh(shape,side_face=side_face)
     a=_add_carbon_overlay(root,coin,'RFCarbonSurfaceOverlay',broad_asset,*broad)
     b=_add_carbon_overlay(root,coin,'RFCarbonEdgeOverlay',edge_asset,*cut)
     if a or b:
         marker=coin.SoSeparator();marker.setName(state);root.addChild(marker)
+        _show_carbon_overlay(view,native_root)
+    else:root.setName('RFCarbonDisabled')
     return a or b
+
+
+def set_face_colours(view, colours, transparency=None):
+    """Colour faces using the API actually exposed by this FreeCAD view provider.
+
+    FreeCAD Part view providers differ: some expose the old DiffuseColor
+    array, while modern GeometryObject providers have ShapeAppearance or
+    ShapeMaterial and *no* DiffuseColor attribute.  Never assign a dynamic
+    property that does not exist: it raises AttributeError and can abort a
+    perfectly valid frame build.
+    """
+    palette=[tuple(float(value) for value in colour[:3]) for colour in colours]
+    if not palette:
+        return False
+    if hasattr(view,'DiffuseColor'):
+        try:
+            view.DiffuseColor=palette
+            return True
+        except (AttributeError,TypeError,ValueError,RuntimeError):
+            pass
+
+    properties=getattr(view,'PropertiesList',())
+    field=('ShapeAppearance' if 'ShapeAppearance' in properties else
+           'ShapeMaterial' if 'ShapeMaterial' in properties else None)
+    if field is None:
+        # ShapeColor is set by callers. A view provider with no material
+        # arrays can still display a correctly coloured solid.
+        return False
+    try:
+        source=getattr(view,field)
+        template=(source[0] if source else None) if field=='ShapeAppearance' else source
+        from copy import copy
+        materials=[]
+        for rgb in (palette if field=='ShapeAppearance' else palette[:1]):
+            try:
+                material=copy(template) if template is not None else None
+                if material is None or material is template:
+                    raise TypeError('material could not be independently copied')
+            except (TypeError,ValueError,AttributeError,RuntimeError):
+                import FreeCAD as App
+                material=App.Material()
+                if template is not None:
+                    for attribute in ('AmbientColor','EmissiveColor','SpecularColor','Shininess'):
+                        try:setattr(material,attribute,getattr(template,attribute))
+                        except (AttributeError,TypeError,ValueError):pass
+            material.DiffuseColor=rgb
+            if transparency is not None:
+                material.Transparency=max(0.,min(1.,float(transparency)/100.))
+            materials.append(material)
+        setattr(view,field,materials if field=='ShapeAppearance' else materials[0])
+        return True
+    except (AttributeError,TypeError,ValueError,RuntimeError):
+        # Cosmetic colouring must never invalidate a sound CAD assembly.
+        return False
 
 
 def apply_material(view,role,carbon_roles,p=None):
@@ -391,7 +546,7 @@ def apply_material(view,role,carbon_roles,p=None):
         base=VTX_COLOUR if role=='VTXAntennaReference' else ELRS_COLOUR
         colours=antenna_reference(p,role)[1] if p is not None and reference_enabled(p,role) else ()
         view.ShapeColor=base;view.LineColor=(.035,.042,.050)
-        view.DiffuseColor=list(colours) if colours else [base]
+        set_face_colours(view,colours if colours else (base,),0)
         view.Transparency=0
         return
     """Apply physical-part appearance; leave reference electronics untouched."""
@@ -402,12 +557,12 @@ def apply_material(view,role,carbon_roles,p=None):
             apply_reference_material(view,role,p)
         else:
             colour,transparency=SIMPLE[role]
-            view.ShapeColor=colour;view.DiffuseColor=[colour];view.Transparency=transparency
+            view.ShapeColor=colour;set_face_colours(view,(colour,),transparency);view.Transparency=transparency
             reset_face_materials(view,(colour,),transparency)
         return
     if p is not None and role in ('CameraMountLeft','CameraMountRight') and p.CameraCageStyle!='Carbon side plates':
         colour,alpha=printed_finish(p) if p.CameraCageStyle=='TPU cage' else ((.68,.70,.73),0)
-        view.ShapeColor=colour;view.DiffuseColor=[colour]
+        view.ShapeColor=colour;set_face_colours(view,(colour,),alpha)
         # Match the dark edges of other printed parts, with a small lift
         # for the cage's rounded surfaces. Keep the metal holder untouched.
         view.LineColor=(.035,.037,.040) if p.CameraCageStyle=='TPU cage' else (.08,.09,.10)
@@ -426,7 +581,7 @@ def apply_material(view,role,carbon_roles,p=None):
     view.ShapeColor=shade if carbon else flexible
     view.LineColor=(.06,.065,.07) if carbon else (.025,.027,.03)
     transparency=0 if carbon else flex_transparency
-    view.DiffuseColor=[shade if carbon else flexible]
+    set_face_colours(view,(shade if carbon else flexible,),transparency)
     view.Transparency=transparency
     # Modern FreeCAD stores shading in a material list; older versions use a
     # single material property. A single uniform entry also clears per-face tints.
@@ -464,19 +619,7 @@ def design_signature(p):
 
 
 def reset_face_materials(view,colours,transparency):
-    """Clear per-face alpha as well as legacy object transparency."""
-    properties=getattr(view,'PropertiesList',())
-    field='ShapeAppearance' if 'ShapeAppearance' in properties else 'ShapeMaterial' if 'ShapeMaterial' in properties else None
-    if field:
-        current=getattr(view,field)
-        template=current[0] if field=='ShapeAppearance' and current else current
-        if template:
-            materials=[]
-            for colour in (colours if field=='ShapeAppearance' else colours[:1]):
-                value=getattr(view,field)
-                material=value[0] if field=='ShapeAppearance' else value
-                material.DiffuseColor=tuple(colour[:3])
-                material.Transparency=transparency/100.
-                materials.append(material)
-            if materials:setattr(view,field,materials if field=='ShapeAppearance' else materials[0])
-    view.Transparency=transparency
+    """Replace obsolete per-face tints via the supported view material API."""
+    set_face_colours(view,colours,transparency)
+    if hasattr(view,'Transparency'):
+        view.Transparency=transparency

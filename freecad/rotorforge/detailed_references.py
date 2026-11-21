@@ -619,8 +619,6 @@ def apply_reference_material(view,role,p):
  view.ShapeColor=base;view.LineColor=(.08,.09,.10)
  # Explicitly replace the complete material array; no face colouring from the
  # preceding VTX style may survive a switch between analog and digital.
- view.DiffuseColor=[base]
- view.DiffuseColor=list(colours);view.Transparency=trans
  from .appearance import reset_face_materials
  reset_face_materials(view,colours,trans)
 

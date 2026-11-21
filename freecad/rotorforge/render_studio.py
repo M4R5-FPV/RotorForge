@@ -10,6 +10,7 @@ except ImportError:
     except ImportError: from PySide6 import QtCore, QtGui, QtWidgets
 
 from .paths import icon_path
+from .coin_support import initialize_coin
 from .render_quality import QUALITY_NAMES, QUALITY_PRESETS, MESH_DETAILS, quality_options
 from .render_presets import (NAMES, PRESETS, POSE_NAMES, POSES, source_palette, hardware_surface,
                              RIG_NAMES, LIGHT_COLOUR_KEYS, CONTRAST_NAMES, lighting_settings,
@@ -336,6 +337,8 @@ class RenderDialog(QtWidgets.QDialog):
         if i in (0,6):
             view=Gui.activeDocument().activeView();rot=view.getCameraOrientation();e=rot.multVec(App.Vector(0,0,1));u=rot.multVec(App.Vector(0,1,0));eye=[e.x,e.y,e.z];up=[u.x,u.y,u.z]
             if i==6 and self.engine.currentIndex()==1:
+                if initialize_coin() is None:
+                    raise ValueError("Pivy/Coin3D is unavailable; choose a preset camera instead.")
                 node=view.getCameraNode();vw,vh=view.getSize()
                 if vw<=0 or vh<=0:raise ValueError('The FreeCAD viewport has no visible size.')
                 orthographic=hasattr(node,'height')
@@ -404,7 +407,7 @@ class RenderDialog(QtWidgets.QDialog):
             if self.camera.currentIndex() not in (0,6):
                 eye=App.Vector(*opt['eye']);up=App.Vector(*opt['up']);right=up.cross(eye);view.setCameraOrientation(App.Rotation(right,eye.cross(right),eye,'ZXY').Q);view.fitAll()
             try:
-                camera_node=view.getCameraNode()
+                camera_node=view.getCameraNode() if initialize_coin() is not None else None
                 if hasattr(camera_node,'height'):camera_node.height.setValue(float(camera_node.height.getValue())/opt['zoom'])
                 elif hasattr(camera_node,'heightAngle'):camera_node.heightAngle.setValue(float(camera_node.heightAngle.getValue())/opt['zoom'])
             except (AttributeError,RuntimeError):pass

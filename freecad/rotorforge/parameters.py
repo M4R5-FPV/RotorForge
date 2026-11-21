@@ -16,7 +16,7 @@ from .arm_roots import (ARM_ROOT_FITS, ROOT_BOLT_LAYOUTS, ROOT_PROFILE_FIELDS, R
                         fitted_roots, root_joint_planes, compact_key_outline, root_width, widened_roots,
                         beam_profile_polygon, stem_interior_distance)
 
-from .battery import BATTERY_FIELDS,validate_battery,GRIP_PATTERNS
+from .battery import BATTERY_FIELDS,validate_battery,GRIP_PATTERNS,LIP_PAD_FIELDS
 from .pad_text import PAD_TEXT_FONTS,PAD_TEXT_STYLES,PAD_TEXT_POSITIONS
 from .lipo_profiles import LIPO_CHOICES
 from .camera_view import CAMERA_VIEW_PROFILES, CAMERA_VIEW_ASPECTS
@@ -45,6 +45,7 @@ def import_stack_spacing(value):
 from .design_options import OPTIONS as DESIGN_OPTIONS
 from .flex_options import FLEX_OPTIONS
 RETIRED_PARAMETERS=RETIRED_PARAMETERS|frozenset(('FlexClampSlit', 'FlexELRSBand', 'FlexELRSDiameter', 'FlexELRSGrip', 'FlexELRSHeight', 'FlexELRSLength', 'FlexELRSMountWidth', 'FlexELRSSecondLength', 'FlexELRSSpacing', 'FlexELRSStemDiameter', 'FlexELRSStyle', 'FlexGPSCable', 'FlexGPSClearance', 'FlexGPSHeight', 'FlexGPSLength', 'FlexGPSLip', 'FlexGPSMountWidth', 'FlexGPSStyle', 'FlexGPSTilt', 'FlexGPSWidth', 'FlexRearAnchors', 'FlexRearELRS', 'FlexRearEnabled', 'FlexRearFit', 'FlexRearGPS', 'FlexRearGripHeight', 'FlexRearOffset', 'FlexRearSetback', 'FlexRearVTX', 'FlexRearVentHeight', 'FlexRearVentLength', 'FlexRearVentWeb', 'FlexRearWall', 'FlexVTXBore', 'FlexVTXConnector', 'FlexVTXCount', 'FlexVTXDepth', 'FlexVTXHeight', 'FlexVTXMountWidth', 'FlexVTXPocket', 'FlexVTXSpacing', 'FlexVTXStyle', 'FlexVTXTilt'))
+RETIRED_PARAMETERS=RETIRED_PARAMETERS|frozenset(('FlexIntegratedRearMount', 'FlexIntegratedVTXConnector', 'FlexIntegratedVTXCount', 'FlexIntegratedVTXTilt', 'FlexIntegratedVTXHolderStyle', 'FlexIntegratedVTXBore', 'FlexIntegratedVTXSpacing', 'FlexIntegratedVTXRetainingLip', 'FlexIntegratedVTXNutAcrossFlats', 'FlexIntegratedVTXNutDepth', 'FlexIntegratedGPSWidth', 'FlexIntegratedGPSLength', 'FlexIntegratedGPSHeight', 'FlexIntegratedGPSFit', 'FlexIntegratedGPSWall', 'FlexIntegratedGPSFloor', 'FlexIntegratedGPSRetainingLip', 'FlexIntegratedGPSCableWidth', 'FlexIntegratedGPSGap', 'FlexIntegratedHousingWall', 'FlexIntegratedGPSRimHeight', 'FlexIntegratedGPSCornerRadius'))
 DESIGN_OPTIONS={**DESIGN_OPTIONS,**FLEX_OPTIONS}
 
 SCHEMA = "rotorforge/1"
@@ -61,7 +62,7 @@ OUTER_STANDOFF_MOUNTS = ('Custom position', 'Arm inner hole', 'Arm outer hole')
 EXTRA_STANDOFF_MOUNTS = ('Custom position', 'Front arm inner hole', 'Front arm outer hole',
                          'Rear arm inner hole', 'Rear arm outer hole')
 ENUMERATIONS = {
-                'BatteryPreset': LIPO_CHOICES, 'BatteryMount':('Top plate','Bottom plate'), 'KeystoneShape':('Diamond','Chamfered diamond','Hexagon','Octagon'), 'LiPoPadShape':('Rounded rectangle','Rectangle','Capsule','Ellipse','Chamfered rectangle','Tapered','Hourglass','Mounting plate outline'), 'LiPoPadPattern':GRIP_PATTERNS,
+                'BatteryPreset': LIPO_CHOICES, 'BatteryMount':('Top plate','Bottom plate'), 'KeystoneShape':('Diamond','Chamfered diamond','Hexagon','Octagon'), 'LiPoPadShape':('Rounded rectangle','Rectangle','Capsule','Ellipse','Chamfered rectangle','Tapered','Hourglass','Mounting plate outline','Pocket insert'), 'LiPoPadLayout':('Single','Left / right','Front / rear','Four parts'), 'LiPoPadPattern':GRIP_PATTERNS, 'LiPoPadPatternRelief':('Debossed','Embossed'), 'LiPoPadSideLips':('Off','Both sides','Left side','Right side'),
                 "MotorPadRotationPivot": ("Motor centre", "Pad beginning"), "MotorHoleLayout": ("4-hole bolt circle", "3-hole bolt circle"),"Layout": LAYOUTS, "PlateDesign": PLATE_DESIGNS, "StandoffCount": STANDOFF_COUNTS,
                 "VideoSystem": VIDEO_SYSTEMS, "VTXPattern": VTX_PATTERNS,
                 "CameraViewProfile": CAMERA_VIEW_PROFILES, "CameraViewAspect": CAMERA_VIEW_ASPECTS,
@@ -79,7 +80,7 @@ ENUMERATIONS.update({name:('Round head','Countersunk') for name in ('StandoffTop
 ENUMERATIONS.update({k:v[3] for k,v in DESIGN_OPTIONS.items() if len(v)>3})
 ENUMERATIONS.update({'LiPoPadTextFont':PAD_TEXT_FONTS,'LiPoPadTextStyle':PAD_TEXT_STYLES,'LiPoPadTextPosition':PAD_TEXT_POSITIONS})
 STRINGS = {'CutoutPatterns','LiPoPadText'}
-BOOLEANS = {"CarbonTextureEnabled"} | {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadTextEnabled','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled', 'CameraCageSharedDimensions','CameraTPURevisedMounts'}
+BOOLEANS = {"CarbonTextureEnabled"} | {k for k,v in DESIGN_OPTIONS.items() if isinstance(v[0],bool)} | {'EstimateComponents','BatteryReferenceEnabled','LiPoPadEnabled','LiPoPadTextEnabled','LiPoPadFollowPlate','LiPoPadCopyAirflow','LiPoPadCoverCountersunk','ShowFrameCG',"ShowReferences", "FPVEnabled", "ArmBracesEnabled", "KeystoneEnabled", "StrapSlotsEnabled", 'ArmRootsFollowCentre', 'ArmRootReliefsEnabled', 'CameraFollowPlates', 'MotorTipSlotEnabled', 'CameraCageSharedDimensions','CameraTPURevisedMounts'} | LIP_PAD_FIELDS
 ARM_NAMES = ("FrontRight", "FrontLeft", "RearLeft", "RearRight")
 COMMON_STANDOFF_HEIGHTS = (22.0, 25.0, 30.0, 32.0, 35.0, 40.0)
 ALIGNMENT_TOL = 1e-6
@@ -364,6 +365,10 @@ class Parameters:
     BatteryY: float = 0.0
     BatteryRotation: float = 0.0
     LiPoPadEnabled: bool = False
+    LiPoPadLayout: str = 'Single'
+    LiPoPadSplitGap: float = 2.0
+    LiPoPadPocketNumber: float = -1.0
+    LiPoPadPocketClearance: float = 0.2
     LiPoPadOutlineWidthScale: float = 100.0
     LiPoPadOutlineLengthScale: float = 100.0
     LiPoPadFrontReach: float = 0.0
@@ -377,6 +382,19 @@ class Parameters:
     LiPoPadCoverCountersunk: bool = False
     LiPoPadCopyAirflow: bool = True  # Backward compatible: copy through-cuts into the grip pad
     LiPoPadPattern: str = 'Solid'
+    LiPoPadPatternRelief: str = 'Debossed'
+    LiPoPadSideLips: str = 'Off'
+    LiPoPadLipLeft: bool = True
+    LiPoPadLipRight: bool = True
+    LiPoPadLipFront: bool = True
+    LiPoPadLipRear: bool = True
+    LiPoPadLipFrontLeft: bool = True
+    LiPoPadLipFrontRight: bool = True
+    LiPoPadLipRearLeft: bool = True
+    LiPoPadLipRearRight: bool = True
+    LiPoPadLipHeight: float = 2.0
+    LiPoPadLipWidth: float = 1.5
+    LiPoPadLipEndInset: float = 2.0
     LiPoPadGrooveWidth: float = 1.2
     LiPoPadGrooveDepth: float = 0.6
     LiPoPadGroovePitch: float = 6.0
@@ -613,6 +631,23 @@ class Parameters:
         if not isinstance(data, dict):
             raise ValueError("Parameters must be a JSON object.")
         data = dict(data)
+        # v1.0.2 stored a numbered/all selector and a height above carbon.
+        # Convert it once to persistent pattern flags and total thickness.
+        legacy_pocket=data.get('LiPoPadPocketNumber',-1)
+        if (not isinstance(legacy_pocket,bool) and isinstance(legacy_pocket,(int,float))
+                and math.isfinite(legacy_pocket) and legacy_pocket>=0 and int(legacy_pocket)==legacy_pocket):
+            if data.get('LiPoPadShape')=='Pocket insert':
+                from .cutouts import encode_patterns
+                patterns=parse_patterns(data.get('CutoutPatterns','[]'))
+                active=[]
+                for i,v in enumerate(patterns,1):
+                    v['pad_insert']=v['role']=='TopPlate' and v['mode']=='Pocket' and legacy_pocket in (0,i)
+                    if v['pad_insert'] and v['enabled']:active.append(v['depth'])
+                data['CutoutPatterns']=encode_patterns(patterns)
+                old_thickness=data.get('LiPoPadThickness',2.)
+                if active and not isinstance(old_thickness,bool) and isinstance(old_thickness,(int,float)):
+                    data['LiPoPadThickness']=round(old_thickness+max(active),9)
+            data['LiPoPadPocketNumber']=-1.
         # Before v0.92.44 the arm corner fillet also controlled fitted root
         # junction corners. Preserve that appearance for older saved frames.
         data.setdefault('ArmRootFillet', data.get('ArmEdgeFillet', 0.0))

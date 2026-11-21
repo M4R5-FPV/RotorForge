@@ -1,6 +1,7 @@
 """Workbench class in a normal module, independent of InitGui's exec namespace."""
 from .paths import icon_path
 import FreeCADGui as Gui
+from .coin_support import initialize_coin
 
 
 class RotorForgeWorkbench(Gui.Workbench):
@@ -9,6 +10,7 @@ class RotorForgeWorkbench(Gui.Workbench):
     Icon = icon_path()
 
     def Initialize(self):
+        initialize_coin()
         from .gui import register_commands
         commands = register_commands()
         self.appendToolbar("RotorForge", commands)

@@ -26,7 +26,7 @@ CUTOUT_MODES = ('Interior', 'Pocket', 'Outline notch', 'Add material')
 MAX_PATTERNS = 200
 MAX_ENABLED_CUTOUTS = 200
 PATTERN_DEFAULTS = dict(mode='Interior', role='TopPlate', shape='Slot', width=4., length=12., x=0., y=0.,
-                        rotation=0., mirror_u=False, mirror_v=False, columns=1, rows=1, pitch_x=10., pitch_y=16., depth=0.5, arc_angle=75., enabled=True, auto_web=0., auto_keep=False, auto_group='', vertices=[], text='FPV', text_font='Block stencil', text_dot=1.2)
+                        rotation=0., mirror_u=False, mirror_v=False, columns=1, rows=1, pitch_x=10., pitch_y=16., depth=0.5, arc_angle=75., enabled=True, auto_web=0., auto_keep=False, auto_group='', pad_insert=False, vertices=[], text='FPV', text_font='Block stencil', text_dot=1.2)
 
 
 def mirrored_points(points, pattern):
@@ -325,13 +325,13 @@ def _parse_patterns_uncached(value):
         if pattern['mode'] in ('Outline notch','Add material') and pattern['role'] not in OUTLINE_ROLES:
             raise ValueError(f'Cutout pattern {index}: outline notches and additions are available on the main and clamp plates only.')
         if pattern['shape']=='Text':
-            from .stencil_text import TEXT_FONTS, LEGACY_STENCIL_FONTS
-            # Existing through-stencils are intentionally migrated to blind
-            # pockets; newly generated engraving must never cut through.
-            if pattern['mode']=='Interior':
+            from .stencil_text import TEXT_FONTS, LEGACY_STENCIL_FONTS, RUNE_FONT
+            # Keep legacy migration; only the explicitly open Runic font
+            # may be machined full depth. Do not silently change its mode.
+            if pattern['mode']=='Interior' and pattern['text_font']!=RUNE_FONT:
                 pattern['mode']='Pocket'
-            if pattern['mode']!='Pocket':
-                raise ValueError(f'Airflow pattern {index}: text is available as blind pockets only.')
+            if pattern['mode'] not in ('Pocket','Interior'):
+                raise ValueError(f'Airflow pattern {index}: text requires a pocket or a supported interior cut.')
             if isinstance(pattern['text_font'],str) and pattern['text_font'] in LEGACY_STENCIL_FONTS:
                 pattern['text_font']=LEGACY_STENCIL_FONTS[pattern['text_font']]
                 pattern['text_dot']=1.  # The old block/compact fonts ignored this field.
@@ -351,6 +351,9 @@ def _parse_patterns_uncached(value):
             raise ValueError(f'Airflow pattern {index}: mirror controls must be true or false.')
         if not isinstance(pattern['enabled'], bool):
             raise ValueError(f'Airflow pattern {index}: enabled must be true or false.')
+        if not isinstance(pattern['pad_insert'], bool):
+            raise ValueError(f'Airflow pattern {index}: LiPo insert selection must be true or false.')
+        if pattern['role']!='TopPlate' or pattern['mode']!='Pocket':pattern['pad_insert']=False
         if not isinstance(pattern['auto_keep'], bool):
             raise ValueError(f'Airflow pattern {index}: Keep must be true or false.')
         if (not isinstance(pattern['auto_group'], str) or len(pattern['auto_group']) > 32 or

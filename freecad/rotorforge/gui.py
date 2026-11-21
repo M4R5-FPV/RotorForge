@@ -17,7 +17,7 @@ except ImportError:
     except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets
 
-from .battery import BATTERY_FIELDS,battery_point,groove_segments
+from .battery import BATTERY_FIELDS,battery_point,groove_segments,LIP_PAD_FIELDS,LIP_PAD_OPTIONS,requested_lip_sides,lip_sides
 from .part_preview import preview_roles,draw_parts,pad_path,pad_text_path
 from .pad_text import PAD_TEXT_FIELDS
 from .paths import help_path, icon_path
@@ -77,14 +77,31 @@ LABELS = {
     'LiPoPadLength':'Pad length',
     'LiPoPadThickness':'Pad thickness',
     'LiPoPadShape':'Pad outline',
+    'LiPoPadLayout':'Pad layout',
+    'LiPoPadSplitGap':'Gap between pad pieces',
+    'LiPoPadPocketNumber':'Pocket selection',
+    'LiPoPadPocketClearance':'Pocket fit clearance per side',
     'LiPoPadCornerRadius':'Pad corner radius',
     'LiPoPadFollowPlate':'Follow mounting plate',
     'LiPoPadCopyAirflow':'Copy airflow cuts to LiPo pad',
     'LiPoPadCoverCountersunk':'Cover countersunk screws',
     'LiPoPadPattern':'Grip surface',
-    'LiPoPadGrooveWidth':'Groove width',
-    'LiPoPadGrooveDepth':'Groove depth',
-    'LiPoPadGroovePitch':'Groove spacing',
+    'LiPoPadPatternRelief':'Relief type',
+    'LiPoPadGrooveWidth':'Pattern width',
+    'LiPoPadGrooveDepth':'Relief depth / height',
+    'LiPoPadGroovePitch':'Pattern spacing',
+    'LiPoPadSideLips':'Side retaining lips',
+    'LiPoPadLipLeft':'Left pad lips',
+    'LiPoPadLipRight':'Right pad lips',
+    'LiPoPadLipFront':'Front pad lips',
+    'LiPoPadLipRear':'Rear pad lips',
+    'LiPoPadLipFrontLeft':'Front-left pad lips',
+    'LiPoPadLipFrontRight':'Front-right pad lips',
+    'LiPoPadLipRearLeft':'Rear-left pad lips',
+    'LiPoPadLipRearRight':'Rear-right pad lips',
+    'LiPoPadLipHeight':'Lip height above grip',
+    'LiPoPadLipWidth':'Lip wall thickness',
+    'LiPoPadLipEndInset':'Front/rear end clearance',
     'LiPoPadDensity':'Pad material density',
     'LiPoPadTextEnabled':'Add text to pad',
     'LiPoPadText':'Text',
@@ -217,23 +234,40 @@ TIPS = {
     'BatteryX':'Shared left/right placement of the battery and pad in frame coordinates; positive X is right. The frame carbon remains fixed.',
     'BatteryY':'Shared front/rear placement of the battery and pad in frame coordinates; positive Y is forward.',
     'BatteryRotation':'Rotate the battery footprint and pad together around their shared centre in the frame XY plane. Zero places the longer local dimension along frame Y; positive turns counterclockwise in top view.',
-    'LiPoPadEnabled':'Create one separate pad solid, not carbon. It is included in the native assembly and assembled STEP, and exported separately as flat STL/STEP and an ungrooved DXF/SVG outline.',
+    'LiPoPadEnabled':'Create a separate printable pad or multiple disconnected pad pieces, not carbon. It is included in the native assembly and assembled STEP, and exported separately as flat STL/STEP and an ungrooved DXF/SVG outline.',
+    'LiPoPadLayout':'Single pad, two left/right or front/rear pieces, or four quadrants. Splits follow the frame axes at the centre of the finished outline.',
+    'LiPoPadSplitGap':'Physical empty gap centred on each selected split axis, in mm.',
+    'LiPoPadPocketNumber':'Choose any combination of saved top-plate blind pockets. Overlapping pockets form a single outline; separate pockets form separate inserts.',
+    'LiPoPadPocketClearance':'Inward fitting clearance around the combined pocket outline and deeper steps.',
     'LiPoPadOutlineWidthScale':'Width of the plate-following pad as a percentage of the carrier outline. 100% keeps full width; 80% makes it narrower about the carrier centre. Actual carrier holes remain aligned. Used only with Mounting plate outline.',
     'LiPoPadFrontReach':'Distance in mm forward from the FC stack centre (frame +Y). Zero keeps the full carrier front. A shorter reach makes a straight transverse front edge; width still follows the plate. Standoff centres keep a 6 mm clear radius.',
     'LiPoPadRearReach':'Distance in mm rearward from the FC stack centre (frame -Y). Zero keeps the full carrier rear. Adjust independently from the front; shorter reaches cut a straight rear edge.',
     'LiPoPadOutlineLengthScale':'Legacy value retained for old-document migration. Length of the plate-following pad as a percentage of the carrier outline. Independent from width. 100% keeps full length. Shrinks about the carrier centre; holes and cutouts stay in their real positions.',
     'LiPoPadWidth':'Width of an independent pad before carrier clipping. With Mounting plate outline this is unused; use width scale for the outline. Grip patterns always cover the finished pad automatically.',
     'LiPoPadLength':'Length of an independent pad before carrier clipping. With Mounting plate outline this is unused; use front/rear reaches. Grip patterns always cover the finished pad automatically.',
-    'LiPoPadThickness':'Overall pad thickness. Grooves cut into the battery-facing surface and must leave a continuous backing. This height also lifts or lowers the battery reference away from the carbon face.',
-    'LiPoPadShape':'Choose rounded rectangle, rectangle, capsule, ellipse, chamfered rectangle, tapered or hourglass. Mounting plate outline follows the top or bottom plate, retaining mandatory mounting/strap openings; the Copy airflow cuts option decides whether it also inherits airflow openings. Use Plate outline width scale and independent front/rear reaches from the stack. Ends are cut straight when shortened; all pads leave a 6 mm clear radius around standoff centres. Grip patterns cover the finished pad automatically; battery pose does not move a plate-following pad or its grip pattern.',
+    'LiPoPadThickness':'Overall pad thickness. For Pocket insert, measured from the deepest selected pocket floor to the level battery-facing surface; minimum is twice the deepest pocket depth. Debossed grooves cut into this surface; embossed relief adds height above it. The battery reference includes raised grip height.',
+    'LiPoPadShape':'Choose rounded rectangle, rectangle, capsule, ellipse, chamfered rectangle, tapered or hourglass. Pocket insert follows a machined top-plate blind pocket. Mounting plate outline follows the top or bottom plate, retaining mandatory mounting/strap openings; the Copy airflow cuts option decides whether it also inherits airflow openings. Use Plate outline width scale and independent front/rear reaches from the stack. Ends are cut straight when shortened; all pads leave a 6 mm clear radius around standoff centres. Grip patterns cover the finished pad automatically; battery pose does not move a plate-following pad or its grip pattern.',
     'LiPoPadCornerRadius':'Corner radius for Rounded rectangle and Mounting plate outline. For the plate outline, round the outside of the pad only, after width and reach adjustments; zero retains the original outline. The radius is reduced if needed to preserve the openings and a connected pad. For a rounded rectangle it must be less than half the shorter pad dimension.',
-    'LiPoPadFollowPlate':'Clip an independent pad to the mounting plate. For an outline-following pad the carrier is always used. The separate airflow option controls whether the pad copies air openings. CAD rejects empty or disconnected pads.',
+    'LiPoPadFollowPlate':'Clip an independent pad to the mounting plate. For an outline-following pad the carrier is always used. The separate airflow option controls whether the pad copies air openings. CAD rejects empty pads and unintended disconnected pieces.',
     'LiPoPadCopyAirflow':'When enabled, the LiPo pad inherits the mounting carbon plate’s airflow through-cuts and outline notches (where they intersect the pad). When disabled, the pad bridges these openings but retains mounting holes and strap access. Carbon additions remain in the pad boundary. With the option enabled, blind pocket outlines may also become through-holes in the pad, so inspect the finished solid. This changes the actual printable solid only on Create / Update, not the live 2-D editor. Existing designs default to enabled to preserve their shape.',
     'LiPoPadCoverCountersunk':'Bridge isolated flush screw openings on the battery-facing plate. Round heads, nuts, and other openings stay clear. Disable to retain screw access. The carbon machining is unchanged.',
-    'LiPoPadPattern':'Choose from 25 grip surfaces, including dots, staggered dots, dashes, basket weave, hexagon cells and waves as well as the existing groove layouts. Every non-solid pattern repeats over the entire finished pad and is clipped to its outline and clearance openings. Width, depth and spacing remain adjustable; the backing stays continuous.',
-    'LiPoPadGrooveWidth':'Channel width, or dot diameter for the dimple patterns. All features are shallow recesses.',
-    'LiPoPadGrooveDepth':'Depth into the battery-facing surface. Must be smaller than pad thickness so the backing stays continuous.',
-    'LiPoPadGroovePitch':'Pattern spacing: row/grid pitch for grooves and dots, base pitch for weave (tile is twice this), hexagon radius for cells, ring inset for rectangular rings. Waves have this row spacing and a wavelength six times this value. Must exceed feature width. Increase it if the finished pattern exceeds 512 segments.',
+    'LiPoPadPattern':'Choose a grip surface, including the Honeycomb tessellation (spacing across flats). All patterns are clipped to the finished pieces and clearance openings.',
+    'LiPoPadPatternRelief':'Debossed cuts the pattern into the pad. Embossed raises the pattern on the battery-facing side; the battery reference is lifted by that height.',
+    'LiPoPadGrooveWidth':'Width of the groove or raised rib, or dot diameter for the dimple patterns.',
+    'LiPoPadGrooveDepth':'Recess depth or raised feature height. A debossed pattern must leave a continuous backing.',
+    'LiPoPadSideLips':'Optional straight retaining walls only on the furthest left/right edges of the entire pad outline in frame coordinates. Never follow angled, curved or recessed edges. For split layouts, choose individual pads below; if a section has no qualifying edge it gets no lip. Check battery width between the lips.',
+    'LiPoPadLipLeft':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the left pad. The global side setting still applies.',
+    'LiPoPadLipRight':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the right pad. The global side setting still applies.',
+    'LiPoPadLipFront':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the front pad. The global side setting still applies.',
+    'LiPoPadLipRear':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the rear pad. The global side setting still applies.',
+    'LiPoPadLipFrontLeft':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the front-left pad. The global side setting still applies.',
+    'LiPoPadLipFrontRight':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the front-right pad. The global side setting still applies.',
+    'LiPoPadLipRearLeft':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the rear-left pad. The global side setting still applies.',
+    'LiPoPadLipRearRight':'Enable retaining lips on qualifying straight outermost lateral edge(s) of the rear-right pad. The global side setting still applies.',
+    'LiPoPadLipHeight':'Wall height above the battery support surface (including embossed relief).',
+    'LiPoPadLipWidth':'Wall thickness measured inward from the straight outermost lateral edge.',
+    'LiPoPadLipEndInset':'Distance to leave clear at the overall front and rear of the pad. Splits interrupt the existing side walls without adding new ones.',
+    'LiPoPadGroovePitch':'Pattern spacing: row/grid pitch for grooves and dots, base pitch for weave (tile is twice this), hexagon radius for cells, across-flats pitch for Honeycomb, ring inset for rectangular rings. Waves have this row spacing and a wavelength six times this value. Must exceed feature width. Increase it if the finished pattern exceeds 512 segments.',
     'LiPoPadTextEnabled':'Recess lettering into the battery-facing TPU surface, preserving the pad backing. Grip grooves stop at the adjustable clear area; mounting openings are never filled.',
     'LiPoPadText':'1–24 characters: A–Z, 0–9, spaces, hyphen, underscore or period. Lowercase input is rendered uppercase. Text is actual printable geometry.',
     'LiPoPadTextPosition':'Across front/rear anchors the text to the actual finished pad ends. Rear to front and Front to rear place it longitudinally through the pad centre. Across centre is transverse. Front is frame +Y, regardless of battery rotation.',
@@ -730,7 +764,9 @@ class TopPreview(QtWidgets.QWidget):
             if count>=120:break
         if p.LiPoPadEnabled:
             painter.setPen(QtGui.QPen(QtGui.QColor(printed_hex(p)),.8,QtCore.Qt.DashLine));painter.setBrush(QtCore.Qt.NoBrush)
-            if p.LiPoPadShape=='Mounting plate outline':
+            if p.LiPoPadShape=='Pocket insert' or p.LiPoPadLayout!='Single':
+                painter.drawPath(pad_path(p))
+            elif p.LiPoPadShape=='Mounting plate outline':
                 from .battery import pad_reach_bounds
                 rear,front=(top_rear,top_front) if p.BatteryMount=='Top plate' else (bottom_rear,bottom_front)
                 rear,front=pad_reach_bounds(p,rear,front)
@@ -890,6 +926,11 @@ class TopPreview(QtWidgets.QWidget):
                     painter.drawPath(timed('airflow overlay',combined_cutout_path,patterns,pattern['role'],radius=p.CNCToolRadius));drawn_roles.add(pattern['role'])
             if p.LiPoPadEnabled:
                 painter.setPen(QtGui.QPen(QtGui.QColor('#222b30'),.4));painter.setBrush(QtGui.QColor(printed_hex(p)));pad=timed('LiPo pad outline',pad_path,p);painter.drawPath(pad)
+                if lip_sides(p):
+                    try:
+                        from .part_preview import side_lip_path
+                        painter.fillPath(timed('LiPo retaining lips',side_lip_path,p),QtGui.QColor(printed_hex(p)).lighter(150))
+                    except ValueError:pass
                 if p.LiPoPadTextEnabled:
                     try:
                         from .appearance import printed_groove
@@ -1218,6 +1259,14 @@ class FrameDialog(QtWidgets.QDialog):
                     control.setRange(0,90);control.setSuffix(' %');control.setSingleStep(1)
                 elif name in ('PlateEndWidth','ArmProfileAmount'):
                     control.setRange(40 if name=='PlateEndWidth' else 0,100);control.setSuffix(' %');control.setSingleStep(1)
+                elif name=='LiPoPadPocketNumber':
+                    control.setRange(-1,200);control.setDecimals(0);control.setSingleStep(1)
+                elif name=='LiPoPadPocketClearance':
+                    control.setRange(0,5);control.setSingleStep(.05);control.setSuffix(' mm')
+                elif name=='LiPoPadSplitGap':
+                    control.setRange(.1,50);control.setSingleStep(.25);control.setSuffix(' mm')
+                elif name in ('LiPoPadLipHeight','LiPoPadLipWidth','LiPoPadLipEndInset'):
+                    control.setRange(*{'LiPoPadLipHeight':(.2,20),'LiPoPadLipWidth':(.3,12),'LiPoPadLipEndInset':(0,100)}[name]);control.setSingleStep(.25);control.setSuffix(' mm')
                 elif name.startswith('LiPoPadText'):
                     ranges={'Height':(1,50),'WidthScale':(25,200),'Stroke':(.2,3),'Spacing':(.1,10),'Depth':(.1,10),
                             'MarginAlong':(0,50),'MarginAcross':(0,50),'Inset':(0,100),'OffsetX':(-300,300),'OffsetY':(-300,300)}
@@ -1254,6 +1303,11 @@ class FrameDialog(QtWidgets.QDialog):
                 control.hide(); field_label.hide()
                 continue
             display = control
+            if name=='LiPoPadPocketNumber':
+                control.hide()
+                self.pocket_picker=QtWidgets.QPushButton('Choose pockets…')
+                self.pocket_picker.setToolTip(TIPS[name]);self.pocket_picker.clicked.connect(self.choose_pad_pockets)
+                display=self.pocket_picker
             if name == "StandoffHeight":
                 display, self.rear_standoff_sizes, self._sync_rear_size = standoff_size_row(control)
             elif name == 'CameraWidth':
@@ -1461,6 +1515,44 @@ class FrameDialog(QtWidgets.QDialog):
             self.extra_search_targets[key]=('Camera view',control)
             control.setAutoDefault(False)
 
+    def choose_pad_pockets(self,*args):
+        from .battery import pocket_choices
+        from .cutouts import parse_patterns,encode_patterns
+        if self.airflow is not None and not self.airflow.require_applied():return
+        p=self.values();rows=pocket_choices(p)
+        dialog=QtWidgets.QDialog(self);dialog.setWindowTitle('Choose LiPo pad pockets');dialog.resize(600,420)
+        lay=QtWidgets.QVBoxLayout(dialog)
+        note=QtWidgets.QLabel('Tick any saved top-plate pockets. Disabled pockets are remembered but not used. Overlaps are combined; differing depths create a stepped underside.');note.setWordWrap(True);lay.addWidget(note)
+        listing=QtWidgets.QListWidget();lay.addWidget(listing,1)
+        for i,v,checked in rows:
+            desc=f"#{i} · {v['shape']} · {v['width']:g} × {v['length']:g} mm · depth {v['depth']:g} mm · ({v['x']:g}, {v['y']:g})"
+            if v['columns']*v['rows']>1:desc+=f" · {v['columns']*v['rows']} instances"
+            if not v['enabled']:desc+=' · disabled'
+            item=QtWidgets.QListWidgetItem(desc);item.setFlags(item.flags()|QtCore.Qt.ItemIsUserCheckable)
+            item.setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked);listing.addItem(item)
+        if not rows:lay.addWidget(QtWidgets.QLabel('No top-plate pockets yet. Create them in Airflow / outlines first.'))
+        summary=QtWidgets.QLabel();summary.setWordWrap(True);lay.addWidget(summary)
+        def update_summary(*_):
+            active=[v['depth'] for j,(_,v,_) in enumerate(rows) if v['enabled'] and listing.item(j).checkState()==QtCore.Qt.Checked]
+            summary.setText(f'{len(active)} enabled patterns selected · minimum total thickness {2*max(active):g} mm' if active else 'No enabled pockets selected.')
+        listing.itemChanged.connect(update_summary);update_summary()
+        actions=QtWidgets.QHBoxLayout();lay.addLayout(actions)
+        def select_all(checked):
+            for j in range(listing.count()):listing.item(j).setCheckState(QtCore.Qt.Checked if checked else QtCore.Qt.Unchecked)
+        for text,checked in [('Select all',True),('Clear all',False)]:
+            button=QtWidgets.QPushButton(text);button.clicked.connect(lambda _=False,c=checked:select_all(c));actions.addWidget(button)
+        buttons=QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok|QtWidgets.QDialogButtonBox.Cancel);lay.addWidget(buttons)
+        buttons.accepted.connect(dialog.accept);buttons.rejected.connect(dialog.reject)
+        if not (dialog.exec() if hasattr(dialog,'exec') else dialog.exec_()):return
+        patterns=parse_patterns(p.CutoutPatterns)
+        for j,(i,_,_) in enumerate(rows):patterns[i-1]['pad_insert']=listing.item(j).checkState()==QtCore.Qt.Checked
+        encoded=encode_patterns(patterns)
+        self.controls['LiPoPadPocketNumber'].setValue(-1)
+        if self.airflow is not None:
+            editor=self.airflow;selected=editor._selected_index;editor.patterns=parse_patterns(encoded);editor.publish(selected)
+        self.controls['CutoutPatterns'].setText(encoded)
+        self.queue_refresh()
+
     def _ensure_airflow(self):
         if self.airflow is not None:return
         p=self.values()
@@ -1472,7 +1564,7 @@ class FrameDialog(QtWidgets.QDialog):
         editor.get_parameters=self.values
         self.airflow=editor
         editor.copy_to_pad.setChecked(p.LiPoPadCopyAirflow)
-        editor.copy_to_pad.setEnabled(p.LiPoPadEnabled and (p.LiPoPadShape=='Mounting plate outline' or p.LiPoPadFollowPlate))
+        editor.copy_to_pad.setEnabled(p.LiPoPadEnabled and p.LiPoPadShape!='Pocket insert' and (p.LiPoPadShape=='Mounting plate outline' or p.LiPoPadFollowPlate))
         editor.copy_to_pad.toggled.connect(self.controls['LiPoPadCopyAirflow'].setChecked)
         self.controls['LiPoPadCopyAirflow'].toggled.connect(editor.copy_to_pad.setChecked)
         editor.changed.connect(self._airflow_geometry_changed)
@@ -2060,7 +2152,7 @@ class FrameDialog(QtWidgets.QDialog):
                  '@airflow':('Airflow / outlines',self.airflow)}
         special.update(self.extra_search_targets)
         if name in special:title,control=special[name]
-        else:title,control=tab_name(name),self.controls[name]
+        else:title,control=tab_name(name),self.pocket_picker if name=='LiPoPadPocketNumber' else self.controls[name]
         category,scroll=self.section_pages[title]
         self.tabs.setCurrentWidget(self.category_tabs[category])
         self.category_tabs[category].setCurrentWidget(scroll)
@@ -2296,6 +2388,7 @@ class FrameDialog(QtWidgets.QDialog):
             field.setText(encoded)
         finally:
             field.blockSignals(previous)
+        if self.controls['LiPoPadShape'].currentText()=='Pocket insert':self.queue_refresh()
         # Other controls may have a pending refresh. Do not overwrite that
         # refresh with an outdated snapshot; it will read the new JSON.
         if self.timer.isActive():
@@ -2654,7 +2747,7 @@ class FrameDialog(QtWidgets.QDialog):
         self._mark_control_enabled('MotorReferenceColour',p.ShowReferences and p.DetailedMotorReferences)
         self._mark_control_enabled('VTXReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
         self._mark_control_enabled('PropReferenceHeight',not p.DetailedPropReferences)
-        self._mark_control_enabled('ShowVTXAntennaReference',p.ShowReferences and p.FlexRearAntenna)
+        self._mark_control_enabled('ShowVTXAntennaReference',p.ShowReferences and (p.FlexRearAntenna))
         self._mark_control_enabled('ShowELRSTReference',p.ShowReferences and p.FlexELRSEnabled)
         show_vtx=p.ShowReferences and p.FlexRearAntenna and p.ShowVTXAntennaReference
         show_elrs=p.ShowReferences and p.FlexELRSEnabled and p.ShowELRSTReference
@@ -2798,18 +2891,44 @@ class FrameDialog(QtWidgets.QDialog):
             self._startup_times['validation only']=perf_counter()-validation_started
         for name in BATTERY_FIELDS:
             if name.startswith('LiPoPad') and name!='LiPoPadEnabled':self._mark_control_enabled(name,p.LiPoPadEnabled and (not name.startswith('LiPoPadGroove') or p.LiPoPadPattern!='Solid'))
+        self._mark_control_enabled('LiPoPadPatternRelief',p.LiPoPadEnabled and p.LiPoPadPattern!='Solid')
+        # Offer only the pad positions for the active split arrangement.
+        # Saved preferences survive layout changes and the global Off setting.
+        options={name:x for name,x,_ in LIP_PAD_OPTIONS.get(p.LiPoPadLayout,())}
+        requested=requested_lip_sides(p)
+        for name in LIP_PAD_FIELDS:
+            visible=name in options
+            self.controls[name].setVisible(visible)
+            self.field_labels[name].setVisible(visible)
+            side=options.get(name)
+            self._mark_control_enabled(name,p.LiPoPadEnabled and visible and bool(requested) and (side==0 or side in requested))
+        for name in ('LiPoPadLipHeight','LiPoPadLipWidth','LiPoPadLipEndInset'):
+            self._mark_control_enabled(name,p.LiPoPadEnabled and bool(lip_sides(p)))
         for name in PAD_TEXT_FIELDS-{'LiPoPadTextEnabled'}:
             self._mark_control_enabled(name,p.LiPoPadEnabled and p.LiPoPadTextEnabled and (name!='LiPoPadTextInset' or p.LiPoPadTextPosition in ('Across front','Across rear')))
         self._mark_control_enabled('LiPoPadCornerRadius',p.LiPoPadEnabled and p.LiPoPadShape in ('Rounded rectangle','Mounting plate outline'))
+        pocket=p.LiPoPadShape=='Pocket insert'
         outline=p.LiPoPadShape=='Mounting plate outline'
+        self._mark_control_enabled('LiPoPadSplitGap',p.LiPoPadEnabled and p.LiPoPadLayout!='Single')
+        for name in ('LiPoPadPocketNumber','LiPoPadPocketClearance'):self._mark_control_enabled(name,p.LiPoPadEnabled and pocket)
+        self.pocket_picker.setEnabled(p.LiPoPadEnabled and pocket and p.BatteryMount=='Top plate')
+        if pocket:
+            from .battery import pocket_choices,pad_projection
+            try:count=sum(checked and v['enabled'] for _,v,checked in pocket_choices(p))
+            except ValueError:count=0
+            self.pocket_picker.setText(f'Choose pockets… ({count} selected)')
+            self.field_labels['LiPoPadThickness'].setText(f'Total pad thickness ({pad_projection(p):g} mm above carbon)')
+        else:
+            self.pocket_picker.setText('Choose pockets…')
+            self.field_labels['LiPoPadThickness'].setText(label('LiPoPadThickness'))
         for key,axis in (('LiPoPadWidth','width'),('LiPoPadLength','length')):
             self.field_labels[key].setText('Pad '+axis)
-            self._mark_control_enabled(key,p.LiPoPadEnabled and not outline)
+            self._mark_control_enabled(key,p.LiPoPadEnabled and not outline and not pocket)
         for name in ('LiPoPadOutlineWidthScale','LiPoPadFrontReach','LiPoPadRearReach'):self._mark_control_enabled(name,p.LiPoPadEnabled and p.LiPoPadShape=='Mounting plate outline')
-        self._mark_control_enabled('LiPoPadFollowPlate',p.LiPoPadEnabled and p.LiPoPadShape!='Mounting plate outline')
-        self._mark_control_enabled('LiPoPadCopyAirflow',p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
-        self._mark_control_enabled('LiPoPadCoverCountersunk',p.LiPoPadEnabled)
-        if self.airflow is not None:self.airflow.copy_to_pad.setEnabled(p.LiPoPadEnabled and (outline or p.LiPoPadFollowPlate))
+        self._mark_control_enabled('LiPoPadFollowPlate',p.LiPoPadEnabled and not outline and not pocket)
+        self._mark_control_enabled('LiPoPadCopyAirflow',p.LiPoPadEnabled and not pocket and (outline or p.LiPoPadFollowPlate))
+        self._mark_control_enabled('LiPoPadCoverCountersunk',p.LiPoPadEnabled and not pocket)
+        if self.airflow is not None:self.airflow.copy_to_pad.setEnabled(p.LiPoPadEnabled and not pocket and (outline or p.LiPoPadFollowPlate))
         from .equipment_mass import MASS_FIELDS
         for name in MASS_FIELDS:self._mark_control_enabled(name,p.EstimateComponents and (name not in ('VTXMass','CameraMass') or p.FPVEnabled))
         self.update_preview_modes(p)

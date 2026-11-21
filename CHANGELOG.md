@@ -1,3 +1,46 @@
+## v1.0.8.1 — Carbon texture visibility
+- Revert to standalone rear VTX and ELRS mounts; remove the experimental integrated rear housing and its settings.
+- Carbon weave and cut-edge overlays follow FreeCAD part visibility, including model-tree hide/show and restored documents.
+
+## v1.0.8 — Straight outermost LiPo retaining lips
+- Replace contour-following side bands with straight retaining walls on the global left/right extrema of the finished unsplit pad surface. Stop at angled transitions, rounded corners and recessed sides; never follow internal cuts or split edges.
+- Preserve individual split-pad selection, wall dimensions, grip relief and lettering clearances. Use matching straight-edge selection in 2D and CAD. If no eligible straight edge exists, omit the lip and report a warning rather than altering the pad outline.
+
+## v1.0.7 — Individual split LiPo pad lips
+- Add layout-aware checkboxes for each left/right, front/rear, or four-part pad. Preserve existing global side selection, wall dimensions, and saved behavior by default.
+- Use the same outer-perimeter selection in exact geometry and the 2D previews; unchecked pads retain their normal grip surface, and no lips form along split edges. Settings persist in FreeCAD documents and JSON presets.
+
+## v1.0.6 — LiPo grip relief and side retaining lips
+- Add Honeycomb (shared-edge hexagonal tessellation with across-flats spacing) alongside all existing surface patterns.
+- Choose Debossed or Embossed relief independently of the pattern; adjust width, height/depth and spacing. Raised relief lifts the battery reference; existing saved designs retain debossed grooves.
+- Add optional left, right or bilateral retaining lips with adjustable height, wall thickness and front/rear clearance. Derive lips from the unsplit outer footprint, then clip to the actual pad pieces, preserving openings and avoiding artificial walls along split boundaries.
+- Preview lips and grip relief in the pad inspection view, preserve reserved lettering areas and export the raised details as part of the existing printable solids. Outline-only exports omit raised surface details.
+
+## v1.0.5 — Cross-platform Pivy / SWIG initialization
+- Initialize FreeCAD’s bundled Pivy/Coin3D before registering RotorForge commands and before optional texture scene-graph or Render Studio camera-node access.
+- Keep base material colours when the optional texture scene graph is unavailable, preventing scene-root failures from discarding standoffs, CG markers or other valid CAD geometry. Log initialization and scene-root failures once per session; retry binding imports when needed.
+- Preserve all v1.0.1–v1.0.4 Runic lettering, split LiPo pads and seamless multi-pocket inserts, including their existing geometry, validation and exports.
+
+## v1.0.4 — Seamless combined pocket inserts
+- Merge actual pocket boundaries before applying fit clearance, eliminating internal profile seams in LiPo inserts.
+- Extrude connected outlines as single pads, preserving separate islands, stepped undersides and the existing thickness rule.
+
+## v1.0.3 — Multi-pocket LiPo pad inserts
+- Replace numbered pocket selection with a saved multi-select checklist; selections follow saved patterns when reordered or edited.
+- Combine overlapping pocket footprints and fit stepped undersides to actual machined floors of different depths. Separate recesses remain separate pieces.
+- Define pad thickness from the deepest selected pocket floor to the shared top surface; require at least twice that depth. Update battery height, grip and lettering depth validation accordingly.
+- Migrate former v1.0.2 numbered selections to saved flags and convert the old projection into total thickness, preserving the original battery-facing height.
+
+## v1.0.2 — Split and pocket-fitting LiPo pads
+- Add single, left/right, front/rear and four-piece pad layouts with an adjustable split gap.
+- Add top-plate pocket inserts from a selected blind pocket or all equal-depth pockets with adjustable per-side fit clearance.
+- Update pad previews, exact connectivity checks, mass/BOM and combined plus individual printable exports.
+
+## v1.0.1 — Runic CNC lettering
+- Add an original angular Runic alphabet for carbon lettering and LiPo pad engraving.
+- Allow the Runic font as a full-depth Interior cut or a blind Pocket; keep all existing font and legacy pattern behaviour.
+- Fit and validate Runic strokes against the selected cutter diameter and minimum web, with the existing final CAD connectivity and clearance checks.
+
 ## v1.0.0 — First major release
 - Promote the tested v0.93.56 workbench to the 1.0 release baseline. Preserve design parameters, detailed preview, manufacturing geometry, and established performance optimizations.
 - Replace the bundled Help manual with a complete, text-only 30-chapter guide using the original cover and visual identity. Update the installation guide version.

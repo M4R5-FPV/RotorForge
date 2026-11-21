@@ -1,10 +1,10 @@
-"""Portable blind-pocket lettering: swept engraving strokes and exact dot profiles.
+"""Portable CNC lettering: swept strokes, open Runic stencils and exact dot profiles.
 No system fonts or third-party packages are required.
 """
 import math
 from functools import lru_cache
 
-from .engraving_text import ENGRAVING_FONTS, engraving_groups, dimensions as engraving_dimensions
+from .engraving_text import ENGRAVING_FONTS, RUNE_FONT, engraving_groups, dimensions as engraving_dimensions, runic_check, runic_dimensions
 TEXT_FONTS=ENGRAVING_FONTS+('Dot matrix',)
 LEGACY_STENCIL_FONTS={'Block stencil':'Block engraving','Compact stencil':'Compact engraving'}
 DOT={
@@ -22,7 +22,10 @@ def _dot_layout(text,w,h):
 
 def check_text_web(pattern,web=0.):
     font=pattern['text_font'];dot=pattern.get('text_dot',1.)
-    if web>0:raise ValueError('CNC text is available only as blind pockets.')
+    if font==RUNE_FONT:
+        runic_check(pattern['text'],pattern['width'],pattern['length'],dot,web)
+        return
+    if web>0:raise ValueError('Only Runic lettering supports through-cuts; other fonts require blind pockets.')
     if font in ENGRAVING_FONTS:
         engraving_groups(pattern['text'],font,pattern['width'],pattern['length'],dot)
         return
@@ -55,9 +58,11 @@ def text_profiles(pattern):
 
 
 def minimum_text_size(pattern,web=0.):
-    if web>0:raise ValueError('CNC text is available only as blind pockets.')
     font=pattern['text_font'];dot=pattern.get('text_dot',1.)
-    if font in ENGRAVING_FONTS:
+    if font==RUNE_FONT:
+        w,h=runic_dimensions(pattern['text'],dot,web)
+    elif web>0:raise ValueError('Only Runic lettering supports through-cuts; other fonts require blind pockets.')
+    elif font in ENGRAVING_FONTS:
         w,h=engraving_dimensions(pattern['text'],font,dot)
     elif font=='Dot matrix':
         if not math.isfinite(dot) or not 1.<=dot<=10.:raise ValueError('Dot diameter must be 1–10 mm.')

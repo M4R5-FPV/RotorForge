@@ -406,7 +406,14 @@ def export_package(settings, destination, export_options=None):
                 from .geometry import _component_carbon
                 carrier=_component_carbon(pad_source,role,shapes) if pad_source is not None else None
                 blank=printable_pad(p,make_pad(p,shapes[role],grooves=False,carrier_without_airflow=carrier))
-                b=blank.BoundBox;entities=profile_entities(blank,curve_tolerance=.01)
+                b=blank.BoundBox;entities=[e for solid in blank.Solids for e in profile_entities(solid,curve_tolerance=.01)]
+                if len(printable.Solids)>1:
+                    pieces=sorted(printable.Solids,key=lambda s:(round(s.CenterOfMass.y,5),round(s.CenterOfMass.x,5)))
+                    for index,solid in enumerate(pieces,1):
+                        piece=solid.copy();bounds=piece.BoundBox;piece.translate(App.Vector(-bounds.XMin,-bounds.YMin,-bounds.ZMin))
+                        name=f'LiPoPad_part_{index:02d}'
+                        piece.exportStep(str(pad_folder/(name+'.step')))
+                        MeshPart.meshFromShape(Shape=piece,LinearDeflection=.05,AngularDeflection=.15,Relative=False).write(str(pad_folder/(name+'.stl')))
                 if selections['carbon_dxf']:write_dxf(pad_folder/'LiPoPad_outline.dxf',[('LiPoPad',entities)])
                 if selections['carbon_svg']:write_svg(pad_folder/'LiPoPad_outline.svg',[('LiPoPad',entities)],b.XLength,b.YLength,margin=0.)
             from .flex_geometry import printable_flex
@@ -460,7 +467,7 @@ def export_package(settings, destination, export_options=None):
                         from .camera_cages import cage_density,camera_thickness
                         for role in active_camera_roles(p):writer.writerow((role,1,p.CameraCageStyle,f'{camera_thickness(p):.3f}',f'{shapes[role].Volume*cage_density(p)/1000:.3f}'))
                     if p.LiPoPadEnabled:
-                        writer.writerow(('LiPoPad',1,'User pad material',f'{p.LiPoPadThickness:.3f}',f"{metrics['pad_mass_g']:.3f}"))
+                        writer.writerow(('LiPoPad',len(shapes['LiPoPad'].Solids),'User pad material',f'{p.LiPoPadThickness:.3f}',f"{metrics['pad_mass_g']:.3f}"))
                     for role in flex_roles(p):writer.writerow((role,2 if role.startswith("CameraPad") and p.FPVSystemProfile=="DJI O4 Air Unit Pro" else 1,"Printed flexible material","",f"{shapes[role].Volume*p.FlexDensity/1000:.3f}"))
                     groups = {}
                     for stand in standoff_layouts(p):

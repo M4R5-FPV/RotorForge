@@ -7,7 +7,7 @@ from .airflow_gui import (QtCore,QtGui,finished_part_path,capsule_path,ROLE_LABE
 from .preview_acceleration import LocalPathContains
 from .pad_preview_rounding import cleaned_core
 from .parameters import three_plate,arm_braces,upper_clamp_active,keystone_active,underside_clamp_active,arm_layouts
-from .battery import battery_point,mounting_role,groove_segments,pad_polygon,pad_reach_bounds,pad_standoff_clearance,grip_bounds,grip_point,pad_flush_seats,pad_fastener_clearances,pad_rounding_radii
+from .battery import battery_point,mounting_role,groove_segments,pad_polygon,pad_reach_bounds,pad_standoff_clearance,grip_bounds,grip_point,pad_flush_seats,pad_fastener_clearances,pad_rounding_radii,lip_sides
 
 def preview_roles(p):
  roles=['BottomPlate']+(['MidPlate'] if three_plate(p) else [])+['TopPlate']
@@ -108,7 +108,19 @@ def pad_path(p):
 @lru_cache(maxsize=12)
 def _pad_path_cached(p):
  timings={};start=perf_counter()
- try:return _build_pad_path(p,timings)
+ try:
+  path=_build_pad_path(p,timings)
+  if not path.isEmpty():
+   from .battery import split_rectangles
+   b=path.boundingRect()
+   rects=split_rectangles(p,(b.left(),b.top(),b.right(),b.bottom()))
+   if rects:
+    scale=QtGui.QTransform();scale.scale(100,100);path=scale.map(path)
+    for x,y,w,h in rects:
+     tool=QtGui.QPainterPath();tool.addRect(QtCore.QRectF(x,y,w,h));path=path.subtracted(scale.map(tool))
+    path=scale.inverted()[0].map(path)
+  return path
+ except ValueError:return QtGui.QPainterPath()
  finally:
   elapsed=perf_counter()-start
   if elapsed>=.15:
@@ -123,6 +135,15 @@ def _build_pad_path(p,timings):
   try:return fn(*args)
   finally:timings[label]=timings.get(label,0.)+perf_counter()-start
  path=QtGui.QPainterPath();w,l=p.LiPoPadWidth,p.LiPoPadLength
+ if p.LiPoPadShape=='Pocket insert':
+  from .battery import pocket_patterns
+  from .airflow_gui import cutout_path
+  scale=QtGui.QTransform();scale.scale(100,100);inverse=scale.inverted()[0]
+  for v in pocket_patterns(p):path=path.united(scale.map(cutout_path(v,p.CNCToolRadius)))
+  path=path.intersected(scale.map(finished_part_path(p,'TopPlate')))
+  if p.LiPoPadPocketClearance>0:
+   stroker=QtGui.QPainterPathStroker();stroker.setWidth(200*p.LiPoPadPocketClearance);stroker.setJoinStyle(QtCore.Qt.RoundJoin);path=path.subtracted(stroker.createStroke(path))
+  return pad_clearance_path(p,inverse.map(path))
  if p.LiPoPadShape=='Mounting plate outline':
   carrier=timed('carrier profile and flush seats',pad_carrier_path,p)
   b=carrier.boundingRect()
@@ -206,6 +227,45 @@ def _make_pad_text_path(p,path):
  return inverse.map(enlarged.intersected(material))
 
 
+@lru_cache(maxsize=12)
+def _cached_lip_path(p):
+ from .battery import lip_regions,lip_sides
+ result=QtGui.QPainterPath()
+ if not p.LiPoPadEnabled or not lip_sides(p):return result
+ unsplit=_build_pad_path(p,{})
+ if unsplit.isEmpty():return result
+ b=unsplit.boundingRect()
+ # Work enlarged for clipping, but select the same global extreme straight
+ # line segments as CAD. Inspect line elements only, not Bezier controls.
+ # A hole cannot have a segment on the global X extrema unless it opens to
+ # the exterior. The final pad material clips all clearances and splits.
+ scale=QtGui.QTransform();scale.scale(40,40);inverse=scale.inverted()[0]
+ edges=[];previous=None
+ for i in range(unsplit.elementCount()):
+  element=unsplit.elementAt(i);point=(element.x,element.y)
+  if element.isLineTo() and previous is not None:edges.append((previous,point))
+  previous=point
+ regions=lip_regions(p,(b.left(),b.top(),b.right(),b.bottom()),edges)
+ for side,(x0,y0,x1,y1) in regions:
+  window=QtGui.QPainterPath();window.addRect(QtCore.QRectF(x0*40,y0*40,(x1-x0)*40,(y1-y0)*40))
+  result=result.united(window)
+ path=pad_path(p);result=result.intersected(scale.map(path))
+ layout=_text_preview_layout(p,path)
+ if layout:
+  x0,y0,x1,y1=layout[2];keep=QtGui.QPainterPath();keep.addRect(QtCore.QRectF(x0*40,y0*40,(x1-x0)*40,(y1-y0)*40));result=result.subtracted(keep)
+ return inverse.map(result)
+
+
+def side_lip_path(p):
+ return QtGui.QPainterPath(_cached_lip_path(p))
+
+
+def grip_preview_colour(p):
+ colour=QtGui.QColor(printed_hex(p))
+ if p.LiPoPadPatternRelief=='Embossed':return colour.lighter(175 if colour.lightness()<80 else 125)
+ return QtGui.QColor(printed_groove(p))
+
+
 def grip_path(p,path):
  grooves=QtGui.QPainterPath()
  if p.LiPoPadPattern=='Solid':return grooves
@@ -218,6 +278,7 @@ def grip_path(p,path):
  if layout:
   x0,y0,x1,y1=layout[2];keep=QtGui.QPainterPath();keep.addRect(QtCore.QRectF(x0,y0,x1-x0,y1-y0))
   enlarged=enlarged.subtracted(scale.map(keep))
+ if lip_sides(p) and p.LiPoPadPatternRelief=='Debossed':enlarged=enlarged.subtracted(scale.map(side_lip_path(p)))
  return inverse.map(enlarged.intersected(scale.map(path)))
 
 def draw_parts(painter,rect,p,selected):
@@ -264,7 +325,9 @@ def draw_parts(painter,rect,p,selected):
      painter.drawRect(QtCore.QRectF(nut['start_x'],d['hinge_y']-nut['radius'],nut['end_x']-nut['start_x'],2*nut['radius']))
   if role=='LiPoPad':
    try:
-    painter.fillPath(grip_path(p,path),QtGui.QColor(printed_groove(p)))
+    painter.fillPath(grip_path(p,path),grip_preview_colour(p))
+    if lip_sides(p):
+     painter.setPen(QtGui.QPen(QtGui.QColor(CARBON_EDGE),.18));painter.setBrush(QtGui.QColor(printed_hex(p)).lighter(150));painter.drawPath(side_lip_path(p))
     if p.LiPoPadTextEnabled:painter.fillPath(pad_text_path(p,path),QtGui.QColor(printed_groove(p)))
    except ValueError as exc:
     painter.restore();painter.setPen(QtGui.QColor('#ad3d36'))

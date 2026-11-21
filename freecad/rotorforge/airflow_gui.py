@@ -10,7 +10,7 @@ except ImportError:
     except ImportError:
         from PySide6 import QtCore, QtGui, QtWidgets
 from .cutouts import CUTOUT_ROLES, CUTOUT_TYPES, CUTOUT_MODES, MAX_PATTERNS, MAX_ENABLED_CUTOUTS, PATTERN_DEFAULTS, parse_patterns, encode_patterns, pattern_instances, cutout_polygon, CNC_POLYGON_TYPES, cutout_profile_segments, pattern_cut_count
-from .stencil_text import TEXT_FONTS, ENGRAVING_FONTS, text_profiles, check_text_web, minimum_text_size
+from .stencil_text import TEXT_FONTS, ENGRAVING_FONTS, RUNE_FONT, text_profiles, check_text_web, minimum_text_size
 from .parameters import bottom_bounds, mid_bounds, top_bounds, plate_holes, arm_brace_layouts, arm_layouts, strap_slots, stack_holes, upper_clamp_active, underside_clamp_active, keystone_active, mid_tabs
 from .parameters import bottom_body_bounds, bottom_tabs
 from .fpv import CAMERA_ROLES, camera_mounts, camera_slots, camera_position_y, camera_pivot_height
@@ -436,7 +436,7 @@ def _spatial_path_union(paths):
 
 def combined_cutout_path(patterns,role,additions=False,radius=.5):
     # Keep the original pattern order and exact 100x Qt Boolean precision.
-    relevant=[{k:v for k,v in pattern.items() if k not in ('auto_keep','auto_group')}
+    relevant=[{k:v for k,v in pattern.items() if k not in ('auto_keep','auto_group','pad_insert')}
               for pattern in patterns
               if pattern['enabled'] and pattern['role']==role and
                  (pattern['mode']=='Add material' if additions else pattern['mode'] not in ('Add material','Pocket'))]
@@ -479,7 +479,7 @@ def finished_part_path(p,role,patterns=None,include_strap_notches=True):
     if patterns is None:
         patterns=parse_patterns(p.CutoutPatterns)
     geometric=[{key:value for key,value in pattern.items()
-                if key not in ('auto_keep','auto_group')}
+                if key not in ('auto_keep','auto_group','pad_insert')}
                for pattern in patterns if pattern['role']==role]
     encoded=json.dumps(geometric,sort_keys=True,separators=(',',':'))
     profile=_profile_parameters(p)
@@ -669,7 +669,7 @@ class AirflowPreview(QtWidgets.QWidget):
             added=[v for v in e.patterns if v['enabled'] and v['role']==role
                    and v['mode']=='Add material']
             self._addition_signature=tuple(json.dumps(
-                {k:v for k,v in item.items() if k not in ('auto_keep','auto_group')},
+                {k:v for k,v in item.items() if k not in ('auto_keep','auto_group','pad_insert')},
                 sort_keys=True,separators=(',',':')) for item in added)
             self._addition_patterns=added
             self._addition_signature_key=signature_key
@@ -863,13 +863,13 @@ class AirflowEditor(QtWidgets.QWidget):
         form.addRow(self.text_label,self.text_input)
         self.text_font_label=QtWidgets.QLabel('CNC font')
         self.text_font=QtWidgets.QComboBox();self.text_font.addItems(TEXT_FONTS);self.text_font.setCurrentText(ENGRAVING_FONTS[0])
-        self.text_font.setToolTip('Every CNC font is available for blind pockets. Engraving styles use round-ended cutter strokes; Dot matrix uses separate circular pockets. Use Fit lettering to CNC rules after choosing a style.')
+        self.text_font.setToolTip('Runic engraving supports both Interior through-cuts and blind Pocket lettering. All other fonts are blind pockets. Use Fit lettering to CNC rules after choosing a style and operation.')
         form.addRow(self.text_font_label,self.text_font)
         self.text_dot_label=QtWidgets.QLabel('Dot diameter')
         self.text_dot=QtWidgets.QDoubleSpinBox();self.text_dot.setRange(1.,10.);self.text_dot.setDecimals(2);self.text_dot.setSuffix(' mm');self.text_dot.setValue(1.)
         form.addRow(self.text_dot_label,self.text_dot)
         self.text_fit=QtWidgets.QPushButton('Fit lettering to CNC rules');self.text_fit.clicked.connect(self.fit_lettering)
-        self.text_fit.setToolTip('Fit the lettering to its selected stroke diameter (at least the selected cutter diameter), preserving the selected cutter-radius rule. Engraving is a blind pocket; exact placement is checked on Create / Update.')
+        self.text_fit.setToolTip('Fit the lettering to its selected stroke diameter (at least the selected cutter diameter), preserving the selected cutter-radius rule. Runic through-cuts also respect the minimum material web. Exact placement is checked on Create / Update.')
         form.addRow(self.text_fit)
         self.text_size_hint=QtWidgets.QLabel();self.text_size_hint.setWordWrap(True)
         form.addRow(self.text_size_hint)
@@ -879,6 +879,7 @@ class AirflowEditor(QtWidgets.QWidget):
             self.inputs[key].valueChanged.connect(self.update_text_size_hint)
         self.text_font.currentIndexChanged.connect(self.update_shape_controls)
         self.shape.currentIndexChanged.connect(self.update_shape_controls)
+        self.mode.currentIndexChanged.connect(self.update_text_size_hint)
         self.update_shape_controls()
         self.depth=QtWidgets.QDoubleSpinBox()
         self.depth.setDecimals(2);self.depth.setRange(.1,50.);self.depth.setSingleStep(.1)
@@ -1080,8 +1081,8 @@ class AirflowEditor(QtWidgets.QWidget):
     @staticmethod
     def _same_generated_pattern(a,b):
         """Changing only the Keep checkbox must not count as a geometry edit."""
-        return ({k:v for k,v in a.items() if k!='auto_keep'} ==
-                {k:v for k,v in b.items() if k!='auto_keep'})
+        return ({k:v for k,v in a.items() if k not in ('auto_keep','pad_insert')} ==
+                {k:v for k,v in b.items() if k not in ('auto_keep','pad_insert')})
 
     def _active_auto_batch(self):
         """Find this editor's unedited generated suffix, ignoring Keep changes."""
@@ -1201,7 +1202,7 @@ class AirflowEditor(QtWidgets.QWidget):
             additions=[v for v in working if v['role']==role and v['enabled']
                        and v['mode']=='Add material']
             material_key=json.dumps(
-                [{k:v for k,v in item.items() if k not in ('auto_keep','auto_group')}
+                [{k:v for k,v in item.items() if k not in ('auto_keep','auto_group','pad_insert')}
                  for item in additions],sort_keys=True,separators=(',',':'))
             plate_key=(replace(p,CutoutPatterns='[]'),role,material_key,required_web)
             cached=getattr(self,'_auto_fast_plate_cache',None)
@@ -1435,11 +1436,13 @@ class AirflowEditor(QtWidgets.QWidget):
         font=self.text_font.currentText()
         self.text_dot_label.setText('Stroke diameter' if font in ENGRAVING_FONTS else 'Dot diameter')
         for control in (self.text_dot_label,self.text_dot):control.setVisible(lettering and (font in ENGRAVING_FONTS or font=='Dot matrix'))
+        runic=lettering and font==RUNE_FONT
         for mode in ('Interior','Outline notch','Add material'):
             item=self.mode.model().item(self.mode.findText(mode))
-            if item is not None:item.setEnabled(not lettering)
-        if lettering:self.mode.setCurrentText('Pocket')
-        self.mode.setEnabled(not lettering)
+            if item is not None:item.setEnabled(not lettering or (runic and mode=='Interior'))
+        if lettering and (not runic or self.mode.currentText() not in ('Pocket','Interior')):
+            self.mode.setCurrentText('Pocket')
+        self.mode.setEnabled(not lettering or runic)
         self.update_text_size_hint()
 
     def update_text_size_hint(self,*args):
@@ -1448,7 +1451,8 @@ class AirflowEditor(QtWidgets.QWidget):
         if not lettering:return
         item=dict(text=self.text_input.text().upper(),text_font=self.text_font.currentText(),text_dot=self.text_dot.value(),width=self.inputs['width'].value(),length=self.inputs['length'].value())
         try:
-            width,height=minimum_text_size(item,0.)
+            web=self._lettering_web(item)
+            width,height=minimum_text_size(item,web)
             # Rounded-up fit includes a small numerical allowance. Do not
             # generate cutter profiles while the user is still typing.
             suffix=(' — increase size or press Fit lettering.'
@@ -1458,10 +1462,17 @@ class AirflowEditor(QtWidgets.QWidget):
         except ValueError as exc:
             self.text_size_hint.setText(str(exc));self.text_size_hint.setStyleSheet('color: #a45b00;')
 
+    def _lettering_web(self,item):
+        if item.get('text_font')!=RUNE_FONT or self.mode.currentText()!='Interior':return 0.
+        p=self.get_parameters()
+        index=getattr(self,'_selected_index',-1)
+        stored=self.patterns[index].get('auto_web',0.) if 0<=index<len(self.patterns) else 0.
+        return max(p.MinimumWeb,stored)
+
     def fit_lettering(self,*args):
         try:
             item=self.draft()
-            web=0.
+            web=self._lettering_web(item)
             diameter=2*self.get_parameters().CNCToolRadius
             if item['text_dot']<diameter:
                 self.text_dot.setValue(diameter);item['text_dot']=diameter
@@ -1473,7 +1484,8 @@ class AirflowEditor(QtWidgets.QWidget):
     def draft(self):
         draft=dict(mode=self.mode.currentText(),role=self.role.currentData(),shape=self.shape.currentText(),enabled=self.enabled.isChecked(),mirror_u=self.mirror_u.isChecked(),mirror_v=self.mirror_v.isChecked(),**{k:c.value() for k,c in self.inputs.items()})
         if draft['shape']=='Text':
-            draft['mode']='Pocket';draft['text']=self.text_input.text().upper();draft['text_font']=self.text_font.currentText();draft['text_dot']=self.text_dot.value()
+            draft['text']=self.text_input.text().upper();draft['text_font']=self.text_font.currentText();draft['text_dot']=self.text_dot.value()
+            if draft['text_font']!=RUNE_FONT or draft['mode'] not in ('Interior','Pocket'):draft['mode']='Pocket'
         if draft['shape']=='Web cell':
             draft['vertices']=[list(v) for v in getattr(self,'_web_cell_vertices',[])]
         return draft
@@ -1503,6 +1515,7 @@ class AirflowEditor(QtWidgets.QWidget):
         self.shape.setCurrentText(p['shape']);self.mode.setCurrentText(p['mode']);self.enabled.setChecked(p['enabled'])
         self.mirror_u.setChecked(p.get('mirror_u',False));self.mirror_v.setChecked(p.get('mirror_v',False))
         self.text_input.setText(p.get('text','FPV'));self.text_font.setCurrentText(p.get('text_font',TEXT_FONTS[0]) if p['shape']=='Text' else ENGRAVING_FONTS[0]);self.text_dot.setValue(p.get('text_dot',1.) if p['shape']=='Text' else 1.)
+        self.mode.setCurrentText(p['mode'])
         for k,c in self.inputs.items():c.setValue(p[k])
         self._draft_baseline=self.draft();self.status.setStyleSheet('')
         self.status.setText('Unapplied edits discarded. Saved patterns are unchanged.');self.preview.update()
@@ -1551,7 +1564,7 @@ class AirflowEditor(QtWidgets.QWidget):
         p=self.patterns[index]
         size=f"Ø{p['width']:g} mm" if p['shape']=='Circle' else f"{p['width']:g} × {p['length']:g} mm"
         label=(' · '+p['text']+' ('+p['text_font']+')') if p['shape']=='Text' else ''
-        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size}"+label+(f" · bend {p['arc_angle']:g}°" if p['shape']=='Arc slot' else '')+f" · ({p['x']:g}, {p['y']:g})"+(f" · depth {p['depth']:g} mm" if p['mode']=='Pocket' else '')+(' [off]' if not p['enabled'] else '')+(' · Keep' if p.get('auto_keep') else '')
+        return f"#{index+1} · {ROLE_LABELS[p['role']]} · {p['mode']} · {p['columns']*p['rows']} × {p['shape']} · {size}"+label+(f" · bend {p['arc_angle']:g}°" if p['shape']=='Arc slot' else '')+f" · ({p['x']:g}, {p['y']:g})"+(f" · depth {p['depth']:g} mm" if p['mode']=='Pocket' else '')+(' [off]' if not p['enabled'] else '')+(' · Keep' if p.get('auto_keep') else '')+(' · LiPo insert' if p.get('pad_insert') else '')
 
     def filter_patterns(self,*args):
         tokens=self.find_pattern.text().casefold().split();role=self.filter_role.currentData();shown=0
@@ -1598,6 +1611,7 @@ class AirflowEditor(QtWidgets.QWidget):
         self.shape.setCurrentText(p['shape']);self.mode.setCurrentText(p['mode']);self.enabled.setChecked(p['enabled'])
         self.mirror_u.setChecked(p.get('mirror_u',False));self.mirror_v.setChecked(p.get('mirror_v',False))
         self.text_input.setText(p.get('text','FPV'));self.text_font.setCurrentText(p.get('text_font',TEXT_FONTS[0]) if p['shape']=='Text' else ENGRAVING_FONTS[0]);self.text_dot.setValue(p.get('text_dot',1.) if p['shape']=='Text' else 1.)
+        self.mode.setCurrentText(p['mode'])
         for k,c in self.inputs.items():c.setValue(p[k])
         self._draft_baseline=self.draft();self.status.setStyleSheet('');self.status.setText('Selected #'+str(index+1)+'. Edit and press Apply to pattern, or Add pattern for a new cut.')
         self.filter_patterns();self.preview.update();return True
@@ -1625,6 +1639,7 @@ class AirflowEditor(QtWidgets.QWidget):
         if index<0:self.status.setText('Select a saved pattern first, or press Add pattern.');return
         old=list(self.patterns);updated=self.draft()
         updated['auto_web']=self.patterns[index].get('auto_web',0.)
+        updated['pad_insert']=self.patterns[index].get('pad_insert',False)
         if not self._check_lettering(updated):return
         if updated['shape']=='Web cell':updated['vertices']=[list(v) for v in self.patterns[index].get('vertices',[])]
         self.patterns[index]=updated
