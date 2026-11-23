@@ -87,11 +87,17 @@ def _flex_path_cached(p,role):
   from .motor_pads import motor_pad_unit
   arm=next(a for a in arm_layouts(p) if role=='MotorProtector'+a['name']);ux,uy=motor_pad_unit(p,arm)
   t=QtGui.QTransform();t.translate(*arm['motor']);t.rotate(math.degrees(math.atan2(uy,ux)))
-  pad=t.map(motor_pad_path(p,arm));stroke=QtGui.QPainterPathStroker();stroke.setWidth(2*(p.FlexProtectorFit+p.FlexProtectorWall));path=pad.united(stroke.createStroke(pad))
+  pad=t.map(motor_pad_path(p,arm))
+  stroke=QtGui.QPainterPathStroker()
+  stroke.setWidth(2*(p.FlexProtectorFit+p.FlexProtectorWall))
+  path=pad.united(stroke.createStroke(pad))
+  # Linked service openings are a retention choice, independent of
+  # landing-foot style. Decorative arm-tip windows remain untransferred.
   from .protection_layout import motor_service_slots
   for a,b,r in motor_service_slots(p,arm):path=path.subtracted(capsule_path(a,b,r))
   for x,y in arm['motor_holes']:
-   hole=QtGui.QPainterPath();radius=p.MotorHoleDiameter/2+.15 if p.FlexProtectorRetention=='Motor screws' else max(3.,p.MotorHoleDiameter/2+.2);hole.addEllipse(QtCore.QPointF(x,y),radius,radius);path=path.subtracted(hole)
+   radius=p.MotorHoleDiameter/2+.15 if p.FlexProtectorRetention=='Motor screws' else max(3.,p.MotorHoleDiameter/2+.2)
+   hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(x,y),radius,radius);path=path.subtracted(hole)
   hole=QtGui.QPainterPath();hole.addEllipse(QtCore.QPointF(*arm['motor']),p.MotorCenterDiameter/2+.4,p.MotorCenterDiameter/2+.4);return path.subtracted(hole)
  if role.startswith('ElectronicsGuard'):
   from .protection_layout import guard_layout,guard_vents,usb_window,vent_polygon,guard_wire_openings,guard_strap_windows,guard_vtx_window

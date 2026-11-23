@@ -64,6 +64,12 @@ FLEX_OPTIONS={'FlexCameraMode': ('Hard mount',
                           'Landing foot height',
                           'Extra downward perimeter foot below the cup floor. Zero keeps a flat underside. Screw and '
                           'shaft access remain open.'),
+ 'FlexProtectorLandingStyle': ('Full perimeter (original)',
+                               'Landing foot style',
+                               'Full perimeter (original): downward ring around the complete motor-pad edge. '
+                               'Tip-only inward taper: a filled front landing sole from the motor centreline out to the arm tip, '
+                               'tapering inward as it descends. Decorative arm-tip cutouts are not transferred to the sole; the selected Motor screws or Linked screw access pattern remains active.',
+                               ('Full perimeter (original)', 'Tip-only inward taper')),
  'FlexProtectorRetention': ('Motor screws',
                             'Protector screw access',
                             'Motor screws keeps small fixing holes. Linked screw access joins larger screw-head '

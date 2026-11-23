@@ -141,6 +141,8 @@ def validate_flex(p):
  if p.FlexMotorProtectors:
   if min(p.FlexProtectorWall,p.FlexProtectorFloor)<.8:errors.append('Motor protector walls and floor must be at least 0.8 mm.')
   if p.FlexProtectorFit>2:errors.append('Motor protector fit clearance must be at most 2 mm.')
+  if p.FlexProtectorLandingStyle not in ('Full perimeter (original)', 'Tip-only inward taper'):
+   errors.append('Unknown motor protector landing foot style.')
  if p.FlexSideGuards:
   if p.FlexGuardCloseFront and not p.FPVEnabled:errors.append('Close sides to camera plates requires FPV camera side plates.')
   if p.FlexGuardCloseFront and not 1<=p.FlexGuardCameraOverlap<=8:errors.append('Camera plate landing length must be between 1 and 8 mm.')

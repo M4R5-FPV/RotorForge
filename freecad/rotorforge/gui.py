@@ -1454,7 +1454,7 @@ class FrameDialog(QtWidgets.QDialog):
         outer.addLayout(actions)
         self.timer = QtCore.QTimer(self)
         self.timer.setSingleShot(True)
-        self.timer.setInterval(140)
+        self.timer.setInterval(220)
         self.timer.timeout.connect(self._refresh_if_changed)
         load.clicked.connect(self.load)
         save.clicked.connect(self.save)
@@ -1480,7 +1480,7 @@ class FrameDialog(QtWidgets.QDialog):
         self._preview_ready_timer=QtCore.QTimer(self)
         self._preview_ready_timer.setSingleShot(True)
         self._preview_ready_timer.timeout.connect(self._finish_initial_preview)
-        self.summary.setText('Preparing the selected frame…')
+        self._set_label_if_changed(self.summary,'Preparing the selected frame…')
         self.resize(max(1100,self.minimumWidth()), max(750,self.minimumHeight()))
         self._editor_ready=True
         self._startup_times['widget setup']=perf_counter()-started
@@ -1593,7 +1593,7 @@ class FrameDialog(QtWidgets.QDialog):
             self.refresh()
         except Exception as exc:
             self.generate.setEnabled(False)
-            self.messages.setPlainText('Cannot initialise frame preview: ' + str(exc))
+            self._set_plain_text_if_changed(self.messages,'Cannot initialise frame preview: ' + str(exc))
         finally:
             self._startup_times['initial validation / controls']=perf_counter()-started
             # Complete the final layout before recording at its final size.
@@ -2115,7 +2115,7 @@ class FrameDialog(QtWidgets.QDialog):
     def calculate_mass(self):
         if self.airflow is not None and self.airflow.has_pending_changes():
             self.mass_signature=None;self.preview.mass_metrics=None;self.preview.update()
-            self.mass_result.setText('Apply or discard pending airflow/outline edits before calculating weight / CG.')
+            self._set_label_if_changed(self.mass_result,'Apply or discard pending airflow/outline edits before calculating weight / CG.')
             return
         try:
             from .geometry import build_shapes,invalidate_failed_build
@@ -2136,9 +2136,9 @@ class FrameDialog(QtWidgets.QDialog):
             if 'loaded_mass_g' in metrics:
                 text+=f"Equipped + LiPo: {metrics['loaded_mass_g']:.2f} g • CG {tuple(round(v,2) for v in metrics['loaded_cg_mm'])} mm\n"
             text+='Equipment uses editable nominal masses and size-based screw estimates. Verify actual build weight.'
-            self.mass_result.setText(text);self.preview.update()
+            self._set_label_if_changed(self.mass_result,text);self.preview.update()
         except Exception as exc:
-            self.mass_signature=None;self.preview.mass_metrics=None;self.mass_result.setText('Cannot calculate: '+str(exc))
+            self.mass_signature=None;self.preview.mass_metrics=None;self._set_label_if_changed(self.mass_result,'Cannot calculate: '+str(exc))
 
     def jump_to_control(self, caption):
         name=self.search_locations.get(caption)
@@ -2404,7 +2404,7 @@ class FrameDialog(QtWidgets.QDialog):
                 self.preview.update()
         self.mass_signature=None
         self.preview.mass_metrics=None
-        self.mass_result.setText('Weight / CG needs recalculation after changing airflow cuts.')
+        self._set_label_if_changed(self.mass_result,'Weight / CG needs recalculation after changing airflow cuts.')
 
     def _airflow_metadata_changed(self, encoded):
         """Persist Keep flags without rebuilding unchanged plate geometry."""
@@ -2418,7 +2418,18 @@ class FrameDialog(QtWidgets.QDialog):
 
     def queue_refresh(self, *args):
         if hasattr(self, "timer") and not getattr(self,"_initial_pending",False):
-            self.timer.start()
+            # Full-quality 2-D geometry may require costly native Qt unions and
+            # fillets. Never run these in the middle of typing / spin-button
+            # auto-repeat. Keep widgets responsive and render once when input
+            # settles; discrete option clicks update sooner than typed values.
+            source=self.sender()
+            if isinstance(source,QtWidgets.QLineEdit):
+                delay=360
+            elif isinstance(source,(QtWidgets.QDoubleSpinBox,QtWidgets.QSpinBox)):
+                delay=250
+            else:
+                delay=170
+            self.timer.start(delay)
 
     def custom_bolts_from_spacing(self,*args):
         p=self.values()
@@ -2550,6 +2561,20 @@ class FrameDialog(QtWidgets.QDialog):
             pass
         self.refresh()
 
+    def _set_summary_state(self,has_errors):
+        if getattr(self,'_summary_error_state',None)==has_errors:return
+        self._summary_error_state=has_errors
+        self.summary.setStyleSheet('font-weight: bold; padding: 6px; color: ' +
+                                   ('#b43737' if has_errors else '#21805b') + ';')
+
+    @staticmethod
+    def _set_label_if_changed(widget,text):
+        if widget.text()!=text:widget.setText(text)
+
+    @staticmethod
+    def _set_plain_text_if_changed(widget,text):
+        if widget.toPlainText()!=text:widget.setPlainText(text)
+
     def refresh(self):
         # A refresh toggles hundreds of controls and recomputes text, previews,
         # and section visibility. Batch painting to avoid showing half-updated
@@ -2566,7 +2591,7 @@ class FrameDialog(QtWidgets.QDialog):
             import traceback
             App.Console.PrintError('RotorForge editor refresh failed:\n'+traceback.format_exc())
             self.generate.setEnabled(False)
-            self.messages.setPlainText('Cannot update frame preview: '+str(exc))
+            self._set_plain_text_if_changed(self.messages,'Cannot update frame preview: '+str(exc))
         finally:
             # Unmentioned controls are enabled. Explicit rules may assign the
             # same control several times; apply only the last rule, and only
@@ -2743,6 +2768,8 @@ class FrameDialog(QtWidgets.QDialog):
         for name in ('FlexBumperCameraGripDepth','FlexBumperCameraHeight','FlexBumperCameraFrontProjection','FlexBumperCameraBlendReach'):
             self._mark_control_enabled(name,full_bumper)
         self._mark_control_enabled('FlexProtectorBumperSleeve',p.ArmTipBumperStyle!='Disabled' and p.FlexMotorProtectors)
+        self._mark_control_enabled('FlexProtectorLandingStyle',p.FlexMotorProtectors and p.FlexProtectorLanding>0)
+        self._mark_control_enabled('FlexProtectorRetention',p.FlexMotorProtectors)
         self._mark_control_enabled('PropReferenceColour',p.ShowReferences and p.DetailedPropReferences)
         self._mark_control_enabled('MotorReferenceColour',p.ShowReferences and p.DetailedMotorReferences)
         self._mark_control_enabled('VTXReferenceStyle',p.ShowReferences and p.FPVEnabled and p.DetailedVTXReference)
@@ -2866,24 +2893,24 @@ class FrameDialog(QtWidgets.QDialog):
             pair_notes.append(f"{pair['position']} (Y {pair['y']:.2f}, span {pair['width']:.2f}): 2 × {stand['length']:g} mm, {stand['mount'].lower()} → top")
             if stand['shared_arm']:
                 pair_notes.append(f"  Shares {stand['shared_arm']['hole']} arm holes; clamp grip {stand['grip_length']:g} mm.")
-        self.standoff_info.setText(mounting + "\n\n" + "\n".join(pair_notes))
-        self.note.setText("All dimensions are mm. " + (
+        self._set_label_if_changed(self.standoff_info,mounting + "\n\n" + "\n".join(pair_notes))
+        self._set_label_if_changed(self.note,"All dimensions are mm. " + (
             '3 plates: bottom → arms / optional keystone → mid → top. Shared arm mounts use screws through the sandwich into the standoffs.'
             if three_plate(p) else '2 plates: arms '+('above' if arms_above_bottom(p) else 'below')+
             ' the bottom'+((' with one upper clamp / FC deck.' if upper_clamp_active(p) else ' with one lower clamp; FC stack on the bottom plate.') if arm_braces(p) else '.')+
             ' Standoff lengths follow their actual mounting surfaces and keep the top level.'))
         if underside_clamp_active(p):
-            self.note.setText(self.note.text()+f' A {p.UndersideClampThickness:g} mm lower clamp captures the arms and optional key. Eight arm bolts secure it; stack access is {p.StackAccessDiameter:g} mm from below.')
+            self._set_label_if_changed(self.note,self.note.text()+f' A {p.UndersideClampThickness:g} mm lower clamp captures the arms and optional key. Eight arm bolts secure it; stack access is {p.StackAccessDiameter:g} mm from below.')
         if p.FlexRearAntenna:
             from .antenna_layout import antenna_layout
             try:
                 antenna=antenna_layout(p)
-                self.note.setText(self.note.text()+f" Antenna grip: {antenna['height']:.2f} mm used / {antenna['available']:.2f} mm available. Tilt {p.FlexAntennaTilt:g} degrees; dual yaw 30 degrees each.")
+                self._set_label_if_changed(self.note,self.note.text()+f" Antenna grip: {antenna['height']:.2f} mm used / {antenna['available']:.2f} mm available. Tilt {p.FlexAntennaTilt:g} degrees; dual yaw 30 degrees each.")
             except (ValueError,IndexError):pass
         if p.FlexELRSEnabled:
             from .elrs_layout import elrs_seat
             try:
-                seat=elrs_seat(p);self.note.setText(self.note.text()+f" ELRS grip: {seat['height']:.2f} mm / {seat['available']:.2f} mm available below the guards.")
+                seat=elrs_seat(p);self._set_label_if_changed(self.note,self.note.text()+f" ELRS grip: {seat['height']:.2f} mm / {seat['available']:.2f} mm available below the guards.")
             except (ValueError,IndexError):pass
         validation_started=perf_counter()
         errors, warnings = validate(p)
@@ -2942,7 +2969,7 @@ class FrameDialog(QtWidgets.QDialog):
                 self.camera_view_status.setText('Settings changed. Click Render camera view to check the new geometry and optics.')
         if self.mass_signature!=design_signature(p):
             self.preview.mass_metrics=None
-            self.mass_result.setText('Weight / CG needs calculation for the current settings. Bare frame and editable equipment estimates are reported separately.')
+            self._set_label_if_changed(self.mass_result,'Weight / CG needs calculation for the current settings. Bare frame and editable equipment estimates are reported separately.')
         self.mass_button.setEnabled(not errors)
         self.preview.params = p
         if self.preview.isVisible():self.preview.update()
@@ -2954,24 +2981,24 @@ class FrameDialog(QtWidgets.QDialog):
         gap = prop_gap(p)
         motors=motor_centres(p)
         actual_diagonal=math.dist(motors[0],motors[2])
-        self.summary.setText(f"{p.PlateDesign}  •  {p.Layout}  •  {actual_diagonal:.1f} mm diagonal\n"
+        self._set_label_if_changed(self.summary,f"{p.PlateDesign}  •  {p.Layout}  •  {actual_diagonal:.1f} mm diagonal\n"
                              f"{p.PropDiameter / 25.4:.2f}-inch props  •  minimum prop gap {gap:.1f} mm\n"
                              f"{2 * standoff_pair_count(p)} standoffs ({standoff_pair_count(p)} pairs): rear {heights['Rear']:g} mm / front {heights['Front']:g} mm"
                              + (f"\nFPV {p.VideoSystem} • camera {p.CameraWidth:g} mm • VTX {p.VTXPattern}" if p.FPVEnabled else '\nNon-FPV frame'))
         if p.Layout=='Deadcat':
             arms=arm_layouts(p)
-            self.summary.setText(self.summary.text()+f"\nFront arms {arms[0]['length']:.1f} mm • rear arms {arms[2]['length']:.1f} mm • front +Y")
+            self._set_label_if_changed(self.summary,self.summary.text()+f"\nFront arms {arms[0]['length']:.1f} mm • rear arms {arms[2]['length']:.1f} mm • front +Y")
             if p.RearArmExtension:
-                self.summary.setText(self.summary.text()+f'\nRear extension +{p.RearArmExtension:g} mm per arm • base diagonal {p.Wheelbase:g} mm')
+                self._set_label_if_changed(self.summary,self.summary.text()+f'\nRear extension +{p.RearArmExtension:g} mm per arm • base diagonal {p.Wheelbase:g} mm')
         carrier_name={'MidPlate':'mid plate','ArmClampPlate':'combined clamp','BottomPlate':'bottom plate'}[stack_mounting_role(p)]
-        self.summary.setText(self.summary.text()+f"\nStack on {carrier_name} • bottom holes {bottom_stack_hole_diameter(p):g} mm • strap openings "+(p.StrapOpeningStyle if p.StrapSlotsEnabled else 'off'))
+        self._set_label_if_changed(self.summary,self.summary.text()+f"\nStack on {carrier_name} • bottom holes {bottom_stack_hole_diameter(p):g} mm • strap openings "+(p.StrapOpeningStyle if p.StrapSlotsEnabled else 'off'))
         if p.DetailedStackReference:
             from .reference_options import stack_usb_centre
             ux,uy,uz=stack_usb_centre(p)
             guard_z=uz-plate_levels(p)['deck_z']
-            self.summary.setText(self.summary.text()+f"\nFC USB: {p.StackUSBFace} • guard centre Y offset {p.StackUSBOffsetY:g} mm / Z {guard_z:.2f} mm (allow cable clearance)")
-        self.summary.setStyleSheet("font-weight: bold; padding: 6px; color: " + ("#b43737" if errors else "#21805b") + ";")
-        self.messages.setPlainText("\n".join(["FIX: " + text for text in errors] + ["CHECK: " + text for text in warnings])
+            self._set_label_if_changed(self.summary,self.summary.text()+f"\nFC USB: {p.StackUSBFace} • guard centre Y offset {p.StackUSBOffsetY:g} mm / Z {guard_z:.2f} mm (allow cable clearance)")
+        self._set_summary_state(bool(errors))
+        self._set_plain_text_if_changed(self.messages,"\n".join(["FIX: " + text for text in errors] + ["CHECK: " + text for text in warnings])
                                     or "Layout checks passed. Edit a dimension to preview changes, then create the frame.")
 
     def load(self):

@@ -62,6 +62,17 @@ def _straight_arm_stem_path(p,arm,clearance=0.):
 
 
 def arm_stem_path(p,arm,clearance=0.):
+    """Reuse exact carbon stem geometry between the 2-D editors and part views."""
+    return QtGui.QPainterPath(_cached_arm_stem_path(p,arm['name'],float(clearance)))
+
+
+@parameter_cache(maxsize=128)
+def _cached_arm_stem_path(p,arm_name,clearance):
+    arm=next(a for a in arm_layouts(p) if a['name']==arm_name)
+    return _build_arm_stem_path(p,arm,clearance)
+
+
+def _build_arm_stem_path(p,arm,clearance=0.):
     """Same true reinforced arm-root mask for the arm and receiving tabs."""
     from .mount_support import arm_supports
     path=_straight_arm_stem_path(p,arm,clearance)
@@ -84,7 +95,21 @@ def arm_stem_path(p,arm,clearance=0.):
 
 
 def arm_blank_path(p,arm,arms=None):
-    arms=arm_layouts(p) if arms is None else arms
+    # A manually supplied arm group may have special clipping semantics;
+    # keep that path uncached. Normal preview arms use the pure stage cache.
+    if arms is not None:
+        return _build_arm_blank_path(p,arm,arms)
+    return QtGui.QPainterPath(_cached_arm_blank_path(p,arm['name']))
+
+
+@parameter_cache(maxsize=96)
+def _cached_arm_blank_path(p,arm_name):
+    arms=arm_layouts(p)
+    arm=next(a for a in arms if a['name']==arm_name)
+    return _build_arm_blank_path(p,arm,arms)
+
+
+def _build_arm_blank_path(p,arm,arms):
     transform=QtGui.QTransform();transform.translate(*arm['motor'])
     ux,uy=motor_pad_unit(p,arm)
     transform.rotate(math.degrees(math.atan2(uy,ux)))
@@ -290,6 +315,32 @@ def clamp_plate_path(p,role='ArmClampPlate'):
 
 
 def motor_pad_path(p,arm=None):
+    """Copy a cached local pad outline for preview and protector construction.
+
+    A complete editor refresh can request the same motor pad path repeatedly
+    (arm previews, TPU protectors, airflow). Remember the exact Qt booleans
+    even if unrelated battery, text, camera or reference settings change.
+    Do not expose a mutable cached QPainterPath to callers.
+    """
+    key=None
+    if arm is not None:
+        # Only these values of arm are consumed by motor_pad_primitives.
+        # The global pad placement/rotation is performed by the caller.
+        key=(tuple(arm['unit']),tuple(arm['motor']),
+             tuple(arm.get('nominal_motor',arm['motor'])))
+    return QtGui.QPainterPath(_motor_pad_path_cached(p,key))
+
+
+@parameter_cache(maxsize=96)
+def _motor_pad_path_cached(p,arm_key):
+    arm=None
+    if arm_key is not None:
+        unit,motor,nominal=arm_key
+        arm={'unit':unit,'motor':motor,'nominal_motor':nominal}
+    return _motor_pad_path_uncached(p,arm)
+
+
+def _motor_pad_path_uncached(p,arm=None):
     path=QtGui.QPainterPath();cuts=[];pad=QtGui.QPainterPath();pad_cuts=[];bumper=QtGui.QPainterPath()
     for d in motor_pad_primitives(p,arm):
         part=QtGui.QPainterPath()
@@ -610,6 +661,11 @@ class AirflowPreview(QtWidgets.QWidget):
         self._geometry_parameters=None
         self._addition_signature_key=None;self._addition_signature=()
         self.setToolTip('Click a saved cutout to edit it. Click again in the same place to cycle overlapping patterns. Arrays select the whole saved pattern.')
+        self._hover_point=None
+        self._hover_timer=QtCore.QTimer(self)
+        self._hover_timer.setInterval(45)
+        self._hover_timer.setSingleShot(True)
+        self._hover_timer.timeout.connect(self._update_hover_tooltip)
 
     def records(self):
         e=self.editor;role=e.role.currentData();selected=e._selected_index
@@ -758,13 +814,26 @@ class AirflowPreview(QtWidgets.QWidget):
         except (ValueError,RuntimeError):return
 
     def mouseMoveEvent(self,event):
+        # QPainterPath stroke containment is expensive with hundreds of saved
+        # openings. Coalesce mouse moves; the latest position is tested using
+        # the complete native paths after 45 ms, with no preview downsampling.
+        self._hover_point=event.position() if hasattr(event,'position') else QtCore.QPointF(event.pos())
+        if not self._hover_timer.isActive():self._hover_timer.start()
+
+    def _update_hover_tooltip(self):
+        pos=self._hover_point
+        if pos is None or not self.isVisible():return
         try:
-            pos=event.position() if hasattr(event,'position') else QtCore.QPointF(event.pos())
             hits=self.hit_indices(pos)
             text='\n'.join(self.editor.pattern_text(i) for i in hits)
             tooltip=text+'\nClick to select; click again to cycle overlaps.' if hits else 'Click a saved cutout to select it. Disabled patterns can be found in the list.'
             if tooltip!=self.toolTip():self.setToolTip(tooltip)
         except (ValueError,RuntimeError):pass
+
+    def leaveEvent(self,event):
+        self._hover_point=None
+        self._hover_timer.stop()
+        return super().leaveEvent(event)
 
     def paintEvent(self,event):
         painter=QtGui.QPainter(self);painter.setRenderHint(QtGui.QPainter.Antialiasing)

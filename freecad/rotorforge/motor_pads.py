@@ -1,5 +1,6 @@
 """Motor-bearing outlines, neck reliefs and mirrored orientation without CAD imports."""
 import math
+from functools import lru_cache
 from .plate_profiles import polygon_interior_distance
 EXTENDED_MOTOR_PAD_SHAPES=('Tapered nose','Arrowhead')
 RETAINED_PAD_SHAPES=('Round','Rounded square','Chamfered square','Four-lobe','Tapered nose','Arrowhead','Teardrop','Shouldered','Compact hex','Scalloped shield')
@@ -237,11 +238,320 @@ def _inset_polygon(points,wall):
     return out
 
 
-ARM_TIP_STYLES=('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch')
+# These are true additive arm-tip/bumpers, NOT motor pad outline selections.
+# Motor-bearing geometry and the motor mounting pattern are never altered.
+REFERENCE_ARM_TIP_STYLES=(
+    'Seeker arrow', 'Matey swept hook', 'SR-Beast sweep',
+    'Podracer spear', 'Master hex', 'Vertex dagger', 'Volador fork',
+)
+ASYMMETRIC_ARM_TIP_STYLES=frozenset(('Matey swept hook','SR-Beast sweep','Vertex dagger'))
+ARM_TIP_STYLES=('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch')+REFERENCE_ARM_TIP_STYLES
 LEGACY_ARM_TIPS={'Round nose':'Round cap','Rounded guard':'Round cap','Rounded paddle':'Oval cap','Elliptic nose':'Oval cap','Wide bow':'Oval cap','Soft shoulders':'Round cap','Flat guard':'Soft square','Hammerhead':'Soft square','Stepped paddle':'Soft square'}
 LEGACY_ARM_TIPS.update({name:'Chamfered cap' for name in ('Faceted shield','Forked nose','Spear tip','Swept blade','Beveled nose','Chisel tip','Chevron tip','Twin prong','Flared shield','Chamfered guard')})
 def arm_tip_style(style):
     return style if style in ARM_TIP_STYLES else LEGACY_ARM_TIPS.get(style,style)
+
+def _arm_tip_direction_sign(p, arm):
+    """Mirror asymmetric bumper silhouettes without changing the motor pad.
+
+    +Y of the frame points toward the FRONT.  Local +Y of a motor pad
+    becomes (-pad_unit_y, +pad_unit_x) in world coordinates.  Choose the
+    side whose world projection is frontward on a front arm and rearward
+    on a rear arm.  On sideways-outward mode, choose the outward edge.
+    This also works for Deadcat and rotated motor platforms.
+    """
+    if arm is None:
+        return 1
+    ux,uy=motor_pad_unit(p,arm)
+    mx,my=arm.get('nominal_motor',arm['motor'])
+    if p.ArmTipBumperDirection=='Sideways outwards':
+        projection=-uy*(1 if mx>=0 else -1)
+    else:
+        projection=ux*(1 if my>=0 else -1)
+    return -1 if projection < 0 else 1
+
+
+def _round_inner_corner(points,index,radius):
+    """Tangent circular fillet for the Volador fork's concave CNC notch."""
+    pts=list(points);v=pts[index];a=pts[index-1];b=pts[(index+1)%len(pts)]
+    va=(a[0]-v[0],a[1]-v[1]);vb=(b[0]-v[0],b[1]-v[1])
+    la,lb=math.hypot(*va),math.hypot(*vb)
+    if min(la,lb)<1e-9:return tuple(pts)
+    ua=(va[0]/la,va[1]/la);ub=(vb[0]/lb,vb[1]/lb)
+    theta=math.acos(max(-1.,min(1.,ua[0]*ub[0]+ua[1]*ub[1])))
+    if theta<.05 or theta>math.pi-.05:return tuple(pts)
+    travel=radius/math.tan(theta/2.)
+    if travel > .45*min(la,lb):
+        # At very short extensions, the fork is below machinable size.
+        # The caller uses a simple nose in that case.
+        return None
+    bis=(ua[0]+ub[0],ua[1]+ub[1]);scale=math.hypot(*bis)
+    centre=(v[0]+radius/math.sin(theta/2)*bis[0]/scale,
+            v[1]+radius/math.sin(theta/2)*bis[1]/scale)
+    t0=(v[0]+ua[0]*travel,v[1]+ua[1]*travel)
+    t1=(v[0]+ub[0]*travel,v[1]+ub[1]*travel)
+    a0=math.atan2(t0[1]-centre[1],t0[0]-centre[0]);a1=math.atan2(t1[1]-centre[1],t1[0]-centre[0])
+    arc_delta=(a1-a0+math.pi)%(2*math.pi)-math.pi
+    arc=[(centre[0]+radius*math.cos(a0+arc_delta*i/16),
+          centre[1]+radius*math.sin(a0+arc_delta*i/16)) for i in range(17)]
+    return tuple(pts[:index]+arc+pts[index+1:])
+
+
+def _reference_arm_tip_points(p,style,start,end,half,reach):
+    """Local additive bumper shell.  Root is inside the unchanged motor pad.
+
+    These silhouettes use only Arm-tip bumper width/reach.  They never touch
+    MotorPadShape/MotorTipLength or alter motor centres or screw holes.
+    """
+    h=half;r=reach
+    x0=start
+    shoulder=end-min(2.,.18*r)
+    profiles={
+        'Seeker arrow':[
+            (x0,-.78*h),(shoulder,-.88*h),(end+.35*r,-.72*h),
+            (end+.76*r,-.40*h),(end+r,0.),
+            (end+.76*r,.40*h),(end+.35*r,.72*h),(shoulder,.88*h),(x0,.78*h)],
+        'Matey swept hook':[
+            (x0,-.74*h),(shoulder,-.84*h),(end+.53*r,-.70*h),
+            (end+.84*r,-.40*h),(end+.73*r,.14*h),
+            (end+r,.70*h),(end+.66*r,h),(shoulder,.91*h),(x0,.74*h)],
+        'SR-Beast sweep':[
+            (x0,-.76*h),(shoulder,-.86*h),(end+.41*r,-.76*h),
+            (end+.86*r,-.32*h),(end+r,.32*h),
+            (end+.62*r,.82*h),(shoulder,h),(x0,.76*h)],
+        'Podracer spear':[
+            (x0,-.70*h),(shoulder,-.78*h),(end+.27*r,-.48*h),
+            (end+.72*r,-.18*h),(end+r,0),
+            (end+.72*r,.18*h),(end+.27*r,.48*h),(shoulder,.78*h),(x0,.70*h)],
+        'Master hex':[
+            (x0,-.82*h),(shoulder,-.93*h),(end+.55*r,-.82*h),
+            (end+r,-.34*h),(end+r,.34*h),(end+.55*r,.82*h),
+            (shoulder,.93*h),(x0,.82*h)],
+        'Vertex dagger':[
+            (x0,-.72*h),(shoulder,-.84*h),(end+.47*r,-.70*h),
+            (end+r,-.12*h),(end+.84*r,.22*h),
+            (end+.39*r,.58*h),(shoulder,.90*h),(x0,.72*h)],
+        'Volador fork':[
+            (x0,-.82*h),(shoulder,-.90*h),(end+r,-.78*h),
+            (end+.66*r,-.23*h),(end+.36*r,0.),
+            (end+.66*r,.23*h),(end+r,.78*h),(shoulder,.90*h),(x0,.82*h)],
+    }
+    pts=profiles[style]
+    if style=='Volador fork':
+        rounded=_round_inner_corner(pts,4,max(.5,p.CNCToolRadius))
+        if rounded is None:
+            # Not enough room for a proper R0.5 concave CNC corner:
+            # keep a blunt cap until the user increases bumper reach.
+            pts=[(x0,-.82*h),(shoulder,-.90*h),(end+r,-.70*h),
+                 (end+r,.70*h),(shoulder,.90*h),(x0,.82*h)]
+        else:pts=rounded
+    return tuple(pts)
+
+
+def _ray_to_tip_boundary(origin, direction, points):
+    """Furthest forward intersection of a ray with an actual asymmetric tip."""
+    ox, oy = origin
+    dx, dy = direction
+    furthest = None
+    for a, b in zip(points, points[1:] + points[:1]):
+        ex, ey = b[0] - a[0], b[1] - a[1]
+        den = dx * ey - dy * ex
+        if abs(den) < 1e-12:
+            continue
+        ax, ay = a[0] - ox, a[1] - oy
+        t = (ax * ey - ay * ex) / den
+        u = (ax * dy - ay * dx) / den
+        if t > 0 and -1e-9 <= u <= 1 + 1e-9:
+            furthest = t if furthest is None else max(furthest, t)
+    return furthest
+
+
+def _tip_protected_holes(p):
+    """The bores are in local motor-pad coordinates, BEFORE arm orientation."""
+    # Local import prevents a module cycle: parameters imports motor_pads.
+    from .parameters import motor_hole_offsets
+    return tuple((x, y, p.MotorHoleDiameter / 2) for x, y in motor_hole_offsets(p)) + (
+        (0., 0., p.MotorCenterDiameter / 2),
+    )
+
+
+def _simplify_tip_chain(points, tolerance=.025):
+    """Retain actual bends, discard dense straight/near-straight samples."""
+    if len(points) <= 2:
+        return list(points)
+    a, b = points[0], points[-1]
+    dx, dy = b[0] - a[0], b[1] - a[1]
+    length = math.hypot(dx, dy)
+    if length < 1e-12:
+        distances = [math.dist(a, point) for point in points[1:-1]]
+    else:
+        distances = [abs(dx * (point[1] - a[1]) - dy * (point[0] - a[0])) / length
+                     for point in points[1:-1]]
+    furthest = max(range(len(distances)), key=distances.__getitem__)
+    if distances[furthest] <= tolerance:
+        return [a, b]
+    middle = furthest + 1
+    return (_simplify_tip_chain(points[:middle+1], tolerance)[:-1] +
+            _simplify_tip_chain(points[middle:], tolerance))
+
+
+def _segment_point_gap(point, a, b):
+    """Exact closest distance from a point to a finite 2-D segment."""
+    dx,dy=b[0]-a[0],b[1]-a[1]
+    length2=dx*dx+dy*dy
+    t=max(0.,min(1.,((point[0]-a[0])*dx+(point[1]-a[1])*dy)/length2)) if length2 else 0.
+    return math.hypot(point[0]-a[0]-t*dx,point[1]-a[1]-t*dy)
+
+
+def _segment_edge_gap(a,b,c,d):
+    """Shortest finite segment-to-edge distance, including actual crossings."""
+    dx,dy=b[0]-a[0],b[1]-a[1]
+    ex,ey=d[0]-c[0],d[1]-c[1]
+    den=dx*ey-dy*ex
+    if abs(den)>1e-12:
+        cx,cy=c[0]-a[0],c[1]-a[1]
+        u=(cx*ey-cy*ex)/den
+        v=(cx*dy-cy*dx)/den
+        if 0<=u<=1 and 0<=v<=1:return 0.
+    return min(_segment_point_gap(a,c,d),_segment_point_gap(b,c,d),
+               _segment_point_gap(c,a,b),_segment_point_gap(d,a,b))
+
+
+@lru_cache(maxsize=256)
+def _contour_tip_window(points, holes, wall, cutter_radius=.5):
+    """Build an actual rim-following motor-tip window for *all* tip styles.
+
+    Trace from the motor centre, not from the foremost motor screw. Tracing
+    from the screw made a wedge that could collapse to one straight side when
+    the mounting pattern, cap reach, or left/right mirroring changed.
+
+    The outside boundary is an inset of the real (possibly asymmetric) tip
+    silhouette. The return boundary curves around the screw/shaft keep-outs.
+    End caps curve *into* the available window, with full segment clearance
+    and self-intersection checks. This stays independent of FreeCAD and Qt.
+    """
+    from .plate_profiles import polygon_interior_distance
+
+    safety = .22  # Extra reserve for sampled-curve / CNC discretisation.
+    inset_distance = wall + safety
+    inner_radius = holes[-1][2] + wall + 2.0  # motor centre bore land
+    inset_outline = tuple(_inset_polygon(points, inset_distance))
+    # Never propose a slot narrower than the actual CNC cutter diameter.
+    # Narrower stretches are removed from the cutout automatically.
+    minimum_window_width = max(2.7, 2.0*cutter_radius + .20)
+    sample_count = 121
+    runs, run = [], []
+    for index in range(sample_count + 1):
+        if index == sample_count:
+            if run:
+                runs.append(run)
+            break
+        angle = -math.pi/2 + math.pi*index/(sample_count-1)
+        ux, uy = math.cos(angle), math.sin(angle)
+        inner = inner_radius
+        # Exact outer intersections of *expanded* screw keepout discs with
+        # each ray. These avoid sharp chords/flat cuts through bolt lands.
+        for hx, hy, radius in holes:
+            along = hx*ux + hy*uy
+            perpendicular = hx*uy - hy*ux
+            protected = radius + inset_distance + .16
+            determinant = protected**2 - perpendicular**2
+            if determinant >= 0:
+                inner = max(inner, along + math.sqrt(determinant))
+        inner += .07
+        def coord(distance):
+            return (distance*ux, distance*uy)
+
+        # The initial inward offset is cheap and, on convex fairings,
+        # accurate. It avoids hundreds of 16-step distance bisections when
+        # moving an editor slider. Guard unusual concave/forked contours by
+        # falling back to a true-distance search only where needed.
+        outer = _ray_to_tip_boundary((0., 0.), (ux,uy), inset_outline)
+        if outer is not None and outer > inner + minimum_window_width:
+            if polygon_interior_distance(coord(outer), points) < wall + .10:
+                outer = None
+        if outer is None:
+            boundary = _ray_to_tip_boundary((0.,0.), (ux,uy), points)
+            if boundary is None or boundary-inner < minimum_window_width + .30 or polygon_interior_distance(coord(inner), points) < inset_distance:
+                if run:
+                    runs.append(run)
+                    run=[]
+                continue
+            low, high = inner, boundary
+            for _ in range(14):
+                mid = (low+high)/2
+                if polygon_interior_distance(coord(mid), points) >= inset_distance:
+                    low=mid
+                else:
+                    high=mid
+            outer=low-.045
+        if outer-inner < minimum_window_width or polygon_interior_distance(coord(inner), points) < inset_distance:
+            if run:
+                runs.append(run)
+                run=[]
+            continue
+        run.append((coord(outer), coord(inner), angle))
+
+    def cap(a,b,theta,toward_middle):
+        """Rounded end with tangent returning toward the inside of the slot."""
+        mid_radius = (math.hypot(*a) + math.hypot(*b))*.5
+        bend = theta + toward_middle*.10
+        control = (mid_radius*math.cos(bend),mid_radius*math.sin(bend))
+        return [((1-t)**2*a[0]+2*(1-t)*t*control[0]+t*t*b[0],
+                 (1-t)**2*a[1]+2*(1-t)*t*control[1]+t*t*b[1])
+                for t in (.2,.4,.6,.8)]
+
+    def safe(vertices):
+        if len(vertices)<6:return False
+        for a,b in zip(vertices, vertices[1:]+vertices[:1]):
+            for c,d in zip(points,points[1:]+points[:1]):
+                if _segment_edge_gap(a,b,c,d) < wall-.09:return False
+            for hx,hy,radius in holes:
+                if _segment_point_gap((hx,hy),a,b) < radius+wall-.07:return False
+        size=len(vertices)
+        # Catch folded offset curves and cap self-intersections, not only
+        # crossings with the outer perimeter.
+        for i in range(size):
+            a,b=vertices[i],vertices[(i+1)%size]
+            for j in range(i+2,size):
+                if i==0 and j==size-1:continue
+                if _segment_edge_gap(a,b,vertices[j],vertices[(j+1)%size])<1e-6:return False
+        area=abs(sum(a[0]*b[1]-b[0]*a[1]
+                     for a,b in zip(vertices,vertices[1:]+vertices[:1])))/2
+        return area>=5.
+
+    candidates=[]
+    for run in runs:
+        if len(run)<6:continue
+        for trim in range(min(7,len(run)//4)):
+            part=run[trim:len(run)-trim] if trim else run
+            if len(part)<6:break
+            outer_chain=_simplify_tip_chain([outer for outer,_,_ in part],.055)
+            inner_chain=_simplify_tip_chain([inner for _,inner,_ in reversed(part)],.045)
+            end_cap=cap(part[-1][0],part[-1][1],part[-1][2],-1)
+            start_cap=cap(part[0][1],part[0][0],part[0][2],+1)
+            shape=outer_chain+end_cap+inner_chain+start_cap
+            if safe(shape):
+                area=abs(sum(a[0]*b[1]-b[0]*a[1]
+                             for a,b in zip(shape,shape[1:]+shape[:1])))/2
+                candidates.append((area,tuple(shape)))
+                break
+    if not candidates:
+        raise ValueError('No contour-following arm-tip window can retain the selected edge wall and motor screw clearances. Increase tip width/reach or reduce the cutout wall.')
+    return max(candidates,key=lambda item:item[0])[1]
+
+def _reference_tip_cutout(p, polygon, end, half, reach):
+    """A shaped motor-tip window: outer rim AND motor-hole keep-outs."""
+    wall = max(p.MinimumWeb, p.ArmTipBumperCutoutWall)
+    try:
+        outline = _contour_tip_window(tuple(polygon), _tip_protected_holes(p),
+                                      wall, p.CNCToolRadius)
+    except ValueError:
+        # This cutout is optional. Preserve a machinable solid tip if the
+        # cutter cannot fit between the edge and motor-hole safety envelopes.
+        return None
+    return dict(kind='polygon', points=outline, operation='cut',tip_window=True)
+
 
 def motor_pad_primitives(p,arm=None):
     # Apply asymmetry at the source. This common path feeds CAD solids, the
@@ -256,7 +566,11 @@ def motor_pad_primitives(p,arm=None):
     start=min(p.MotorPadDiameter*.25,end-p.MinimumWeb)
     reach=p.ArmTipBumperReach;style=arm_tip_style(p.ArmTipBumperStyle)
     shoulder=end-max(1.,p.MinimumWeb*.5)
-    if style in ('Round cap','Oval cap'):
+    if style in REFERENCE_ARM_TIP_STYLES:
+        pts=list(_reference_arm_tip_points(p,style,start,end,half,reach))
+        if style in ASYMMETRIC_ARM_TIP_STYLES and _arm_tip_direction_sign(p,arm)<0:
+            pts=[(x,-y) for x,y in reversed(pts)]
+    elif style in ('Round cap','Oval cap'):
         nose=min(reach+half*.65,end+reach-start-.1) if style=='Oval cap' else min(half,end+reach-start-.1)
         cap_half=half*.72 if style=='Oval cap' else half
         pts=[(start,-cap_half),(end+reach-nose,-cap_half)]
@@ -285,6 +599,11 @@ def motor_pad_primitives(p,arm=None):
     def stretch(poly):
         out=[]
         for a,b in zip(poly,poly[1:]+poly[:1]):
+            # Only directional bending requires intermediate points. The
+            # original code inserted a vertex every 1 mm even on straight
+            # edges when no deformation was being applied, then made the Qt
+            # Boolean/fillet pipelines process them on all four arms.
+            # These points are geometrically redundant in Pad direction.
             steps=max(1,math.ceil(abs(b[0]-a[0])/1.))
             for i in range(steps):
                 t=i/steps;x=a[0]+(b[0]-a[0])*t;y=a[1]+(b[1]-a[1])*t
@@ -293,8 +612,46 @@ def motor_pad_primitives(p,arm=None):
                 extra=0. if p.ArmTipBumperDirection=='Pad direction' else reach*amount
                 out.append((x+dx*extra,y+dy*extra))
         return tuple(out)
-    transformed=stretch(pts)
+    # A new-style tip needs interpolation only when the user asks for a
+    # directionally warped tip. Without it the eight or nine original corners
+    # describe the *exact* outline (no useless vertices on straight lines).
+    if style in REFERENCE_ARM_TIP_STYLES and p.ArmTipBumperDirection=='Pad direction':
+        transformed=tuple(pts)
+    else:
+        transformed=stretch(pts)
+    if style in REFERENCE_ARM_TIP_STYLES:
+        # Retain all actual corners, including the Volador R0.5 concave arc,
+        # but remove redundant collinear samples on the interpolated edges.
+        # Qt unions/offsets are sensitive to these extra vertices, and the
+        # combined finished-arm outline is rebuilt many times by the editor.
+        points=list(transformed)
+        for _ in range(2):
+            if len(points)<4:break
+            minimal=[]
+            for i,b in enumerate(points):
+                a=points[i-1];c=points[(i+1)%len(points)]
+                vx=c[0]-a[0];vy=c[1]-a[1]
+                squared=vx*vx+vy*vy
+                # A zero-length or reversing edge must never be discarded.
+                if squared>1e-16:
+                    cross=abs(vx*(b[1]-a[1])-vy*(b[0]-a[0]))
+                    projection=(b[0]-a[0])*vx+(b[1]-a[1])*vy
+                    if cross*cross<=1e-14*squared and 0<projection<squared:
+                        continue
+                minimal.append(b)
+            if len(minimal)==len(points):break
+            points=minimal
+        transformed=tuple(points)
     base=tuple(dict(d,scope='pad') if d.get('operation')=='cut' else d for d in base)
+    if style in REFERENCE_ARM_TIP_STYLES:
+        # Do not convex-hull the NEW shapes: doing so erases the swept hook,
+        # dagger asymmetry and the Volador's open V. The bumper polygon starts
+        # well INSIDE the real motor bearing area and fuses with it.
+        result=base+(dict(kind='polygon',points=transformed,bumper=True),)
+        if p.ArmTipBumperCutout:
+            cutout=_reference_tip_cutout(p,transformed,end,half,reach)
+            if cutout is not None:result+=(cutout,)
+        return result
     # Reshape the pad's outward shoulder into a tangent outer envelope with
     # the cap. Fill the junction instead of leaving a narrow neck, re-entrant
     # steps or a stretched S-shaped seam. Rear pad/arm attachment is retained.
@@ -314,35 +671,11 @@ def motor_pad_primitives(p,arm=None):
     result=base+(dict(kind='polygon',points=transformed,bumper=True),dict(kind='polygon',points=fairing,bumper=True))
     if p.ArmTipBumperCutout:
         wall=max(p.MinimumWeb,p.ArmTipBumperCutoutWall)
-        # Trace the space between an inset tip envelope and an expanded
-        # motor-pad envelope. A radial band follows both contours instead
-        # of closing against a straight X plane across the motor pad.
-        rim=_inset_polygon(list(fairing),wall)
-        protected=_inset_polygon(list(convex_hull(samples)),-wall)
-        def ray_radius(poly,angle):
-            dx,dy=math.cos(angle),math.sin(angle);hits=[]
-            for a,b in zip(poly,poly[1:]+poly[:1]):
-                ex,ey=b[0]-a[0],b[1]-a[1];den=dx*ey-dy*ex
-                if abs(den)<1e-10:continue
-                t=(a[0]*ey-a[1]*ex)/den;u=(a[0]*dy-a[1]*dx)/den
-                if t>=0 and -1e-8<=u<=1+1e-8:hits.append(t)
-            return max(hits) if hits else None
-        runs=[];run=[]
-        for i in range(361):
-            angle=-math.pi/2+i*math.pi/360
-            ro=ray_radius(rim,angle);ri=ray_radius(protected,angle)
-            if ro is not None and ri is not None and ro-ri>=2.:
-                dx,dy=math.cos(angle),math.sin(angle)
-                outer=(ro*dx,ro*dy);inner=(ri*dx,ri*dy)
-                if polygon_interior_distance(outer,fairing)>=wall-1e-5:
-                    run.append((outer,inner));continue
-            if run:runs.append(run);run=[]
-        if run:runs.append(run)
-        # Retain one useful opening, never a collection of narrow slivers.
-        band=max(runs,key=len,default=[])
-        opening=[a for a,b in band]+[b for a,b in reversed(band)]
-        area=abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(opening,opening[1:]+opening[:1])))/2 if opening else 0.
-        if len(band)<3 or area<4.:
-            raise ValueError('Arm-tip cutout needs a continuous 2 mm-wide opening with at least 4 mm2 area after retaining the wall around the tip and motor pad. Increase tip reach/width or disable the cutout.')
-        result+=(dict(kind='polygon',points=tuple(opening),operation='cut'),)
+        try:
+            outline=_contour_tip_window(tuple(fairing),_tip_protected_holes(p),
+                                        wall,p.CNCToolRadius)
+        except ValueError:
+            outline=None
+        if outline is not None:
+            result+=(dict(kind='polygon', points=outline, operation='cut',tip_window=True),)
     return result

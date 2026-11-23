@@ -200,6 +200,7 @@ SECTIONS=(('Frame',
      'FlexProtectorFloor',
      'FlexProtectorFit',
      'FlexProtectorLanding',
+     'FlexProtectorLandingStyle',
      'FlexProtectorRetention')),)),
  ('TPU',
   'Side guards',
@@ -243,7 +244,7 @@ _cage_groups=(('Construction',('CameraCageStyle',)),
  ('Integrated bumper',('CameraTPUBumperReach','CameraTPUBumperWidth','CameraTPUBumperToe','CameraTPUClampBottom','CameraTPUClampFit','CameraTPUClampWall')),
  )
 SECTIONS=tuple(('FPV','Camera cage','Choose carbon-style flat camera side plates (for carbon fibre or aluminium fabrication) or a unified printable TPU cage. The dimensions and camera positioning remain editable.',_cage_groups) if title=='Side plates' else (category,title,description,groups) for category,title,description,groups in SECTIONS if title!='Tilt & position')
-SECTIONS=SECTIONS+(('Arms','Arm tip bumpers','Protective extensions with independent tip orientation and matching outline openings.',(('Bumper',('ArmTipBumperStyle','ArmTipBumperDirection','ArmTipBumperReach','ArmTipBumperWidth')),('Outline opening',('ArmTipBumperCutout','ArmTipBumperCutoutWall')),('TPU sleeve',('FlexProtectorBumperSleeve',)))),)
+SECTIONS=SECTIONS+(('Arms','Arm tip bumpers','Separate arm-end outlines independent of motor pad shapes, with directional mirroring and optional openings.',(('Bumper',('ArmTipBumperStyle','ArmTipBumperDirection','ArmTipBumperReach','ArmTipBumperWidth')),('Outline opening',('ArmTipBumperCutout','ArmTipBumperCutoutWall')),('TPU sleeve',('FlexProtectorBumperSleeve',)))),)
 HIDDEN_FIELDS=HIDDEN_FIELDS|frozenset(('CameraTPUConstruction','CameraTPUBumper','CameraTPUInnerReach','CameraTPUClampBottom','CameraTPUClampFit','CameraTPUClampWall','CameraTPUBumperReach','CameraTPUBumperWidth','CameraTPUBumperToe','FPVSystemProfile','FlexBumperCameraCover','CameraTPULength','CameraAluminiumLength','CameraTPUWall','CameraAluminiumWall','CameraCageSharedDimensions','CameraTPUAttachment','CameraTPUScrewClearance','CameraTPURevisedMounts','CameraAluminiumDensity'))
 _tpu_order={name:i for i,name in enumerate(('Appearance','Camera isolation','HD action camera','Front bumper','Motor protectors','Side guards','Side guard straps','Side guard vents','Rear antenna','ELRS antenna'))}
 _tpu=sorted((s for s in SECTIONS if s[0]=='TPU'),key=lambda s:_tpu_order.get(s[1],3));_it=iter(_tpu)

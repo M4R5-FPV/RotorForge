@@ -45,6 +45,7 @@ def import_stack_spacing(value):
 from .design_options import OPTIONS as DESIGN_OPTIONS
 from .flex_options import FLEX_OPTIONS
 RETIRED_PARAMETERS=RETIRED_PARAMETERS|frozenset(('FlexClampSlit', 'FlexELRSBand', 'FlexELRSDiameter', 'FlexELRSGrip', 'FlexELRSHeight', 'FlexELRSLength', 'FlexELRSMountWidth', 'FlexELRSSecondLength', 'FlexELRSSpacing', 'FlexELRSStemDiameter', 'FlexELRSStyle', 'FlexGPSCable', 'FlexGPSClearance', 'FlexGPSHeight', 'FlexGPSLength', 'FlexGPSLip', 'FlexGPSMountWidth', 'FlexGPSStyle', 'FlexGPSTilt', 'FlexGPSWidth', 'FlexRearAnchors', 'FlexRearELRS', 'FlexRearEnabled', 'FlexRearFit', 'FlexRearGPS', 'FlexRearGripHeight', 'FlexRearOffset', 'FlexRearSetback', 'FlexRearVTX', 'FlexRearVentHeight', 'FlexRearVentLength', 'FlexRearVentWeb', 'FlexRearWall', 'FlexVTXBore', 'FlexVTXConnector', 'FlexVTXCount', 'FlexVTXDepth', 'FlexVTXHeight', 'FlexVTXMountWidth', 'FlexVTXPocket', 'FlexVTXSpacing', 'FlexVTXStyle', 'FlexVTXTilt'))
+RETIRED_PARAMETERS=RETIRED_PARAMETERS|frozenset(('FlexProtectorRearFaceAngle',))
 RETIRED_PARAMETERS=RETIRED_PARAMETERS|frozenset(('FlexIntegratedRearMount', 'FlexIntegratedVTXConnector', 'FlexIntegratedVTXCount', 'FlexIntegratedVTXTilt', 'FlexIntegratedVTXHolderStyle', 'FlexIntegratedVTXBore', 'FlexIntegratedVTXSpacing', 'FlexIntegratedVTXRetainingLip', 'FlexIntegratedVTXNutAcrossFlats', 'FlexIntegratedVTXNutDepth', 'FlexIntegratedGPSWidth', 'FlexIntegratedGPSLength', 'FlexIntegratedGPSHeight', 'FlexIntegratedGPSFit', 'FlexIntegratedGPSWall', 'FlexIntegratedGPSFloor', 'FlexIntegratedGPSRetainingLip', 'FlexIntegratedGPSCableWidth', 'FlexIntegratedGPSGap', 'FlexIntegratedHousingWall', 'FlexIntegratedGPSRimHeight', 'FlexIntegratedGPSCornerRadius'))
 DESIGN_OPTIONS={**DESIGN_OPTIONS,**FLEX_OPTIONS}
 
@@ -173,6 +174,7 @@ class Parameters:
     FlexProtectorFloor: float = 1.6
     FlexProtectorFit: float = .25
     FlexProtectorLanding: float = 3.0
+    FlexProtectorLandingStyle: str = 'Full perimeter (original)'
     FlexProtectorRetention: str = 'Motor screws'
     FlexGuardCloseFront: bool = False
     FlexGuardClosureContour: str = "Plate outlines and camera cage"

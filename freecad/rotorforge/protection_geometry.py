@@ -13,6 +13,17 @@ def offset_face(face,distance):
  if not result.isValid() or not result.Faces:raise ValueError('Protector offset cannot follow this pad at the selected wall/fit size; reduce the offset.')
  return result
 
+def _tapered_sleeve_clip(p, arm, bottom_z, top_z):
+ """Angle the upper sleeve's two rear-facing termination edges as well."""
+ from .landing_foot import inclined_rear_clip
+ # The slider is *only* for the landing-foot centreline face.
+ # Keep the existing upper sleeve unchanged when adjusting the foot.
+ angle = math.radians(45.0)
+ bottom_station = -.24
+ top_station = bottom_station + math.tan(angle) * (top_z - bottom_z)
+ return inclined_rear_clip(p, arm, bottom_z, top_z, bottom_station, top_station)
+
+
 def motor_protectors(p,carbon=None,roles=None):
  if not p.FlexMotorProtectors:return {}
  from .parameters import arm_layouts,plate_levels
@@ -25,7 +36,7 @@ def motor_protectors(p,carbon=None,roles=None):
   # The carbon arm-tip outline is ALWAYS protected by the TPU side shell.
   # FlexProtectorBumperSleeve controls only the optional material ABOVE the
   # carbon tip; it must never replace the pad/tip footprint with a plain pad.
-  pad=outer_face(motor_pad(p,arm,0));outer=offset_face(pad,p.FlexProtectorFit+p.FlexProtectorWall)
+  pad_shape=motor_pad(p,arm,0);pad=outer_face(pad_shape);outer=offset_face(pad,p.FlexProtectorFit+p.FlexProtectorWall)
   sleeve=p.FlexProtectorBumperSleeve and p.ArmTipBumperStyle!='Disabled'
   shell_height=floor+p.ArmThickness+(p.FlexProtectorFit+.8 if sleeve else -.2)
   base=outer.extrude(App.Vector(0,0,shell_height));base.translate(App.Vector(0,0,z-floor))
@@ -43,29 +54,52 @@ def motor_protectors(p,carbon=None,roles=None):
    motor_clearance=Part.makeCylinder(p.MotorReferenceDiameter/2+p.FlexProtectorFit, shell_height+2, App.Vector(*arm['motor'],z+p.ArmThickness-.2))
    base=base.cut(motor_clearance)
   if foot:
-   inner=offset_face(pad,p.FlexProtectorFit+.4)
-   ring=outer.cut(inner).extrude(App.Vector(0,0,foot+.05));ring.translate(App.Vector(0,0,z-floor-foot));base=base.fuse(ring)
+   if p.FlexProtectorLandingStyle=='Tip-only inward taper':
+    from .landing_foot import tip_tapered_foot
+    # The main protector floor already occupies z-floor and everything above.
+    # Form the *filled* front landing extension from its underside rather
+    # than cutting a vertical front block and re-fusing another one.  The
+    # motor-centreline termination is a sloped rear ramp on this sole.
+    # Overlap 0.08 mm upward into the existing floor for a robust fusion.
+    ring=tip_tapered_foot(p,arm,outer,None,z-floor+.08,z-floor-foot)
+   else:
+    # The original perimeter style still uses its independent inner offset.
+    inner=offset_face(pad,p.FlexProtectorFit+.4)
+    ring=outer.cut(inner).extrude(App.Vector(0,0,foot+.05));ring.translate(App.Vector(0,0,z-floor-foot))
+   if not ring.isNull():base=base.fuse(ring)
   if sleeve:
    # Keep the normal protector at the rear; restrict only the upper lip.
    # Cutting the complete shell with a centre-plane tears through the
    # offset side wall on rotated pads. The lower wall and sole stay whole.
-   mx,my=arm['motor'];ux,uy=motor_pad_unit(p,arm);vx,vy=-uy,ux
-   pts=[App.Vector(mx+ux*a+vx*b,my+uy*a+vy*b,z+p.ArmThickness-.2) for a,b in ((0,-500),(500,-500),(500,500),(0,500))]
-   outward=Part.Face(Part.makePolygon(pts+[pts[0]])).extrude(App.Vector(0,0,shell_height+3))
+   lower_top = z + p.ArmThickness - .2
+   # Taper BOTH formerly vertical faces at the termination of the upper
+   # sleeve. The lower landing sole already has its own independent loft.
+   if foot and p.FlexProtectorLandingStyle == 'Tip-only inward taper':
+    outward = _tapered_sleeve_clip(p, arm, lower_top, z-floor+shell_height)
+   else:
+    mx,my=arm['motor'];ux,uy=motor_pad_unit(p,arm);vx,vy=-uy,ux
+    pts=[App.Vector(mx+ux*a+vx*b,my+uy*a+vy*b,lower_top) for a,b in ((0,-500),(500,-500),(500,500),(0,500))]
+    outward=Part.Face(Part.makePolygon(pts+[pts[0]])).extrude(App.Vector(0,0,shell_height+3))
    lower=Part.makeBox(2000,2000,floor+foot+p.ArmThickness-.2,App.Vector(-1000,-1000,z-floor-foot))
    base=base.common(lower).fuse(base.common(outward))
   low=z-floor-foot-1;height=p.ArmThickness+floor+foot+2
-  radius=p.MotorHoleDiameter/2+.15 if p.FlexProtectorRetention=='Motor screws' else max(3.,p.MotorHoleDiameter/2+.2)
+  # Motor screws and Linked screw access are independent of landing-foot
+  # style: the filled tapered sole must retain the chosen retention pattern.
+  # Carbon arm-tip decorative cutouts are still never transferred into TPU.
+  radius=(p.MotorHoleDiameter/2+.15 if p.FlexProtectorRetention=='Motor screws'
+          else max(3.,p.MotorHoleDiameter/2+.2))
   tools=[Part.makeCylinder(radius,height,App.Vector(x,y,low)) for x,y in arm['motor_holes']]
   tools.append(Part.makeCylinder(p.MotorCenterDiameter/2+.4,height,App.Vector(*arm['motor'],low)))
   from .protection_layout import motor_service_slots
-  # Access slots open the sole, not the sleeve's load-bearing side wall.
+  # Linked screw access cuts the protector floor/landing foot for either
+  # landing style. Only the optional upper sleeve is excluded below.
   slots=[capsule(a,b,r,low,height) for a,b,r in motor_service_slots(p,arm)]
   if sleeve:
    slot_floor=Part.makeBox(2000,2000,floor+foot+1,App.Vector(-1000,-1000,low))
    slots=[tool.common(slot_floor) for tool in slots]
   tools.extend(slots)
-  base=base.cut(Part.makeCompound(tools)).removeSplitter()
+  base=base.cut(Part.makeCompound(tools))
+  base=base.removeSplitter()
   if not base.isValid() or len(base.Solids)!=1:raise ValueError('Motor protector '+arm['name']+' is disconnected; enlarge the pad or reduce the floor openings.')
   result['MotorProtector'+arm['name']]=base
  return result

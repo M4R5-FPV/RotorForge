@@ -597,6 +597,10 @@ def fpv_envelopes(p, tilt=None):
 
 def motor_pad(p, arm, z):
     shapes=[];cuts=[];pad_shapes=[];pad_cuts=[];bumpers=[]
+    tip_enabled=p.ArmTipBumperStyle!='Disabled'
+    if tip_enabled:
+        from .arm_tip_cnc import machine_tip_window, machine_tip_perimeter
+    tip_window_built=False
     for d in motor_pad_primitives(p,arm):
         if d['kind']=='circle':
             shape=cylinder(*d['centre'],d['radius'],z,p.ArmThickness)
@@ -606,6 +610,13 @@ def motor_pad(p, arm, z):
             points=[App.Vector(x,y,z) for x,y in d['points']]
             shape=Part.Face(Part.makePolygon(points+[points[0]])).extrude(App.Vector(0,0,p.ArmThickness))
         if d.get('operation')=='cut':
+            if tip_enabled and d.get('tip_window'):
+                # A cutter-radius opening produces true OCC arcs, not sharp
+                # micro-edges from the editor's finely sampled 2D polygon.
+                shape=machine_tip_window(shape,p.CNCToolRadius)
+                if shape is None:
+                    continue
+                tip_window_built=True
             (pad_cuts if d.get('scope')=='pad' else cuts).append(shape)
         else:
             shapes.append(shape)
@@ -614,6 +625,12 @@ def motor_pad(p, arm, z):
     shape=fuse(shapes)
     if pad_cuts:cuts.append(Part.makeCompound(pad_cuts).common(fuse(pad_shapes)).cut(fuse(bumpers)))
     if cuts:shape=shape.cut(Part.makeCompound(cuts)).removeSplitter()
+    if tip_enabled:
+        # Machine the exposed outline at the same radius as the later
+        # *mandatory* CNC preflight; the tool may not leave sharp notches.
+        shape=machine_tip_perimeter(shape,p.CNCToolRadius)
+        if p.ArmTipBumperCutout and not tip_window_built:
+            App.Console.PrintWarning('Arm-tip cutout omitted: the selected %.3g mm CNC cutter cannot fit while maintaining the specified motor-hole and perimeter walls. Increase tip reach/width.\n' % (2*p.CNCToolRadius))
     ux,uy=motor_pad_unit(p,arm)
     shape.rotate(App.Vector(),App.Vector(0,0,1),math.degrees(math.atan2(uy,ux)))
     shape.translate(App.Vector(*arm['motor'],0))
@@ -997,6 +1014,14 @@ def _component_arm(p,role,inputs):
                   motor_pad(p,arm,arm_z)])
     blank=blend_motor_junction(p,arm,blank,arm_z,p.ArmThickness)
     blank=trim_arm_root(p,arm,arms,blank,arm_z,p.ArmThickness)
+    if p.ArmTipBumperStyle!='Disabled':
+        # Fusing the arm stem with the motor pad can introduce a *new*
+        # re-entrant junction. Finish it with the selected cutter BEFORE
+        # drilling the original motor fastener bores. Stay well away from
+        # fitted arm roots, interlocks and stack-mounted hardware.
+        from .arm_tip_cnc import machine_tip_perimeter
+        blank=machine_tip_perimeter(blank,p.CNCToolRadius,arm['motor'],
+            p.MotorPadDiameter+p.ArmTipBumperReach+p.CNCToolRadius)
     holes = [(pt, p.RootHoleDiameter / 2) for pt in arm["bolts"]]
     holes += [(pt, p.MotorHoleDiameter / 2) for pt in arm["motor_holes"]]
     holes.append((arm["motor"], p.MotorCenterDiameter / 2))

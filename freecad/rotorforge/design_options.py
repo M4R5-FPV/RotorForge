@@ -117,7 +117,7 @@ OPTIONS.update({
 })
 
 OPTIONS.update({
- 'ArmTipBumperStyle':('Disabled','Arm tip bumper','A protective cap with a continuous outward motor-pad shoulder. Round is broad and circular; Oval is narrower and elongated. Tapered cap has a narrower flat nose; Shallow arch has a broad gently bowed front.',('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch')),
+ 'ArmTipBumperStyle':('Disabled','Arm tip bumper','Add a protective extension to the end of each carbon arm, independent of its motor pad shape. The new Seeker, Matey, SR-Beast, Podracer, Master, Vertex and Volador-inspired tips retain the original motor-hole geometry. Swept asymmetrical tips mirror automatically for front/rear and left/right arms.',('Disabled','Round cap','Oval cap','Soft square','Chamfered cap','Tapered cap','Shallow arch','Seeker arrow','Matey swept hook','SR-Beast sweep','Podracer spear','Master hex','Vertex dagger','Volador fork')),
  'ArmTipBumperReach':(5.,'Bumper extension','Outward cap reach. Front/rear and sideways modes add this amount in the selected direction while keeping the root pad-aligned. Range 1–20 mm.'),
  'ArmTipBumperWidth':(16.,'Bumper width','Maximum cap width, capped at 85% of motor pad diameter. Oval cap uses 72% of this width for a narrower outline. Range 4–40 mm.'),
  'FlexProtectorBumperSleeve':(True,'Cover arm tip bumper','Always protect the sides of the entire carbon motor pad and arm-tip bumper. Enable to also extend TPU over the top of the tip as a sleeve; disable for side-and-bottom protection only.'),
@@ -127,6 +127,6 @@ from .cage_options import OPTIONS as CAGE_OPTIONS
 OPTIONS.update(CAGE_OPTIONS)
 
 OPTIONS.update({
- 'ArmTipBumperDirection':('Pad direction','Bumper extension direction','The root stays aligned with the pad. Front/rear or sideways adds reach in that frame direction to the outward-growing cap; it does not rotate or relocate the bumper.',('Pad direction','Front / rear','Sideways outwards')),
+ 'ArmTipBumperDirection':('Pad direction','Bumper extension direction','The root stays aligned with the pad. Front/rear or sideways adds reach in that frame direction to the outward-growing cap; it does not rotate or relocate the bumper. Asymmetric tip presets automatically mirror to face the front on front arms and the rear on rear arms; Sideways outwards mirrors the swept feature toward the outer frame edge.',('Pad direction','Front / rear','Sideways outwards')),
  'ArmTipBumperCutout':(False,'Bumper outline cutout','Opening follows the inset tip outline and expanded motor-pad envelope. Requires a continuous 2 mm radial opening width and at least 4 mm2 area; motor holes stay unchanged.'),
  'ArmTipBumperCutoutWall':(1.5,'Bumper cutout wall','Wall around the tip and motor-pad envelope, in mm; at least the global minimum web. Increase reach/width if the 2 mm opening and 4 mm2 area cannot fit.')})

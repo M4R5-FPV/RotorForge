@@ -1,5 +1,12 @@
+## v1.0.8.1.4 — Arm-tip and TPU motor-protector updates
+- Add seven reference-inspired **arm-tip bumper** outlines: Seeker arrow, Matey swept hook, SR-Beast sweep, Podracer spear, Master hex, Vertex dagger and Volador fork. These are separate from motor-pad outlines and preserve the selected motor fixing pattern.
+- Mirror asymmetric bumper profiles between front/rear and left/right arms, with Pad direction, Front / rear and Sideways outwards extension choices.
+- Rework optional arm-tip outline openings to follow the cap contour while accounting for motor-hole safety stock, minimum web and the selected CNC cutter radius; omit openings that cannot meet these constraints.
+- Reduce redundant arm-tip outline vertices and reuse unchanged geometry in the editor, retaining the full-resolution detailed 2D viewer.
+- Add the **Tip-only inward taper** TPU landing-foot style as a filled front sole alongside the original full-perimeter ring. Keep decorative carbon-tip cutouts out of the filled TPU foot and preserve motor mounting openings.
+- Replace only the main workbench icon with the existing magenta R mark; retain the toolbar icons.
+
 ## v1.0.8.1 — Carbon texture visibility
-- Revert to standalone rear VTX and ELRS mounts; remove the experimental integrated rear housing and its settings.
 - Carbon weave and cut-edge overlays follow FreeCAD part visibility, including model-tree hide/show and restored documents.
 
 ## v1.0.8 — Straight outermost LiPo retaining lips
@@ -334,7 +341,7 @@
 
 ## v0.93.10 — Rear antenna mount cleanup
 
-- Restored the proven rear VTX antenna mount and removed the discontinued experimental extension.
+- Restore the standard rear VTX antenna mount.
 - Left all other workbench features and the bundled Help manual unchanged.
 
 ## v0.93.0 — Restore independent motor-screw visibility
@@ -746,9 +753,8 @@
 - Update the camera-view legend, hover help, and recording-window explanation to match the new color. The yellow crop boundary, physical obstruction colors, simulation results, and frame geometry remain unchanged.
 - Overlay color updates immediately when toggled; no extra geometry rebuild or ray casting is required. Native FreeCAD GUI rendering remains unverified.
 
-## v0.92.52 — Retired experimental pads and flush carbon camera inserts (test build)
+## v0.92.52 — Flush carbon camera inserts (test build)
 
-- Remove Scalloped racer and Swept hook from the motor-pad selector. Their irregular profiles caused unreliable offsets for TPU motor protectors and arm-tip sleeves. Older presets are explicitly mapped with a warning to Crown shield and Swept-shoulder shield; review geometry before manufacture.
 - Add **Flush carbon-side captured inserts** under TPU → Camera isolation. When a carbon side plate uses Outside/Both retaining lips, recess its outer flange into a shallow, matching YZ counterbore, leaving a minimum 1.0 mm carbon supporting ledge. No changes to through-neck openings, motor positions, or TPU-cage mounting settings.
 - Generic rounded/special-shaped inserts and DJI O4 split circular/arc-track inserts use matching recess profiles. A separate pocket depth and fit clearance apply only at the exterior face. The matching TPU lip and camera screw reference relocate to the original outside carbon plane.
 - Export exact recessed solids in STEP; add blind pocket operations and depths to MachiningOps.csv. Flat DXF/SVG remain **through cuts only**, so CAM must process pocket geometry separately from STEP with the specified exterior face/depth. No automatic CAM/toolpath is generated; separate aligned pocket outlines are supplied for CAM.
@@ -793,22 +799,6 @@
 - Added **Flush outside captured inserts** under TPU → Camera isolation. When an outside retaining lip is enabled, a matching shallow exterior seat allows the lip face to finish flush with the cage outer wall. Off preserves the projecting lip.
 - A single shared axial layout is used for both left/right printable cassettes and their matching cage seats, including separate DJI O4 Pro inserts.
 - Updated the 2D TPU cage preview and lower bridge wall contacts. Camera mounting centres, structural plate outlines and carbon holes are unchanged.
-
-## v0.92.46 — Scalloped racer profile and swept-hook orientation
-
-- Remove the triangular decorative window from the Scalloped racer pad entirely. Preserve its outer outline, the motor-mounting holes, and the normal optional neck relief controls.
-- Automatically mirror the Swept hook silhouette between left and right arms using the nominal motor quadrant. Its longer outside edge faces outboard and its hooked tip faces the frame front (+Y) or rear (-Y) at zero pad rotation, on all four arms.
-- Mirror the outline before applying any user-selected motor-pad rotation; retain rotation-pivot behavior. The same oriented primitives feed the FreeCAD arm builder, 2D preview, CNC outline and motor protector references.
-- Keep the arm-tip bumper's optional front/rear direction in frame coordinates. Validate motor-bolt web clearance against both silhouette orientations, including asymmetric 3-hole mounting patterns.
-- No changes to other motor pad shapes, arm roots, bolt material allowances, plates, saved parameters or GUI layout. Automated geometry and package tests passed; native FreeCAD rebuilding/export still requires validation.
-
-## v0.92.45 — Two photographed motor pad profiles (test build)
-
-- Add **Scalloped racer** motor pad: rounded outer nose, four-lobed screw-land silhouette and a small rounded triangular lightening window when enough carbon remains around it. Based on the first user photo, scaled parametrically rather than traced to an unmeasured dimension.
-- Add **Swept hook** motor pad: asymmetrical, curved swept tip with a re-entrant shoulder based on the second user photo. Its orientation follows the existing motor-pad rotation control.
-- Both shapes keep user-selected motor patterns, motor-pad size, arm neck length, edge shaping, rotation and motor-tip guard compatibility. Real outlines feed the same 2D preview and 3D motor-pad generator.
-- The optional triangular window is automatically omitted for configurations that cannot maintain required wall thickness to the exterior and the motor/centre holes; motor mounting positions remain untouched.
-- Syntax, analytic outline validity, mounting web, legacy shape compatibility and ZIP checks performed. Native FreeCAD and real CNC exports were not tested.
 
 ## v0.92.44 — Independent arm-root and keystone fillets (test build)
 
@@ -879,31 +869,12 @@
 
 ## v0.92.35 — Only reinforce mounting material actually missing (test build)
 
-- Remove the v0.92.33 and v0.92.34 sampled perimeter-envelope/shoulder generators. Their outward offsets could create extra bumps and faceted edges.
+- Use selective support geometry to prevent unwanted bumps and faceted plate edges.
 - Check each bolt/press-nut support disc against the actual FreeCAD base-plate or arm solid, including tabs, reach geometry and shaped arm roots, before adding any stock. If the full disc already fits inside the part, leave that section of perimeter **completely unchanged**.
 - Where additional bearing material is truly required, add only the exact circular support. Add an anchoring capsule solely when that disc would otherwise be detached or weakly attached to the existing plate.
 - Apply the same incremental support selection to the 2D editor preview, with a small area tolerance for numerical slivers.
 - Keep original bolt, press-nut, standoff, and other hole positions unchanged. Zero extra-material setting retains its established behavior; the selective construction applies when extra material is requested. The staged receiving-plate nut rim remains unchanged.
 - Syntax and standalone support-selection tests passed; full native FreeCAD CAD/export validation requires user testing.
-
-## v0.92.34 — Rebuild plate bolt reinforcement outline (test build)
-
-- Revert the v0.92.33 independent Bézier shoulder patches, which could distort the surrounding plate perimeter.
-- Extend the original Bottom/Mid/Clamp outline with locally tapered, continuous support envelopes instead of stitching disconnected rounded lobes onto the edges.
-- Merge nearby bolt supports into a common smooth plateau along the existing edge. This avoids alternating circular scallops around adjacent arm and press-nut locations.
-- Recalculate envelopes from the untouched original silhouette whenever arm-bolt material allowance or the plate reaches change. Keep all hole centres, nut seats, original arm-bolt stock radii, and TPU parts unchanged.
-- Check that the proposed perimeter covers the complete required cylindrical/capsule support stock before accepting it. Revert to the proven v0.92.32 supports if the geometry cannot be produced safely; never delete required bearing material.
-- Keep the zero-allowance and TopPlate behavior unchanged. The 2D editor and CAD use the same support-envelope generator.
-- Passed 2D geometry checks on 30 varied reach/plate-shape cases plus baseline allowance checks. Native FreeCAD 3D and export checks still require on-device testing.
-
-## v0.92.33 — Smooth arm-bolt reinforcement along plate perimeters (test build)
-
-- Keep the proven v0.92.32 arm-bolt/press-nut radius staging and all fastener coordinates.
-- Where an increased arm-bolt allowance exposes mounting stock outside the original Bottom/Mid/Clamp plate perimeter, blend the support into a wider, continuous full-thickness plate edge using gradual Bezier shoulders rather than leaving isolated circular lobes.
-- Calculate the shoulder from the **original** plate outline on every edit, not the previously reinforced shape. Plate reach edits therefore recalculate their contours from a fixed baseline.
-- Preserve the full bolt/press-nut bearing envelopes: the operation only adds material. Keep the prior zero-allowance geometry unchanged.
-- Use the same portable shoulder geometry in CAD construction and the 2D editor preview; skip geometrically invalid local shoulders, retaining the original structural stock.
-- Tested 48 True-X/Deadcat plate-and-allowance cases and 48 additional reach variants with 2D geometry validation; 46 exact Bezier/curve solids and 48 unions were validated with a standalone OpenCASCADE kernel. Native FreeCAD assembly and final machining profiles remain unverified.
 
 ## v0.92.32 — Staged arm-bolt / press-nut reinforcement
 
@@ -2064,7 +2035,6 @@ Native FreeCAD/OpenCASCADE rebuild is not available in the portable test environ
 
 - Use icon tabs for the seven main sections inside the complete editor: Frame, Arms, Hardware, Battery, FPV, TPU and Finishing. Hover shows each section name.
 - Keep subsection text tabs, search navigation, live preview and all existing editing behavior.
-- Based on stable v0.89.3. The modular editor trial is discontinued and is not included.
 - Frame geometry, saved settings and build/render pipeline are unchanged.
 
 # 0.89.3
@@ -2565,7 +2535,7 @@ Release history is listed newest first. The Help PDF describes the current featu
 
 ## 0.33.0
 
-- Focus the editor on two- and three-plate frames and remove the experimental alternative construction and its printed components.
+- Focus the editor on supported two- and three-plate frames.
 - Simplify the controls, parameter model and manufacturing exports; retain all motor-pad shapes, fixing patterns and motor/prop sizing actions.
 - Rebuild the Help around the supported plate-design workflow, with complete control descriptions and updated chapter navigation.
 - Import earlier plate-frame JSON settings and remove obsolete generated components/properties when updating older plate projects.
