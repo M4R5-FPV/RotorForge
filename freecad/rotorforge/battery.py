@@ -495,12 +495,12 @@ def split_pad(p,shape):
 
 def pocket_choices(p):
  """Saved pattern rows; the selection travels with the pattern, not its number."""
- from .cutouts import parse_patterns
+ from .cutouts import parse_patterns,selected_lipo_pocket
  n=p.LiPoPadPocketNumber
  if not math.isfinite(n) or n< -1 or n!=int(n):raise ValueError('Invalid pocket selector.')
- return tuple((i,v, bool(v['pad_insert']) if n==-1 else n in (0,i))
-              for i,v in enumerate(parse_patterns(p.CutoutPatterns),1)
-              if v['role']=='TopPlate' and v['mode']=='Pocket')
+ pockets=(v for v in parse_patterns(p.CutoutPatterns)
+          if v['role']=='TopPlate' and v['mode']=='Pocket')
+ return tuple((i,v,selected_lipo_pocket(p,v,i)) for i,v in enumerate(pockets,1))
 
 
 def pocket_patterns(p):

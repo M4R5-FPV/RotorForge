@@ -288,13 +288,17 @@ def export_package(settings, destination, export_options=None):
             # Blind airflow machining has its own pocket-outline files. Never
             # include those contours in the through-cut DXF/SVG for the carbon.
             from .cutouts import cutouts_for
-            from .airflow_geometry import profile_tool
+            from .airflow_geometry import pocket_tool
             airflow_pocket_ops=[]
             from .cutting_layout import ARM_ROLES
             arms_by_role={'Arm'+a['name']:a for a in arm_layouts(p)}
             for role in active_carbon:
                 pockets=[cut for cut in cutouts_for(p,role) if cut['mode']=='Pocket']
                 if not pockets:continue
+                insert_clearances=None
+                if role=='TopPlate' and any(v.get('_lipo_insert_keepout') for v in pockets):
+                    from .battery import pad_fastener_clearances
+                    insert_clearances=pad_fastener_clearances(p)
                 plate=flat_plate_shape(shapes[role],role,p,through_only=True)
                 angle=0.
                 if role in arms_by_role:
@@ -306,7 +310,7 @@ def export_package(settings, destination, export_options=None):
                 bb=plate.BoundBox
                 all_entries=[]
                 for i,cut in enumerate(pockets,1):
-                    outline=profile_tool(cut,0,1)
+                    outline=pocket_tool(p,role,cut,0,1,clearances=insert_clearances)
                     if role in CAMERA_ROLES:
                         outline.translate(App.Vector(camera_position_y(p),p.BottomThickness,0))
                     elif angle:

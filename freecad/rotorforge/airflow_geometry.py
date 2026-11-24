@@ -69,6 +69,34 @@ def profile_tool(pattern, z, height):
     return shape
 
 
+def pocket_tool(p, role, pattern, z, height, *, clearances=None):
+    """Exact blind cutter, with the LiPo pad's own screw clearances applied.
+
+    Only a *selected* top-plate insert uses this. General-purpose blind
+    pockets still support crossing holes and open-ended cable channels.
+    Keep the very same nominal radii as ``pad_fastener_clearances``; the
+    separate LiPo fitting clearance belongs to the pad, not this cutter.
+    """
+    tool=profile_tool(pattern,z,height)
+    if role!='TopPlate' or not pattern.get('_lipo_insert_keepout'):
+        return tool
+    if clearances is None:
+        from .battery import pad_fastener_clearances
+        clearances=pad_fastener_clearances(p)
+    from .geometry import cylinder
+    bb=tool.BoundBox
+    holes=[cylinder(x,y,r,z-1,height+2) for x,y,r in clearances
+           if bb.XMin<x+r and bb.XMax>x-r and bb.YMin<y+r and bb.YMax>y-r]
+    if not holes:
+        return tool
+    protected=tool.cut(Part.makeCompound(holes)).removeSplitter()
+    if protected.isNull() or not protected.Solids or protected.Volume<1e-8:
+        raise ValueError('Selected LiPo insert pocket lies entirely inside a mounting-screw clearance; move or enlarge the pocket.')
+    if not protected.isValid():
+        raise ValueError('Selected LiPo insert pocket has invalid mounting-screw clearance geometry.')
+    return protected
+
+
 def fastener_keepouts(p, role, z, thickness):
     from .geometry import cylinder
     holes=[]
@@ -165,6 +193,10 @@ def apply_cutouts(p, role, shape, *, patterns=None):
         patterns=[t for t in patterns if t['mode']!='Add material']
         if not patterns:return shape
     tools=[];text_probes=[]
+    insert_clearances=None
+    if role=='TopPlate' and any(v.get('_lipo_insert_keepout') for v in patterns):
+        from .battery import pad_fastener_clearances
+        insert_clearances=pad_fastener_clearances(p)
     # Shallow pockets are surface machining, not through-holes: they may run
     # off the plate perimeter or meet existing holes/slots/through-cuts.
     # Only through operations require the full-depth edge/fastener keepouts.
@@ -227,7 +259,8 @@ def apply_cutouts(p, role, shape, *, patterns=None):
                 cutter.rotate(App.Vector(),App.Vector(1,1,1),120)
                 cutter.translate(App.Vector(x0,camera_position_y(p),p.BottomThickness))
             else:
-                cutter=profile_tool(pattern,bounds.ZMax-depth,depth+.04)
+                cutter=pocket_tool(p,role,pattern,bounds.ZMax-depth,depth+.04,
+                                   clearances=insert_clearances)
             # A pocket may overhang the outline or connect to an existing
             # hole, but must actually remove material somewhere on the part.
             # Reject misplaced pockets instead of reporting a successful no-op.

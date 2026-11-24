@@ -1,9 +1,14 @@
-## v1.0.8.1.4 — Arm-tip and TPU motor-protector updates
+## v1.0.9.1 — Recessed LiPo pad mounting clearance
+- Keep the machined top-plate pockets selected for recessed LiPo inserts outside the same mounting-fastener clearance areas as their matching pads. This prevents exposed pocket recesses beside screw openings.
+- Use the same corrected geometry for blind-pocket DXF/SVG machining profiles. Unselected pockets and other LiPo pad modes retain their existing behavior.
+
+## v1.0.9 — Arm-tip and TPU motor-protector updates
 - Add seven reference-inspired **arm-tip bumper** outlines: Seeker arrow, Matey swept hook, SR-Beast sweep, Podracer spear, Master hex, Vertex dagger and Volador fork. These are separate from motor-pad outlines and preserve the selected motor fixing pattern.
 - Mirror asymmetric bumper profiles between front/rear and left/right arms, with Pad direction, Front / rear and Sideways outwards extension choices.
 - Rework optional arm-tip outline openings to follow the cap contour while accounting for motor-hole safety stock, minimum web and the selected CNC cutter radius; omit openings that cannot meet these constraints.
 - Reduce redundant arm-tip outline vertices and reuse unchanged geometry in the editor, retaining the full-resolution detailed 2D viewer.
 - Add the **Tip-only inward taper** TPU landing-foot style as a filled front sole alongside the original full-perimeter ring. Keep decorative carbon-tip cutouts out of the filled TPU foot and preserve motor mounting openings.
+- Restore **Linked screw access** for both landing-foot styles, alongside the individual Motor screws option, including the corresponding 2D part preview.
 - Replace only the main workbench icon with the existing magenta R mark; retain the toolbar icons.
 
 ## v1.0.8.1 — Carbon texture visibility

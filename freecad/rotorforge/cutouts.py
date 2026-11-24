@@ -426,6 +426,35 @@ def pattern_instances(pattern):
                        columns=1, rows=1)
 
 
+def selected_lipo_pocket(p, pattern, index):
+    """One source for the LiPo pocket picker and the carbon machining stage.
+
+    ``index`` counts *top-plate pocket rows*, including disabled rows, just
+    like the editor selector. It is not a flattened grid-instance index.
+    """
+    if pattern['role']!='TopPlate' or pattern['mode']!='Pocket':
+        return False
+    n=p.LiPoPadPocketNumber
+    return bool(pattern['pad_insert']) if n==-1 else n in (0,index)
+
+
 def cutouts_for(p, role):
-    return tuple(dict(instance,_cnc_radius=p.CNCToolRadius) for pattern in parse_patterns(p.CutoutPatterns)
-                 if pattern['enabled'] and pattern['role'] == role for instance in pattern_instances(pattern))
+    patterns=parse_patterns(p.CutoutPatterns)
+    # An insert pocket must never be milled below a screw-clearance zone which
+    # its mating pad is required to leave empty. Other pockets stay untouched.
+    protect=(role=='TopPlate' and
+             any(v['role']=='TopPlate' and v['mode']=='Pocket' for v in patterns) and
+             p.LiPoPadEnabled and p.LiPoPadShape=='Pocket insert' and
+             p.BatteryMount=='Top plate')
+    result=[];pocket_index=0
+    for pattern in patterns:
+        if pattern['role']=='TopPlate' and pattern['mode']=='Pocket':
+            pocket_index+=1
+        if not pattern['enabled'] or pattern['role']!=role:
+            continue
+        selected=protect and selected_lipo_pocket(p,pattern,pocket_index)
+        for instance in pattern_instances(pattern):
+            item=dict(instance,_cnc_radius=p.CNCToolRadius)
+            if selected:item['_lipo_insert_keepout']=True
+            result.append(item)
+    return tuple(result)
