@@ -1,3 +1,6 @@
+## v1.0.10 — Airflow cutout position precision
+- Allow three decimal places for Centre U and Centre V in Airflow / outlines (for example, 10.625 mm), with 0.001 mm adjustment steps. Saved cutout positions retain the entered precision.
+
 ## v1.0.9.1 — Recessed LiPo pad mounting clearance
 - Keep the machined top-plate pockets selected for recessed LiPo inserts outside the same mounting-fastener clearance areas as their matching pads. This prevents exposed pocket recesses beside screw openings.
 - Use the same corrected geometry for blind-pocket DXF/SVG machining profiles. Unselected pockets and other LiPo pad modes retain their existing behavior.

@@ -906,7 +906,8 @@ class AirflowEditor(QtWidgets.QWidget):
                 integer=key in ('columns','rows');control=QtWidgets.QSpinBox() if integer else QtWidgets.QDoubleSpinBox()
                 if integer:control.setRange(1,20)
                 else:
-                    control.setDecimals(2);control.setRange(-700 if key in ('x','y') else -360 if key=='rotation' else .5,700 if key in ('x','y') else 360 if key=='rotation' else 500)
+                    control.setDecimals(3 if key in ('x','y') else 2);control.setRange(-700 if key in ('x','y') else -360 if key=='rotation' else .5,700 if key in ('x','y') else 360 if key=='rotation' else 500)
+                    if key in ('x','y'):control.setSingleStep(.001)
                     control.setSuffix('°' if key=='rotation' else ' mm')
                 control.setValue(PATTERN_DEFAULTS[key]);line.addWidget(control);self.inputs[key]=control
             form.addRow(title,row)
