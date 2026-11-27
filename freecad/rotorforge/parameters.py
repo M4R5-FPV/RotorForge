@@ -264,6 +264,10 @@ class Parameters:
     FlexAntennaBulkheadThickness: float = 2.4
     FlexAntennaHolderStyle: str = 'Closed tube'
     FlexAntennaRetainingLip: float = 0.4
+    FlexAntennaZipTieRecess: bool = False
+    FlexAntennaZipTieWidth: float = 3.0
+    FlexAntennaZipTieDepth: float = 0.4
+    FlexAntennaZipTieOffset: float = 0.0
     FlexAntennaSocketLength: float = 0.0
     FlexAntennaSpacing: float = 14.0
 

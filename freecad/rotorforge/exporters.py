@@ -172,17 +172,20 @@ def write_svg(path, profiles, width, height, labels=(), margin=5.0):
     Path(path).write_text("\n".join(svg) + "\n", encoding="utf-8")
 
 
-def cutting_profiles(shapes, folder, roles, p=None, *, dxf=True, svg=True, cam=True, reports=True):
-    """Write flat DXF/SVG profiles and prepare exact 3D solids for the CAM layout.
+def cutting_profiles(shapes, folder, roles, p=None, *, dxf=True, svg=True, stl=False, step=False, cam=True, reports=True):
+    """Export per-part carbon cutting files and optionally create CAM stock solids.
 
-    The two representations intentionally differ: DXF/SVG contain only the
-    through-cut outlines, whereas native CAM solids retain blind machining
-    features such as airflow pockets, countersinks and nut seats.
+    DXF/SVG describe the through-cut contour; STEP/STL and native CAM solids
+    retain the complete part thickness and blind pockets/countersinks. The
+    individual files all use the same XY orientation and lower-left origin.
     """
     from .cutting_layout import arrange_profiles,ARM_ROLES
     folder=Path(folder)
-    if dxf or svg or reports:folder.mkdir()
+    if dxf or svg or stl or step or reports:folder.mkdir(parents=True,exist_ok=True)
     items=[];flats={};cam_solids={}
+    mesh_part=None
+    if stl:
+        import MeshPart as mesh_part
     arms={'Arm'+a['name']:a for a in arm_layouts(p)} if p is not None else {}
     for role in roles:
         shape=flat_plate_shape(shapes[role],role,p,through_only=True).copy();angle=0.
@@ -200,7 +203,7 @@ def cutting_profiles(shapes, folder, roles, p=None, *, dxf=True, svg=True, cam=T
         # here: flat_plate_shape(..., p) restores blind nut seats for 2D CNC
         # outlines, and `through_only=True` deliberately fills shallow cuts.
         # With p=None, it only rotates camera side plates from YZ into XY.
-        if cam:
+        if cam or stl or step:
             solid=flat_plate_shape(shapes[role],role)
             if angle:
                 solid.rotate(App.Vector(),App.Vector(0,0,1),angle)
@@ -209,7 +212,11 @@ def cutting_profiles(shapes, folder, roles, p=None, *, dxf=True, svg=True, cam=T
             if solid.isNull() or not solid.isValid() or not solid.Solids or solid.Volume<=0:
                 raise ValueError('Invalid 3D cutting-layout solid: '+role)
             # Through-cut bounds also locate partial-depth machining features.
-            cam_solids[role]=solid
+            if cam:cam_solids[role]=solid
+            if step:solid.exportStep(str(folder/(role+'.step')))
+            if stl:
+                mesh=mesh_part.meshFromShape(Shape=solid,LinearDeflection=.05,AngularDeflection=.15,Relative=False)
+                mesh.write(str(folder/(role+'.stl')))
         if dxf or svg:
             entities=profile_entities(shape,(-box.XMin,-box.YMin))
             if dxf:write_dxf(folder/(role+'.dxf'),[(role,entities)])
@@ -256,6 +263,7 @@ def export_package(settings, destination, export_options=None):
             Part.makeCompound([shapes[role] for role in physical_roles(p)]).exportStep(str(folder / "FrameAssembly.step"))
         layout,cam_solids=cutting_profiles(shapes, folder / "CuttingProfiles", active_carbon,p,
                                             dxf=selections['carbon_dxf'],svg=selections['carbon_svg'],
+                                            stl=selections['carbon_stl'],step=selections['carbon_step'],
                                             cam=selections['cam_solids'],reports=selections['reports'])
         # Pocket geometry is its OWN layer/files, never an accidental extra
         # through-cut wire on the ordinary carbon plate DXF/SVG.
@@ -515,7 +523,10 @@ def export_package(settings, destination, export_options=None):
                 "minimum_prop_gap_mm": round(prop_gap(p), 3), "warnings": warnings,
                 "plate_design": p.PlateDesign, "standoff_count": 2 * standoff_pair_count(p),
                 "standoff_pair_count": standoff_pair_count(p), "standoffs": standoff_layouts(p),
-                "cutting_files_include": list(active_carbon) if selections['carbon_dxf'] or selections['carbon_svg'] else [], "cutting_layout":layout, "reference_envelopes_excluded": True,
+                "cutting_files_include": list(active_carbon) if selections['carbon_dxf'] or selections['carbon_svg'] else [],
+                "cutting_3d_files_include": list(active_carbon) if selections['carbon_stl'] or selections['carbon_step'] else [],
+                "cutting_3d_formats": [ext for ext,key in (("stl","carbon_stl"),("step","carbon_step")) if selections[key]],
+                "cutting_layout":layout, "reference_envelopes_excluded": True,
                 "export_selections":selections,
                 "front_axis": "+Y", "initial_view": "Front isometric (+X, +Y, +Z)",
                 'motor_layout':{'base_diagonal_mm':p.Wheelbase,
@@ -609,7 +620,9 @@ def export_package(settings, destination, export_options=None):
                 + "Selected outputs: " + ", ".join(key for key,enabled in selections.items() if enabled) + "\n"
                 + "Only selected file types are included; descriptions below also explain optional output formats.\n\n"
                 "All dimensions and DXF insertion units are millimetres. SVG physical dimensions are in mm.\n"
-                "CuttingProfiles contains one profile for each physical carbon part, plus a combined sheet.\n"
+                "CuttingProfiles contains one file per selected format for each physical carbon plate/arm, plus DXF/SVG stock sheets when selected.\n"
+                "Individual .step / .stl carbon files are 3D parts with their full thickness and blind machining geometry. They are oriented and translated to the same local XY origin as each part DXF/SVG.\n"
+                "STEP retains exact CAD geometry; STL is a tessellated mesh (0.05 mm linear deflection, 0.15 radians angular deflection).\n"
                 "Cutting profiles contain no text, labels or dimensions that could become accidental toolpaths.\n"
                 "Stock_<thickness>.dxf / .svg separate the parts by stock thickness at 1:1 millimetre scale.\n"
                 "Arms form one side-by-side row, alternating motor ends up/down, with 4 mm bounding-box gaps.\n"

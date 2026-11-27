@@ -1,3 +1,11 @@
+## v1.1.1 — Side-entry antenna zip tie recess
+- Add an optional circumferential zip tie recess for MMCX and u.FL side-entry holders, with adjustable width, depth and axial position. Preserve existing geometry when disabled and validate remaining holder wall and end margins.
+
+## v1.1.0 — Individual 3D carbon cutting files
+- Export each carbon plate and arm as a separate STEP and/or STL solid inside `CuttingProfiles`, alongside the DXF/SVG cutting profiles.
+- Retain physical thickness, through-holes, and blind machining features in the 3D files. Match the individual DXF/SVG part orientation and XY origin, including vertically oriented front/rear arms and flattened camera side plates.
+- Select STEP and STL independently in the export dialog; keep the existing stock-sheet DXF/SVG and native CAM layout workflows.
+
 ## v1.0.10 — Airflow cutout position precision
 - Allow three decimal places for Centre U and Centre V in Airflow / outlines (for example, 10.625 mm), with 0.001 mm adjustment steps. Saved cutout positions retain the entered precision.
 

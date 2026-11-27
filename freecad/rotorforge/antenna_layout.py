@@ -42,6 +42,20 @@ def antenna_layout(p):
  else:points=[(x0,rear),(x0,y),(x1,y),(x1,rear)]
  return dict(bulkhead=p.FlexAntennaConnector in ('SMA','RP-SMA'),pair=pair,top=top,bottom=bottom,available=available,height=height,z0=bottom,bore=bore,length=length,radius=radius,extent=extent,holders=holders,points=points,width=width)
 
+def zip_tie_available(p):
+ return p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX') and p.FlexAntennaHolderStyle=='Side-entry clip'
+
+def zip_tie_dimensions(p,length):
+ width=p.FlexAntennaZipTieWidth;depth=p.FlexAntennaZipTieDepth
+ offset=p.FlexAntennaZipTieOffset;low=(length-width)/2+offset
+ if not all(math.isfinite(v) for v in (width,depth,offset)) or width<.5 or depth<.1:
+  raise ValueError('Zip tie recess requires width >= 0.5 mm and depth >= 0.1 mm.')
+ if depth>p.FlexAntennaSocketWall-.8+1e-8:
+  raise ValueError('Zip tie recess must retain at least 0.8 mm of antenna holder wall; reduce depth or increase holder wall.')
+ if low<.5-1e-8 or low+width>length-.5+1e-8:
+  raise ValueError('Zip tie recess must leave at least 0.5 mm at both holder ends; adjust width, position or holder length.')
+ return low,width,depth
+
 def validate_antenna(p):
  errors=[]
  if min(p.FlexAntennaTopGap,p.FlexAntennaGuardGap)<0:errors.append("VTX mounting gaps must not be negative.")
@@ -57,6 +71,7 @@ def validate_antenna(p):
  try:
   a=antenna_layout(p)
   if not a['bulkhead'] and p.FlexAntennaHolderStyle=='Side-entry clip' and not .15<=p.FlexAntennaRetainingLip<=a['bore']*.35:errors.append('Stem retaining lip must be at least 0.15 mm and no more than 35% of the bore diameter.')
+  if zip_tie_available(p) and p.FlexAntennaZipTieRecess:zip_tie_dimensions(p,a['length'])
   if a['available']<4:errors.append('Less than 4 mm of upper rear standoff space remains for antenna grips.')
   if a['bore']<1 or a['length']<2:errors.append('Antenna bore must be at least 1 mm and holder length at least 2 mm.')
   if len(a['holders'])==2 and p.FlexAntennaSpacing<2*a['radius']+1:errors.append('Dual antenna spacing must leave at least 1 mm between holders.')

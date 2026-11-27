@@ -1202,6 +1202,12 @@ class FrameDialog(QtWidgets.QDialog):
                     control.setRange(2,6);control.setSuffix(' mm');control.setSingleStep(.5)
                 elif name=='ActionCamMountHingeHeight':
                     control.setRange(10,30);control.setSuffix(' mm');control.setSingleStep(.5)
+                elif name=='FlexAntennaZipTieWidth':
+                    control.setRange(.5,50);control.setSuffix(' mm');control.setSingleStep(.1)
+                elif name=='FlexAntennaZipTieDepth':
+                    control.setRange(.1,10);control.setSuffix(' mm');control.setSingleStep(.1)
+                elif name=='FlexAntennaZipTieOffset':
+                    control.setRange(-50,50);control.setSuffix(' mm');control.setSingleStep(.1)
                 elif name=='FlexAntennaHolderOffset':
                     control.setRange(-80,100);control.setSuffix(' mm');control.setSingleStep(.5)
                 elif name=='FlexAntennaBulkheadThickness':
@@ -2740,6 +2746,11 @@ class FrameDialog(QtWidgets.QDialog):
         self._mark_control_enabled('FlexELRSFit',p.FlexELRSEnabled and p.FlexELRSStandoffBore==0)
         self._mark_control_enabled('FlexAntennaHolderStyle',p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX'))
         self._mark_control_enabled('FlexAntennaRetainingLip',p.FlexRearAntenna and p.FlexAntennaConnector in ('u.FL','MMCX') and p.FlexAntennaHolderStyle=='Side-entry clip')
+        from .antenna_layout import zip_tie_available
+        zip_available=zip_tie_available(p)
+        self._mark_control_enabled('FlexAntennaZipTieRecess',zip_available)
+        for name in ('FlexAntennaZipTieWidth','FlexAntennaZipTieDepth','FlexAntennaZipTieOffset'):
+            self._mark_control_enabled(name,zip_available and p.FlexAntennaZipTieRecess)
         bulkhead=p.FlexAntennaConnector in ('SMA','RP-SMA')
         self._mark_control_enabled('FlexAntennaBulkheadThickness',p.FlexRearAntenna and bulkhead)
         self._mark_control_enabled('FlexAntennaSocketLength',p.FlexRearAntenna and not bulkhead)

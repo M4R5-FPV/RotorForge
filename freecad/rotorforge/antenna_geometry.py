@@ -2,7 +2,21 @@
 import math
 import FreeCAD as App
 import Part
-from .antenna_layout import antenna_layout,antenna_standoff_bore
+from .antenna_layout import antenna_layout,antenna_standoff_bore,zip_tie_available,zip_tie_dimensions
+
+def zip_tie_tool(start,axis,radius,low,width,depth):
+ # Revolve a groove cutter with rounded bottom corners around the stem axis.
+ r=radius-depth; outer=radius+.05; f=min(.15,depth/2,width/4)
+ def v(x,z):return App.Vector(x,0,z)
+ a=v(outer,low);b=v(r+f,low);c=v(r,low+f)
+ d=v(r,low+width-f);e=v(r+f,low+width);g=v(outer,low+width)
+ # Quarter-circle shoulder fillets, tangent to the groove floor and side walls.
+ m1=v(r+f-f/math.sqrt(2),low+f-f/math.sqrt(2))
+ m2=v(r+f-f/math.sqrt(2),low+width-f+f/math.sqrt(2))
+ edges=[Part.makeLine(a,b),Part.Arc(b,m1,c).toShape(),Part.makeLine(c,d),Part.Arc(d,m2,e).toShape(),Part.makeLine(e,g),Part.makeLine(g,a)]
+ tool=Part.Face(Part.Wire(edges)).revolve(App.Vector(),App.Vector(0,0,1),360)
+ tool.Placement=App.Placement(start,App.Rotation(App.Vector(0,0,1),axis))
+ return tool
 
 def rear_antenna_mount(p,inputs):
  if not p.FlexRearAntenna:return Part.Shape()
@@ -27,7 +41,7 @@ def rear_antenna_mount(p,inputs):
   if p.FlexAntennaBarShape=='Curved':bar=stroke(points,width/2,z0,h)
   else:
    ribs=[capsule(u,v,width/2,z0,h) for u,v in zip(points,points[1:])];bar=ribs[0].multiFuse(ribs[1:])
- parts=[bar.common(clip)];cuts=[];entries=[]
+ parts=[bar.common(clip)];cuts=[];entries=[];grooves=[]
  for stand in a['pair']:
   x,y1=stand['point'];rad=antenna_standoff_bore(p)/2
   parts.append(Part.makeCylinder(rad+p.FlexAntennaGripWall,h,App.Vector(x,y1,z0)))
@@ -53,8 +67,13 @@ def rear_antenna_mount(p,inputs):
   b=solid.BoundBox
   solid=solid.common(Part.makeBox(b.XLength+2,b.YLength+2,b.ZMax-z0+1,App.Vector(b.XMin-1,b.YMin-1,z0)))
  from .snap_channels import full_entry_tool
- for start,axis in entries:cuts.append(full_entry_tool(solid,start,axis,a['bore'],a['radius'],p.FlexAntennaRetainingLip))
+ for start,axis in entries:
+  cuts.append(full_entry_tool(solid,start,axis,a['bore'],a['radius'],p.FlexAntennaRetainingLip))
+  if zip_tie_available(p) and p.FlexAntennaZipTieRecess:
+   low,width,depth=zip_tie_dimensions(p,a['length'])
+   grooves.append(zip_tie_tool(start,axis,a['radius'],low,width,depth))
  solid=solid.cut(Part.makeCompound(cuts)).removeSplitter()
+ for groove in grooves:solid=solid.cut(groove).removeSplitter()
  if not solid.isValid() or len(solid.Solids)!=1:raise ValueError('Rear antenna mount is disconnected. Increase bar width or reduce holder spacing.')
  # Only actual intersections constrain sleeves behind the frame.
  for role in ('BottomPlate','MidPlate','TopPlate','ElectronicsGuardLeft','ElectronicsGuardRight'):

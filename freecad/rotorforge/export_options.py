@@ -5,6 +5,8 @@ DEFAULT_EXPORT_OPTIONS = {
     'assembly_step': True,
     'carbon_dxf': True,
     'carbon_svg': True,
+    'carbon_stl': True,
+    'carbon_step': True,
     'printed_parts': True,
     'reports': True,
     'remove_existing_cam_layout': False,
@@ -27,6 +29,6 @@ def normalize_export_options(value=None):
             raise ValueError('Export selection '+key+' must be checked or unchecked.')
     if result['cam_solids'] and result['remove_existing_cam_layout']:
         raise ValueError('Cannot create and remove the CAM layout in the same export.')
-    if not any(result[k] for k in ('cam_solids','assembly_step','carbon_dxf','carbon_svg','printed_parts','reports')) and not result['remove_existing_cam_layout']:
+    if not any(result[k] for k in ('cam_solids','assembly_step','carbon_dxf','carbon_svg','carbon_stl','carbon_step','printed_parts','reports')) and not result['remove_existing_cam_layout']:
         raise ValueError('Select at least one export item.')
     return result
